@@ -307,6 +307,15 @@ assert.equal(
     ] }),
     [],
   );
+  // "Any one of these drops" -- a priced list with a target of one is a real
+  // tile, not a forgotten target, and the database has always accepted it.
+  assert.deepEqual(
+    validateTileRow({ rule: 'points', amount: 1, options: [
+      { label: 'Tanzanite fang', points: 1 },
+      { label: 'Magic fang',     points: 1 },
+    ] }),
+    [],
+  );
 }
 
 // ---- when a price is worth printing -----------------------------------------
