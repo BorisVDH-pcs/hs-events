@@ -110,6 +110,12 @@ export default function EventFeed({ events, teams, myTeamId }) {
           + (undone ? ` ${undone}` : '');
       }
       case 'slot_freed':
+        // ring_revealed: a sinking proved a locked-in square is water, so the
+        // server dropped the lock-in and revealed the miss (20260927120000).
+        if (e.payload?.reason === 'ring_revealed') {
+          return `The tile${at ? ` at ${at}` : ''} is water next to the sunk ship — `
+            + 'its lock-in was cleared. Lock in another target.';
+        }
         return 'An active tile is available now. Lock in another target.';
       default:
         return e.type;
