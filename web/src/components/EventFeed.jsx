@@ -109,6 +109,15 @@ export default function EventFeed({ events, teams, myTeamId }) {
           + `${p.tile_name ?? 'a tile'}${what} — now ${p.evidence_count}/${p.required_evidence}.`
           + (undone ? ` ${undone}` : '');
       }
+      case 'pet_jar_revoked': {
+        // Team-private, so it may name the previewed tile it took back.
+        const p = e.payload ?? {};
+        const preview = p.preview_withdrawn
+          ? ` and the preview of ${p.tile_name ?? 'a tile'}${at ? ` at ${at}` : ''}`
+          : '';
+        return `An admin withdrew ${p.submitted_by_name ?? who}'s pet/jar submission${preview}`
+          + ` — ${p.pet_jar_count} pet jar preview${p.pet_jar_count === 1 ? '' : 's'} now.`;
+      }
       case 'slot_freed':
         // ring_revealed: a sinking proved a locked-in square is water, so the
         // server dropped the lock-in and revealed the miss (20260927120000).

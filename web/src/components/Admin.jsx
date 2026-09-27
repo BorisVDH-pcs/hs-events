@@ -15,6 +15,7 @@ import BoardBuilder from './BoardBuilder.jsx';
 import AdminOverview from './AdminOverview.jsx';
 import TeamNameEditor from './TeamNameEditor.jsx';
 import EvidenceReview from './EvidenceReview.jsx';
+import PetJarReview from './PetJarReview.jsx';
 import DiscordWebhooks from './DiscordWebhooks.jsx';
 import PasswordResetDialog from './PasswordResetDialog.jsx';
 import { useConfirm } from './ConfirmDialog.jsx';
@@ -1029,6 +1030,16 @@ export default function Admin() {
               lets a team fire. This is for settling a dispute, or catching one.
             </p>
             <EvidenceReview gameId={game.id} />
+          </section>
+
+          <section className="card">
+            <h2>Pet/jar submissions</h2>
+            <p className="muted">
+              Every pet or jar screenshot, newest first. Each one earned its team a
+              tile preview. Revoking one takes that preview back. If the team has
+              already spent it, their latest preview is hidden again.
+            </p>
+            <PetJarReview gameId={game.id} />
           </section>
         </>
       )}

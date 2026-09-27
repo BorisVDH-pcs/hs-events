@@ -302,6 +302,25 @@ export const adminRevokeEvidence = (evidenceId, dryRun = false) =>
     p_dry_run: dryRun,
   });
 
+/** Every pet jar submission in a game, newest first, with its team's name. */
+export const adminListPetJars = (gameId) =>
+  rpc('admin_list_pet_jars', { p_game_id: gameId });
+
+/**
+ * Take one pet jar submission back, and the preview credit it earned
+ * (20260927130100). If the team has already spent that credit, their newest
+ * preview on an unclaimed tile is withdrawn instead. `dryRun` answers what
+ * would happen and commits nothing.
+ *
+ * Returns `{ count_before, count_after, credit_removed, preview_withdrawn,
+ * preview_position, preview_tile_name, nothing_to_take, team_name, … }`.
+ */
+export const adminRevokePetJar = (submissionId, dryRun = false) =>
+  rpc('admin_revoke_pet_jar', {
+    p_submission_id: submissionId,
+    p_dry_run: dryRun,
+  });
+
 /**
  * Discord webhook config (0040). `teamId` null means the shared/general
  * channel; a team id scopes it to that team's own private channel (evidence

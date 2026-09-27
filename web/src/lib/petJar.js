@@ -13,6 +13,21 @@ import { uploadToImgbb } from './imgbb.js';
 
 export const BUCKET = 'pet-jar';
 
+/** Signed URLs for private pet-jar objects, keyed by path. Same as evidence.js's. */
+export async function petJarSignedUrls(paths, expiresIn = 3600) {
+  if (!paths.length) return {};
+  const { data, error } = await supabase.storage
+    .from(BUCKET)
+    .createSignedUrls(paths, expiresIn);
+  if (error) throw new Error(error.message);
+
+  const out = {};
+  for (const row of data ?? []) {
+    if (row.signedUrl) out[row.path] = row.signedUrl;
+  }
+  return out;
+}
+
 /** Upload one pet/jar screenshot and credit the team's pet jar counter. */
 export async function uploadPetJar({ gameId, teamId, file }) {
   if (!file.type.startsWith('image/')) {
