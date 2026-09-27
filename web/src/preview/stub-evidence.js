@@ -25,3 +25,7 @@ export async function downscale() {
 export async function uploadEvidence() {
   throw new Error('Uploads are not available in the evidence harness.');
 }
+
+export function extFor() {
+  return 'webp';
+}

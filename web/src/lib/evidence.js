@@ -21,7 +21,29 @@ export const BUCKET = 'evidence';
 const MAX_EDGE = 1600;
 const QUALITY = 0.82;
 
-/** Re-encode to WebP at no more than MAX_EDGE on the long side. */
+// What the buckets accept, and their per-file cap (0021, 0039). Only matters
+// when downscale() has to hand back the original file untouched.
+const ACCEPTED = ['image/webp', 'image/png', 'image/jpeg'];
+const MAX_BYTES = 3 * 1024 * 1024;
+
+/** Storage path extension for an uploaded blob's type. */
+export function extFor(type) {
+  if (type === 'image/webp') return 'webp';
+  if (type === 'image/png') return 'png';
+  return 'jpg';
+}
+
+/**
+ * Re-encode to WebP at no more than MAX_EDGE on the long side.
+ *
+ * On some machines the canvas silently produces an empty image: a bad GPU
+ * driver makes the hardware-accelerated readback return blank pixels, in every
+ * browser at once, with no error. That player's evidence then uploads as a
+ * blank square while the same file posted to Discord looks fine. Two defences:
+ * `willReadFrequently` asks for a CPU-backed canvas, which skips the GPU path
+ * entirely, and the result is decoded again and checked — if it still comes
+ * out blank, the original file is uploaded instead of the re-encode.
+ */
 export async function downscale(file) {
   const bitmap = await createImageBitmap(file);
   const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
@@ -31,15 +53,61 @@ export async function downscale(file) {
   const canvas = document.createElement('canvas');
   canvas.width = w;
   canvas.height = h;
-  canvas.getContext('2d').drawImage(bitmap, 0, 0, w, h);
+  canvas.getContext('2d', { willReadFrequently: true }).drawImage(bitmap, 0, 0, w, h);
   bitmap.close?.();
 
-  const blob = await new Promise((resolve) =>
+  let blob = await new Promise((resolve) =>
     canvas.toBlob(resolve, 'image/webp', QUALITY)
   );
   // Safari only got canvas WebP in 14; fall back rather than fail the upload.
-  if (blob) return blob;
-  return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', QUALITY));
+  if (!blob) {
+    blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', QUALITY));
+  }
+
+  if (blob && !(await looksBlank(blob))) return blob;
+
+  // The re-encode is broken on this machine; the original is the only honest
+  // copy left. It skips the size saving, so it has to fit the bucket as-is.
+  if (!ACCEPTED.includes(file.type)) {
+    throw new Error('This browser could not process that image. Try saving it as a PNG or JPG.');
+  }
+  if (file.size > MAX_BYTES) {
+    throw new Error(
+      'This browser could not shrink that image, and it is too large to upload as-is ' +
+      '(3 MB max). Try cropping it, or saving it as a JPG.'
+    );
+  }
+  return file;
+}
+
+/**
+ * Whether an encoded image is empty: fully transparent, or one flat colour.
+ * No real OSRS screenshot is either, so a false positive only costs the size
+ * saving, never the upload.
+ */
+async function looksBlank(blob) {
+  try {
+    const bitmap = await createImageBitmap(blob);
+    const size = 64;
+    const check = document.createElement('canvas');
+    check.width = size;
+    check.height = size;
+    const ctx = check.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(bitmap, 0, 0, size, size);
+    bitmap.close?.();
+
+    const px = ctx.getImageData(0, 0, size, size).data;
+    for (let i = 4; i < px.length; i += 4) {
+      if (px[i] !== px[0] || px[i + 1] !== px[1] || px[i + 2] !== px[2] || px[i + 3] !== px[3]) {
+        return false;
+      }
+    }
+    // Every pixel identical — blank whether it is transparent or a flat fill.
+    return true;
+  } catch {
+    // Could not even decode what we just encoded: treat it as broken.
+    return true;
+  }
 }
 
 /**
@@ -70,7 +138,7 @@ export async function uploadEvidence({ gameId, teamId, claimId, file, optionId =
   const blob = await downscale(file);
   if (!blob) throw new Error('Could not read that image.');
 
-  const ext = blob.type === 'image/webp' ? 'webp' : 'jpg';
+  const ext = extFor(blob.type);
   const path = `${gameId}/${teamId}/${claimId}/${crypto.randomUUID()}.${ext}`;
 
   const { error: upErr } = await supabase.storage

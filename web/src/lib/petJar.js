@@ -8,7 +8,7 @@
 // yet would be a lie the database cannot catch.
 
 import { supabase } from './supabase.js';
-import { downscale } from './evidence.js';
+import { downscale, extFor } from './evidence.js';
 import { uploadToImgbb } from './imgbb.js';
 
 export const BUCKET = 'pet-jar';
@@ -22,7 +22,7 @@ export async function uploadPetJar({ gameId, teamId, file }) {
   const blob = await downscale(file);
   if (!blob) throw new Error('Could not read that image.');
 
-  const ext = blob.type === 'image/webp' ? 'webp' : 'jpg';
+  const ext = extFor(blob.type);
   const path = `${gameId}/${teamId}/${crypto.randomUUID()}.${ext}`;
 
   const { error: upErr } = await supabase.storage
