@@ -1,5 +1,5 @@
 import { fromPosition, coordLabel } from '../lib/board.js';
-import { evidenceEventText } from '../lib/eventText.js';
+import { evidenceEventText, revokedProgressText } from '../lib/eventText.js';
 
 /**
  * The live feed. Most event types never name a tile: `game_events` is readable
@@ -106,7 +106,7 @@ export default function EventFeed({ events, teams, myTeamId }) {
           p.game_reopened && 'The game has been reopened.',
         ].filter(Boolean).join(' ');
         return `An admin withdrew ${p.submitted_by_name ?? who}'s submission for `
-          + `${p.tile_name ?? 'a tile'}${what} — now ${p.evidence_count}/${p.required_evidence}.`
+          + `${p.tile_name ?? 'a tile'}${what} — now ${revokedProgressText(p)}.`
           + (undone ? ` ${undone}` : '');
       }
       case 'pet_jar_revoked': {

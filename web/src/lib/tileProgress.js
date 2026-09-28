@@ -6,6 +6,10 @@
 // still the authority — claim_is_complete() decides whether a shot actually
 // goes off — but the interface has to predict it correctly or the button lies.
 //
+// The counter half (`have`/`need`/`unit`) is mirrored once more in SQL by
+// claim_progress() (20260928120000), which stamps it on evidence events so the
+// feed and Discord print what this card prints. Change one, change both.
+//
 // The rules, mirroring the migration:
 //   points         sum the points of what was submitted; repeats count.
 //   value          same sum, except the numbers were typed by the submitter.
