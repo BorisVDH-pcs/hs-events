@@ -9,7 +9,7 @@ import {
   tileProgressText,
   unavailableSetOptionIds,
 } from '../src/lib/tileProgress.js';
-import { evidenceEventText } from '../src/lib/eventText.js';
+import { evidenceEventText, revokedProgressText } from '../src/lib/eventText.js';
 import { millionsLabel, millionsToTenths } from '../src/lib/millions.js';
 
 // ---- the tiles a rule refuses to describe -----------------------------------
@@ -206,6 +206,52 @@ assert.equal(
     required_evidence: 2500, points_awarded: 600, points_total: 1900,
   }),
   'Boris submitted a drop worth 60m for Boss uniques (190/250m).'
+);
+
+// ---- the counter stamped on the event (20260928120000) -----------------------
+// claim_progress() writes the card's counter onto the event, so the feed and
+// Discord say what the board says instead of screenshots over the target.
+assert.equal(
+  evidenceEventText({
+    completion: 'each_set', uploaded_by_name: 'Boris', tile_name: 'GWD',
+    option_label: 'Bandos chestplate', required_evidence: 1, evidence_count: 4,
+    progress: { unit: 'sets', have: 2, need: 4 },
+  }),
+  'Boris submitted Bandos chestplate for GWD (2/4 sets complete).'
+);
+assert.equal(
+  evidenceEventText({
+    completion: 'one_set', uploaded_by_name: 'Boris', tile_name: 'Barrows',
+    option_label: "Dharok's helm", required_evidence: 1,
+    progress: { unit: 'best_set', have: 3, need: 4, set: 'Dharok' },
+  }),
+  "Boris submitted Dharok's helm for Barrows (best set (Dharok) 3/4)."
+);
+assert.equal(
+  evidenceEventText({
+    completion: 'points_per_set', uploaded_by_name: 'Boris', tile_name: 'Wildy',
+    option_label: 'Tyrannical ring', required_evidence: 1,
+    progress: { unit: 'points', have: 3, need: 5 },
+  }),
+  'Boris submitted Tyrannical ring for Wildy (3/5 pts).'
+);
+assert.equal(
+  evidenceEventText({
+    completion: 'value', uploaded_by_name: 'Boris', tile_name: 'Revs',
+    required_evidence: 150, points_awarded: 5, points_total: 45, evidence_count: 1,
+    progress: { unit: 'value', have: 45, need: 150 },
+  }),
+  'Boris submitted a drop worth 0.5m for Revs (4.5/15m).'
+);
+assert.equal(
+  revokedProgressText({ completion: 'each_set', progress: { unit: 'items', have: 1, need: 2 } }),
+  '1/2 items collected'
+);
+// Unstamped: only a plain tile's screenshots-left is an honest counter.
+assert.equal(revokedProgressText({ evidence_count: 2, required_evidence: 3 }), '2/3');
+assert.equal(
+  revokedProgressText({ completion: 'value', evidence_count: 1, required_evidence: 150 }),
+  'updated'
 );
 
 // ---- a drop that may only count so many times -------------------------------
