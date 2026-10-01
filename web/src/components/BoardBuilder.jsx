@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { GRID, colLetter, coordLabel, toPosition, fromPosition } from '../lib/board.js';
+import { cardCells } from '../lib/bingo.js';
 import {
   newDraft, draftFromRow, payloadFromDraft, payloadFromRow, ruleSummary, nameKey,
 } from '../lib/tileDraft.js';
@@ -86,7 +87,9 @@ export default function BoardBuilder({
   //             the record of the match lie.
   const live = game.status === 'active';
   const locked = !live && game.status !== 'setup' && game.status !== 'placement';
-  const need = game.grid_size * game.grid_size;
+  // 10 for battleships; a bingo card can be anything from 3 to 10.
+  const size = game.grid_size ?? GRID;
+  const need = size * size;
 
   const byPosition = useMemo(
     () => new Map(tiles.map((t) => [t.position, t])),
@@ -263,9 +266,15 @@ export default function BoardBuilder({
    * returns null once the board is full, which is what stops the selection
    * jumping somewhere arbitrary at the end.
    */
+  //
+  // Walks the card in reading order rather than by position number: positions
+  // keep the 10-column numbering at every card size, so on a 5x5 bingo they
+  // run 1-5, 11-15, ... and "position + 1" is not always a square on the card.
   function nextEmptyAfter(position) {
-    for (let step = 1; step <= need; step += 1) {
-      const p = ((position - 1 + step) % need) + 1;
+    const order = cardCells(size).map((c) => c.position);
+    const from = order.indexOf(position);
+    for (let step = 1; step <= order.length; step += 1) {
+      const p = order[(from + step) % order.length];
       if (!byPosition.has(p)) return fromPosition(p);
     }
     return null;
@@ -472,7 +481,7 @@ export default function BoardBuilder({
           Tiles are locked once the game is {statusLabel(game.status)}. Below is
           the board that is running.
         </p>
-        <BuilderGrid tiles={byPosition} at={null} onPick={() => {}} />
+        <BuilderGrid size={size} tiles={byPosition} at={null} onPick={() => {}} />
       </section>
     );
   }
@@ -788,6 +797,7 @@ export default function BoardBuilder({
        * a red button to misread. */}
       <div className={`builder${held ? ' is-holding' : ''}`}>
         <BuilderGrid
+          size={size}
           tiles={byPosition}
           live={live}
           playerView={playerView}
@@ -1598,7 +1608,7 @@ function LibrarySearch({ query, setQuery, count, total }) {
  * so it is a real button with a pressed state, and an empty one reads as an
  * invitation rather than as the error TileBoard correctly calls it.
  */
-function BuilderGrid({ tiles, at, onPick, playerView = false, live = false }) {
+function BuilderGrid({ size = GRID, tiles, at, onPick, playerView = false, live = false }) {
   const gridRef = useRef(null);
   // Which cell the Tab key lands on — a roving tabindex, so the board is one
   // stop on the way through the page rather than a hundred. Without it,
@@ -1638,7 +1648,7 @@ function BuilderGrid({ tiles, at, onPick, playerView = false, live = false }) {
     } else if (e.key === 'Home') {
       col = 1;
     } else if (e.key === 'End') {
-      col = GRID;
+      col = size;
     } else {
       return;
     }
@@ -1646,8 +1656,8 @@ function BuilderGrid({ tiles, at, onPick, playerView = false, live = false }) {
     // Clamped rather than wrapped. Wrapping off the end of row 3 into row 4
     // reads as a jump on a grid whose whole point is that position means
     // something.
-    row = Math.min(GRID, Math.max(1, row));
-    col = Math.min(GRID, Math.max(1, col));
+    row = Math.min(size, Math.max(1, row));
+    col = Math.min(size, Math.max(1, col));
     e.preventDefault();
 
     const position = toPosition(row, col);
@@ -1665,16 +1675,21 @@ function BuilderGrid({ tiles, at, onPick, playerView = false, live = false }) {
         className="tile-board builder-board"
         ref={gridRef}
         onKeyDown={onKeyDown}
+        // Only a smaller card overrides the stylesheet's ten columns, and it
+        // drops the minimum width that keeps ten of them legible.
+        style={size !== GRID
+          ? { gridTemplateColumns: `1.4rem repeat(${size}, minmax(88px, 1fr))`, minWidth: 0 }
+          : undefined}
       >
         <div className="corner" />
-        {Array.from({ length: GRID }, (_, i) => (
+        {Array.from({ length: size }, (_, i) => (
           <div key={`h${i}`} className="axis">{colLetter(i + 1)}</div>
         ))}
-        {Array.from({ length: GRID }, (_, r) => {
+        {Array.from({ length: size }, (_, r) => {
           const row = r + 1;
           return [
             <div key={`a${row}`} className="axis">{row}</div>,
-            ...Array.from({ length: GRID }, (_, c) => {
+            ...Array.from({ length: size }, (_, c) => {
               const col = c + 1;
               const position = toPosition(row, col);
               const tile = tiles.get(position);

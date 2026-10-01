@@ -56,7 +56,23 @@ export default function EventFeed({ events, teams, myTeamId }) {
       case 'team_renamed':
         return `${e.payload?.old_name ?? 'A team'} is now ${e.payload?.new_name ?? who}.`;
       case 'game_started':
-        return 'The game has begun — fleets are locked.';
+        return e.payload?.mode === 'bingo'
+          ? 'The bingo has begun — every tile is open.'
+          : 'The game has begun — fleets are locked.';
+      case 'tile_completed':
+        // Public: the bingo card is open to everyone, so naming the tile gives
+        // nothing away.
+        return `${who} completed ${e.payload?.tile_name ?? 'a tile'}${at ? ` at ${at}` : ''}`
+          + ` — ${e.payload?.tiles_completed}/${e.payload?.tiles_total} tiles.`;
+      case 'game_ended': {
+        const p = e.payload ?? {};
+        if (!e.team_id) return p.reason === 'time_up'
+          ? "Time's up! No tiles were completed, so nobody wins."
+          : 'The organiser ended the game. No tiles were completed, so nobody wins.';
+        if (p.reason === 'full_card') return `${who} filled the whole card and wins the bingo!`;
+        return `${p.reason === 'time_up' ? "Time's up!" : 'The organiser ended the game.'}`
+          + ` ${who} wins with ${p.tiles_completed}/${p.tiles_total} tiles.`;
+      }
       case 'tile_claimed':
         return `${who} locked in a tile${at ? ` at ${at}` : ''}.`;
       case 'tile_relocked':
@@ -82,6 +98,7 @@ export default function EventFeed({ events, teams, myTeamId }) {
       case 'game_won':
         return `${who} wins — the enemy fleet is gone.`;
       case 'game_reset':
+        if (e.payload?.mode === 'bingo') return 'The bingo has been reset — every tile is open again.';
         return e.payload?.fleets_cleared
           ? 'The game has been reset — fleets need placing again.'
           : 'The game has been reset. Fleets are unchanged.';
@@ -102,8 +119,10 @@ export default function EventFeed({ events, teams, myTeamId }) {
           p.unfired && (p.parked
             ? 'The shot has been taken back and the tile is unlocked — lock it in again to finish it.'
             : 'The shot has been taken back and the tile is active again.'),
+          p.uncompleted && 'The tile is no longer complete.',
           p.ship_refloated && 'A ship is no longer sunk.',
           p.game_reopened && 'The game has been reopened.',
+          p.winner_changed && 'The winner has changed.',
         ].filter(Boolean).join(' ');
         return `An admin withdrew ${p.submitted_by_name ?? who}'s submission for `
           + `${p.tile_name ?? 'a tile'}${what} — now ${revokedProgressText(p)}.`

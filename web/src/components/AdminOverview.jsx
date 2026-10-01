@@ -350,7 +350,7 @@ function keyToRowCol(key) {
 }
 
 /** The admin RPC deliberately returns summary counts, not the whole option list. */
-function adminProgress(cell) {
+export function adminProgress(cell) {
   const rule = cell.completion ?? 'points';
   if (rule === 'one_set' || rule === 'each_set') {
     return `${cell.evidence_count} submission${cell.evidence_count === 1 ? '' : 's'}`;

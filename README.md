@@ -5,18 +5,28 @@
 
 # HS Battleships
 
-HS Battleships is a browser-based team event that combines the strategy of
-Battleships with collaborative Old School RuneScape challenges. Multiple matches
-can be managed independently, with each match containing two teams and a concealed
-game board.
+A browser-based platform for High Society clan events: teams complete Old School
+RuneScape challenges, submit screenshots as evidence, and the site keeps score
+live. It started as a single game, Battleships, and now runs several **game
+modes** on the same database, accounts, tile catalogue and admin console.
 
-## Game overview
+Every game has a `mode`, picked when the organiser creates it:
+
+| Mode | Teams | In one line |
+|---|---|---|
+| **Battleships** | exactly 2 | Hidden fleets; every completed tile fires a shot at the enemy board. |
+| **Bingo** | any number | One open card for everyone; every tile can be worked at any time, most tiles completed wins. |
+
+More modes are planned. What they share, and how a new one slots in, is in
+[docs/multi-game-plan.md](docs/multi-game-plan.md).
+
+## Battleships
 
 Each team secretly places a fleet on its own grid. Players select concealed
 positions on the opposing board, complete the associated in-game objective, and
 submit evidence to fire at that position.
 
-## Rules and mechanics
+### Rules and mechanics
 
 - There is no fixed turn order; teams can act whenever they have an available task
   slot.
@@ -31,8 +41,42 @@ submit evidence to fire at that position.
 - The first team to sink the opposing fleet wins.
 - Match activity and team statistics update live for the players.
 
-The application also provides tools for organisers to configure matches, manage
-teams and players, review evidence, and monitor progress.
+## Bingo
+
+A square card, 3×3 up to 10×10, the same for every team. Any number of teams
+play it at once.
+
+- The card is revealed when the organiser starts the game. Until then it is
+  hidden, so nobody can start working ahead.
+- **Every tile is open from the start**, in any order. There is nothing to lock
+  in and no limit on how many tiles a team works at once.
+- A tile is **completed** by submitting the evidence its completion rule asks for,
+  exactly as in Battleships. The first submission on a tile quietly opens it for
+  that team, so players never see a claim step.
+- **One point per completed tile.** Standings are live, and anyone can look at
+  another team's card to see which tiles they have completed (their screenshots
+  and part-done progress stay private).
+- The game ends when **a team fills the whole card**, or when the **end time**
+  passes, whichever comes first. The end time is optional. Without one, the game
+  runs until a card is full or the organiser presses *End game now*.
+- The winner has the most completed tiles. A tie goes to the team that reached
+  its total first. If nobody completed anything, nobody wins.
+
+There is no scheduler behind the timer. From the end time onwards the database
+refuses every submission, which fixes the result at that moment. The first open
+page whose countdown reaches zero then asks the server to record it
+(`bingo_settle`), and every page after that is a no-op.
+
+Line bonuses (a full row or column) are not scored yet. The standings carry each
+team's completed tile ids, so adding them later does not need another table.
+
+## Organising
+
+The admin console is the same for every mode. **Games** creates a game and
+chooses its mode. **Configure** holds the board builder, teams, roster and
+Discord. **Track** shows the live boards and the evidence log. The setup
+checklist changes per mode: Battleships needs two teams, captains and placed
+fleets, while Bingo needs a full card and at least one player on every team.
 
 ## Stack
 
@@ -52,6 +96,11 @@ Two things must stay secret from the opposing team: **ship placement** and the
 the client would make both reachable. Instead, Row Level Security hides them and
 every mutation goes through an RPC that validates server-side — so there is no
 request a player can craft to peek or cheat.
+
+Bingo keeps different secrets, through the same mechanism: the whole card until
+the game starts, and each team's screenshots and part-done progress always.
+`tiles_for_me()` decides what each player can see for both modes. The bingo end
+time is enforced in `add_evidence` itself, not by the page's countdown.
 
 ## How a tile is finished
 
@@ -158,8 +207,10 @@ wrong, are in [docs/v4-handover.md](docs/v4-handover.md).
 
 ## Setup
 
-The migrations in `supabase/migrations/` are already applied to the **Battleships**
-Supabase project. For a fresh project, run them in order in the SQL Editor.
+The migrations in `supabase/migrations/` are applied to the **Battleships**
+Supabase project by CI (`supabase db push`) when they reach `main`. Don't apply
+them by hand, because that leaves the migration ledger out of step. For a fresh
+project, run them in order in the SQL Editor.
 
 ```bash
 npm install --prefix web
@@ -173,6 +224,19 @@ npm run dev --prefix web
 ```
 
 The dev server runs on **port 5174**, so it can sit alongside HighSocietyScape on 5173.
+
+Two screens can be looked at **without a database**, since the dev server talks
+to the live project. `npm run preview:evidence --prefix web` starts a harness on
+port 5176 that swaps `lib/supabase.js` for canned data:
+
+- `/preview-evidence.html`: the evidence review and revoke dialog.
+- `/preview-bingo.html`: a 5×5 bingo with four teams, from a player's side
+  (running, finished, preparation) and the organiser's.
+
+They show what the screens look like. They prove nothing about the SQL.
+
+`npm run test:all --prefix web` runs the self-tests for the pure helpers, bingo
+included.
 
 ## Deploying
 
