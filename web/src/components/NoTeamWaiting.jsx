@@ -1,5 +1,5 @@
 import { useCountdown, pad } from '../lib/countdown.js';
-import { REPO_URL } from '../lib/site.js';
+import { REPO_URL, waitingWords } from '../lib/site.js';
 
 const DATE_FORMAT = new Intl.DateTimeFormat(undefined, {
   weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
@@ -11,9 +11,13 @@ const DATE_FORMAT = new Intl.DateTimeFormat(undefined, {
  * has not been opened for placement yet. `assigned` only changes the copy;
  * the countdown itself is identical, because neither case has anything to
  * click on the board yet.
+ *
+ * The words follow the game's mode (waitingWords): "await orders" is a
+ * battleships line, and a bingo player should not be told to man the guns.
  */
-export default function NoTeamWaiting({ gameName, startsAt, assigned = false, teamName }) {
+export default function NoTeamWaiting({ gameName, mode, startsAt, assigned = false, teamName }) {
   const remaining = useCountdown(startsAt);
+  const words = waitingWords(mode);
 
   const units = [
     ['days', remaining.days, 'Days'],
@@ -25,15 +29,15 @@ export default function NoTeamWaiting({ gameName, startsAt, assigned = false, te
   return (
     <section className="waiting" aria-labelledby="waiting-title">
       <div className="waiting-radar" aria-hidden="true"><span /></div>
-      <h1 id="waiting-title">Please await orders</h1>
+      <h1 id="waiting-title">{words.title}</h1>
       {gameName && <p className="waiting-game">{gameName}</p>}
       <p className="waiting-lead">
         {assigned
-          ? `You're aboard ${teamName ?? 'your team'}. Keep this channel open — the board opens once an admin gives the order.`
+          ? words.assigned(teamName ?? 'your team')
           : "You haven't been placed on a team yet. An admin will assign you once the teams are formed."}
       </p>
       {remaining.set && (
-        <div className="countdown" aria-live="polite" aria-label={remaining.started ? 'The battle has started' : `Battle begins in ${remaining.days} days, ${remaining.hours} hours, ${remaining.minutes} minutes, and ${remaining.seconds} seconds`}>
+        <div className="countdown" aria-live="polite" aria-label={remaining.started ? 'Start time reached' : `Starts in ${remaining.days} days, ${remaining.hours} hours, ${remaining.minutes} minutes, and ${remaining.seconds} seconds`}>
           {units.map(([key, value, label]) => (
             <div className="countdown-unit" key={key}>
               <span className="countdown-value">{key === 'days' ? value : pad(value)}</span>
@@ -47,8 +51,8 @@ export default function NoTeamWaiting({ gameName, startsAt, assigned = false, te
         {!remaining.set
           ? 'An admin will announce a start time soon.'
           : remaining.started
-            ? 'Standing by for the order to start.'
-            : `Battle stations open ${DATE_FORMAT.format(new Date(startsAt))}`}
+            ? 'Standing by for an admin to start the game.'
+            : `${words.opens} ${DATE_FORMAT.format(new Date(startsAt))}`}
       </p>
       <footer className="waiting-credits">
         <span>

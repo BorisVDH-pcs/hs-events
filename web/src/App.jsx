@@ -507,6 +507,7 @@ export default function App() {
       {waitingScreen && (
         <NoTeamWaiting
           gameName={game.game?.name}
+          mode={game.game?.mode}
           startsAt={game.game?.starts_at}
           assigned={notYetOpen}
           teamName={myTeam?.name}
@@ -557,7 +558,7 @@ export default function App() {
               time itself is still worth a captain keeping an eye on while
               arranging ships — it says nothing changes if it runs out. */}
           {isPreparation && myTeamId && (
-            <StartTimeBadge startsAt={game.game.starts_at} />
+            <StartTimeBadge startsAt={game.game.starts_at} mode={game.game.mode} />
           )}
 
           {/* Prep only, and first: naming the team is the opening move, and

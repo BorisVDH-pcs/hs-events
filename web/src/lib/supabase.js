@@ -163,6 +163,56 @@ export const adminSetEndTime = (gameId, endsAt) =>
 export const adminEndGame = (gameId) =>
   rpc('admin_end_game', { p_game_id: gameId });
 
+// ---- Snakes and Ladders, organiser side (20261002120100, 20261003120000) ----
+
+/**
+ * The snakes and ladders on a board, as [{ from_tile, to_tile }]. board_jumps
+ * is readable by anyone, so this is a plain select rather than an RPC; `gameId`
+ * null reads every game's at once, for the Games list.
+ */
+export async function listBoardJumps(gameId = null) {
+  let q = supabase.from('board_jumps').select('game_id, from_tile, to_tile').order('from_tile');
+  if (gameId) q = q.eq('game_id', gameId);
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+/** Replace every snake and ladder: `jumps` is [{ from, to }]. Before the start only. */
+export const adminSetSnakes = (gameId, jumps) =>
+  rpc('admin_set_snakes', { p_game_id: gameId, p_snakes: jumps });
+
+/** Every team, furthest along first — also who wins if the game ends now. */
+export const snakesStandings = (gameId) =>
+  rpc('snakes_standings', { p_game_id: gameId });
+
+/** Send a team back a d6. Answers with the move. */
+export const adminSnakesPunish = (teamId) =>
+  rpc('admin_snakes_punish', { p_team_id: teamId });
+
+/** Put a team on a tile (not a snake head or a ladder's foot). Answers with the move. */
+export const adminSnakesMove = (teamId, tile) =>
+  rpc('admin_snakes_move', { p_team_id: teamId, p_tile: tile });
+
+/** Give rollbacks, or take them back with a negative amount. Answers with the new count. */
+export const adminSnakesGiveRollback = (teamId, amount) =>
+  rpc('admin_snakes_give_rollback', { p_team_id: teamId, p_amount: amount });
+
+/** The team's current tile counts as done, whatever its evidence says. */
+export const adminSnakesCompleteTile = (teamId) =>
+  rpc('admin_snakes_complete_tile', { p_team_id: teamId });
+
+/** Open a completed tile again for that team; its evidence is kept. */
+export const adminSnakesUncompleteTile = (teamId, tile) =>
+  rpc('admin_snakes_uncomplete_tile', { p_team_id: teamId, p_tile: tile });
+
+/**
+ * End a running game; `winnerId` is the team the organiser was shown as in
+ * front. Refused if the standings moved in between.
+ */
+export const adminSnakesEndGame = (gameId, winnerId) =>
+  rpc('admin_snakes_end_game', { p_game_id: gameId, p_winner_team_id: winnerId });
+
 export const adminSetMember = (teamId, profileId, role) =>
   rpc('admin_set_member', { p_team_id: teamId, p_profile_id: profileId, p_role: role });
 

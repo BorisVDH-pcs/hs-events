@@ -94,7 +94,18 @@ function consequences(p) {
 
   // Bingo has no shot, ship or slot -- only whether the tile still counts, and
   // what that does to the result.
-  if (p.mode === 'bingo') {
+  if (p.mode === 'snakes') {
+    // Snakes and Ladders: the tile stops counting, and nobody moves.
+    if (p.uncompleted) {
+      out.push(`Tile ${p.position} no longer counts as done for ${p.team_name}. Their marker does not move — `
+        + 'if they are standing on it, they must finish it again before they can roll.');
+    } else if (p.was_completed) {
+      out.push('The tile stays done — it still meets its target without this piece, or an organiser completed it.');
+    }
+    if (p.game_reopened) out.push(`The game is reopened — ${p.team_name} no longer has tile 100 done.`);
+    if (p.winner_changed) out.push('The winner changes to whoever is now furthest along.');
+    out.push('Other teams are told nothing, though the standings show the lower count.');
+  } else if (p.mode === 'bingo') {
     if (p.uncompleted) {
       out.push(`The tile is no longer complete — it stops counting for ${p.team_name}, who can submit against it again.`);
     } else if (p.was_completed) {
@@ -130,7 +141,7 @@ function consequences(p) {
   // this in the middle of a live event, and "does the other team find out"
   // is the question they will actually have — worth answering in the dialog
   // rather than leaving them to reason about RLS policies.
-  if (p.mode !== 'bingo') {
+  if (p.mode !== 'bingo' && p.mode !== 'snakes') {
     out.push(p.announced_to_all
       ? `The other team is told a shot was withdrawn — not which square, which tile, or what was on it.`
       : `The other team is told nothing.`);

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { GRID, colLetter, coordLabel, toPosition, fromPosition } from '../lib/board.js';
 import { cardCells } from '../lib/bingo.js';
+import { boardOrder, tileCell, LAST_TILE } from '../lib/snakes.js';
 import {
   newDraft, draftFromRow, payloadFromDraft, payloadFromRow, ruleSummary, nameKey,
 } from '../lib/tileDraft.js';
@@ -38,7 +39,7 @@ export default function BoardBuilder({
   game, tiles, library, libraryError, busy,
   onSetTile, onClearTile, onSaveLibraryTile, onDeleteLibraryTile,
   onAutofillBoard, onShuffleBoard, onReshuffleBoard, onClearBoard,
-  onSaveBoard, onLoadBoard, onDeleteBoard,
+  onSaveBoard, onLoadBoard, onDeleteBoard, jumps = [],
 }) {
   // Saved boards. Held here rather than in the console's own slices because
   // nothing outside this panel reads them, and re-fetching a list of names
@@ -89,7 +90,21 @@ export default function BoardBuilder({
   const locked = !live && game.status !== 'setup' && game.status !== 'placement';
   // 10 for battleships; a bingo card can be anything from 3 to 10.
   const size = game.grid_size ?? GRID;
-  const need = size * size;
+
+  // Snakes and Ladders: the same hundred squares, numbered along the snake
+  // path (the position IS the tile number) -- and a snake's head or a ladder's
+  // foot needs no task, because landing there moves a team straight on.
+  const snakes = game.mode === 'snakes';
+  const jumpStarts = useMemo(
+    () => new Map(snakes ? jumps.map((j) => [Number(j.from), Number(j.to)]) : []),
+    [snakes, jumps]
+  );
+  const need = size * size - jumpStarts.size;
+  // Tiles left on a jump start by an older layout or a loaded board: never
+  // played, and worth clearing so the board says what is really on it.
+  const stranded = tiles.filter((t) => jumpStarts.has(t.position));
+  const filled = tiles.length - stranded.length;
+  const squareLabel = (row, col) => (snakes ? `Tile ${toPosition(row, col)}` : coordLabel(row, col));
 
   const byPosition = useMemo(
     () => new Map(tiles.map((t) => [t.position, t])),
@@ -120,10 +135,10 @@ export default function BoardBuilder({
       // earlier square is the more useful half of "it is already somewhere".
       if (!key || map.has(key)) continue;
       const { row, col } = fromPosition(t.position);
-      map.set(key, coordLabel(row, col));
+      map.set(key, snakes ? `Tile ${t.position}` : coordLabel(row, col));
     }
     return map;
-  }, [tiles, current]);
+  }, [tiles, current, snakes]);
 
   /**
    * The artwork, which is the whole of what a player sees.
@@ -270,8 +285,11 @@ export default function BoardBuilder({
   // Walks the card in reading order rather than by position number: positions
   // keep the 10-column numbering at every card size, so on a 5x5 bingo they
   // run 1-5, 11-15, ... and "position + 1" is not always a square on the card.
+  // A snakes board walks the path, 1 to 100, past the squares that need no task.
   function nextEmptyAfter(position) {
-    const order = cardCells(size).map((c) => c.position);
+    const order = snakes
+      ? Array.from({ length: LAST_TILE }, (_, i) => i + 1).filter((n) => !jumpStarts.has(n))
+      : cardCells(size).map((c) => c.position);
     const from = order.indexOf(position);
     for (let step = 1; step <= order.length; step += 1) {
       const p = order[(from + step) % order.length];
@@ -366,7 +384,7 @@ export default function BoardBuilder({
   function remember(row, col) {
     setUndo({
       row, col,
-      label: coordLabel(row, col),
+      label: squareLabel(row, col),
       prev: byPosition.get(toPosition(row, col)) ?? null,
     });
   }
@@ -418,6 +436,7 @@ export default function BoardBuilder({
   async function paint(row, col) {
     const existing = byPosition.get(toPosition(row, col));
     if (live && existing?.claimed) return;
+    if (jumpStarts.has(toPosition(row, col))) return;
     remember(row, col);
     await onSetTile(row, col, payloadFromRow(held, { libraryId: held.id }));
   }
@@ -481,7 +500,8 @@ export default function BoardBuilder({
           Tiles are locked once the game is {statusLabel(game.status)}. Below is
           the board that is running.
         </p>
-        <BuilderGrid size={size} tiles={byPosition} at={null} onPick={() => {}} />
+        <BuilderGrid size={size} tiles={byPosition} at={null} onPick={() => {}}
+                     snakes={snakes} jumpStarts={jumpStarts} />
       </section>
     );
   }
@@ -497,8 +517,10 @@ export default function BoardBuilder({
           </>
         ) : (
           <>
-            {tiles.length} of {need} squares filled.
-            {tiles.length < need && ' Click an empty square, then a tile to put in it.'}
+            {filled} of {need} squares filled.
+            {filled < need && ' Click an empty square, then a tile to put in it.'}
+            {snakes && jumpStarts.size > 0 && ` The ${jumpStarts.size} snake heads and ladder bottoms need no task.`}
+            {snakes && jumpStarts.size === 0 && ' Place the snakes and ladders first: their squares need no task.'}
             {' Arrow keys move around the board; Enter opens the square.'}
           </>
         )}
@@ -669,7 +691,7 @@ export default function BoardBuilder({
                 it needs no confirmation. It is the first draft of a board,
                 not the finished one: the point is to spend the evening on the
                 dozen squares worth arguing about instead of all hundred. */}
-            {tiles.length < need && (
+            {filled < need && (
               <button
                 disabled={busy || library.length === 0 || Boolean(libraryError)}
                 onClick={() => { setUndo(null); onAutofillBoard(); }}
@@ -677,8 +699,8 @@ export default function BoardBuilder({
                   ? 'The catalogue has no tiles to deal'
                   : undefined}
               >
-                Fill the {need - tiles.length} empty square
-                {need - tiles.length === 1 ? '' : 's'} at random
+                Fill the {need - filled} empty square
+                {need - filled === 1 ? '' : 's'} at random
               </button>
             )}
 
@@ -744,6 +766,31 @@ export default function BoardBuilder({
        * of selecting it, which is not what the rest of this screen has taught
        * you -- and a mode you can forget you are in is how a board gets twelve
        * copies of one tile. Three ways out, all of them named here. */}
+      {/* Tasks on a square nobody can stand on, said with the one press that
+          tidies them. Only before the start: during a game nothing moves. */}
+      {!live && stranded.length > 0 && (
+        <p className="builder-undo">
+          <span>
+            <b>{stranded.length}</b> task{stranded.length === 1 ? ' sits' : 's sit'} on
+            a snake head or ladder bottom ({stranded.map((t) => t.position).join(', ')}) —
+            nobody lands there, so {stranded.length === 1 ? 'it is' : 'they are'} never played.
+          </span>
+          <button
+            className="ghost"
+            disabled={busy}
+            onClick={async () => {
+              setUndo(null);
+              for (const t of stranded) {
+                const { row, col } = fromPosition(t.position);
+                if (!(await onClearTile(row, col))) break;
+              }
+            }}
+          >
+            Clear {stranded.length === 1 ? 'it' : 'them'}
+          </button>
+        </p>
+      )}
+
       {held && (
         <p className="builder-holding">
           <TileIcon slug={held.icon} fallback={null} />
@@ -799,6 +846,8 @@ export default function BoardBuilder({
         <BuilderGrid
           size={size}
           tiles={byPosition}
+          snakes={snakes}
+          jumpStarts={jumpStarts}
           live={live}
           playerView={playerView}
           at={at}
@@ -871,11 +920,23 @@ export default function BoardBuilder({
                 onHold={(entry) => setHeld(entry)}
               />
             </>
+          ) : at && jumpStarts.has(toPosition(at.row, at.col)) ? (
+            /* A snake's head or a ladder's foot: nothing to build. Said here
+               rather than refused, so pointing at one explains itself. */
+            <JumpSquarePanel
+              label={squareLabel(at.row, at.col)}
+              n={toPosition(at.row, at.col)}
+              to={jumpStarts.get(toPosition(at.row, at.col))}
+              tile={live ? null : current}
+              busy={busy}
+              onClose={() => setAt(null)}
+              onClear={() => { remember(at.row, at.col); onClearTile(at.row, at.col); }}
+            />
           ) : editing ? (
             <>
               <h3>
                 {editing.what === 'square'
-                  ? `${coordLabel(at.row, at.col)} — ${current ? 'edit this square' : 'a one-off tile'}`
+                  ? `${squareLabel(at.row, at.col)} — ${current ? 'edit this square' : 'a one-off tile'}`
                   : editing.from ? `New tile, based on ${editing.from.name}` : 'New catalogue tile'}
               </h3>
               {/* Two situations now, and only one of them is a decision the
@@ -898,17 +959,17 @@ export default function BoardBuilder({
                     ? <>Saving adds a second entry — <b>{editing.from.name}</b> stays
                         exactly as it is.</>
                     : <>A new entry in the catalogue.</>}
-                  {at && <> It goes onto <b>{coordLabel(at.row, at.col)}</b> as well.</>}
+                  {at && <> It goes onto <b>{squareLabel(at.row, at.col)}</b> as well.</>}
                 </p>
               )}
               <TileForm
                 draft={editing.draft}
                 onChange={(draft) => setEditing({ ...editing, draft })}
-                at={editing.what === 'square' ? coordLabel(at.row, at.col) : 'This tile'}
+                at={editing.what === 'square' ? squareLabel(at.row, at.col) : 'This tile'}
                 busy={busy}
                 saveLabel={
                   editing.what === 'square' ? 'Save square'
-                    : at ? `Save and place on ${coordLabel(at.row, at.col)}`
+                    : at ? `Save and place on ${squareLabel(at.row, at.col)}`
                       : 'Save to catalogue'
                 }
                 onSave={editing.what === 'square' ? saveSquare : () => saveLibrary()}
@@ -955,13 +1016,14 @@ export default function BoardBuilder({
             <PlayerSquarePreview
               key={`${at.row}-${at.col}-${current?.id ?? 'empty'}`}
               at={at}
+              label={squareLabel(at.row, at.col)}
               tile={current}
               onClose={() => setAt(null)}
             />
           ) : at ? (
             <>
               <div className="row builder-head">
-                <h3>{coordLabel(at.row, at.col)}</h3>
+                <h3>{squareLabel(at.row, at.col)}</h3>
                 <button className="ghost" onClick={() => setAt(null)}>Done</button>
               </div>
 
@@ -1035,7 +1097,7 @@ export default function BoardBuilder({
                   <CatalogueList
                     entries={matches}
                     mode="place"
-                    at={coordLabel(at.row, at.col)}
+                    at={squareLabel(at.row, at.col)}
                     busy={busy}
                     placedAt={placedAt}
                     onPlace={place}
@@ -1130,8 +1192,7 @@ export default function BoardBuilder({
  * nothing for a tile with no small print and no priced drops — the same
  * absence a player would see — so this needs no extra case for that.
  */
-function PlayerSquarePreview({ at, tile, onClose }) {
-  const label = coordLabel(at.row, at.col);
+function PlayerSquarePreview({ at, tile, onClose, label = coordLabel(at.row, at.col) }) {
 
   // The test session lives here rather than inside the uploader, because a
   // player's card, "?" panel and picker are all drawn from ONE `tiles_for_me`
@@ -1608,7 +1669,39 @@ function LibrarySearch({ query, setQuery, count, total }) {
  * so it is a real button with a pressed state, and an empty one reads as an
  * invitation rather than as the error TileBoard correctly calls it.
  */
-function BuilderGrid({ size = GRID, tiles, at, onPick, playerView = false, live = false }) {
+/** A snake's head or a ladder's foot, picked on a snakes board. */
+function JumpSquarePanel({ label, n, to, tile, busy, onClose, onClear }) {
+  return (
+    <>
+      <div className="row builder-head">
+        <h3>{label}</h3>
+        <button className="ghost" onClick={onClose}>Done</button>
+      </div>
+      <p className="muted">
+        {to > n
+          ? <>🪜 The bottom of a ladder, up to tile {to}.</>
+          : <>🐍 A snake’s head, down to tile {to}.</>}
+        {' '}A team that lands here moves on at once, so this square needs no
+        task. Snakes and ladders are moved in their own panel above.
+      </p>
+      {tile && (
+        <div className="builder-current">
+          <p className="muted">
+            <b>{tile.name}</b> is still on this square and will never be played.
+          </p>
+          <button className="ghost danger" disabled={busy} onClick={onClear}>
+            Clear square
+          </button>
+        </div>
+      )}
+    </>
+  );
+}
+
+function BuilderGrid({
+  size = GRID, tiles, at, onPick, playerView = false, live = false,
+  snakes = false, jumpStarts = new Map(),
+}) {
   const gridRef = useRef(null);
   // Which cell the Tab key lands on — a roving tabindex, so the board is one
   // stop on the way through the page rather than a hundred. Without it,
@@ -1638,7 +1731,9 @@ function BuilderGrid({ size = GRID, tiles, at, onPick, playerView = false, live 
     const moves = {
       ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1],
     };
-    const from = fromPosition(focusPos);
+    // On a snakes board the squares are drawn along the path, so the arrows
+    // move on screen and the square under them is looked up afterwards.
+    const from = snakes ? tileCell(focusPos) : fromPosition(focusPos);
     let row = from.row;
     let col = from.col;
 
@@ -1660,10 +1755,11 @@ function BuilderGrid({ size = GRID, tiles, at, onPick, playerView = false, live 
     col = Math.min(size, Math.max(1, col));
     e.preventDefault();
 
-    const position = toPosition(row, col);
+    const position = snakes ? boardOrder()[(row - 1) * size + col - 1] : toPosition(row, col);
     if (position === focusPos) return;
     setFocusPos(position);
-    onPick(row, col, 'keyboard');
+    const square = fromPosition(position);
+    onPick(square.row, square.col, 'keyboard');
     requestAnimationFrame(() => {
       gridRef.current?.querySelector(`[data-pos="${position}"]`)?.focus();
     });
@@ -1672,7 +1768,7 @@ function BuilderGrid({ size = GRID, tiles, at, onPick, playerView = false, live 
   return (
     <div className="tile-board-wrap">
       <div
-        className="tile-board builder-board"
+        className={`tile-board builder-board${snakes ? ' snakes-path' : ''}`}
         ref={gridRef}
         onKeyDown={onKeyDown}
         // Only a smaller card overrides the stylesheet's ten columns, and it
@@ -1681,11 +1777,54 @@ function BuilderGrid({ size = GRID, tiles, at, onPick, playerView = false, live 
           ? { gridTemplateColumns: `1.4rem repeat(${size}, minmax(88px, 1fr))`, minWidth: 0 }
           : undefined}
       >
-        <div className="corner" />
-        {Array.from({ length: size }, (_, i) => (
+        {snakes && boardOrder().map((position) => {
+          const { row, col } = fromPosition(position);
+          const tile = tiles.get(position);
+          const here = at && at.row === row && at.col === col;
+          const to = jumpStarts.get(position);
+          const jump = to != null;
+          return (
+            <button
+              key={position}
+              type="button"
+              data-pos={position}
+              tabIndex={position === focusPos ? 0 : -1}
+              className={[
+                'tile-cell builder-cell',
+                tile || jump ? '' : 'empty',
+                jump ? (to > position ? 'jump-start ladder-foot' : 'jump-start snake-head') : '',
+                here ? 'on' : '',
+                playerView ? 'as-player' : '',
+                live && tile?.claimed ? 'claimed' : '',
+              ].filter(Boolean).join(' ')}
+              onClick={() => onPick(row, col, 'pointer')}
+              title={jump
+                ? `Tile ${position} — ${to > position ? 'ladder up' : 'snake down'} to ${to}, no task needed`
+                : live && tile?.claimed
+                  ? `${tile.name} — a team has played this square`
+                  : tile ? tile.name : `Tile ${position} — empty`}
+            >
+              {!playerView && <b>{position}</b>}
+              {jump ? (
+                <span className="jump-start-what">
+                  {to > position ? '🪜' : '🐍'} {to}
+                </span>
+              ) : (
+                <>
+                  {playerView
+                    ? <TileIcon slug={tile?.icon} standIn={Boolean(tile)} fallback={null} />
+                    : tile?.icon && <TileIcon slug={tile.icon} fallback={null} />}
+                  {!playerView && <span>{tile?.name ?? ''}</span>}
+                </>
+              )}
+            </button>
+          );
+        })}
+        {!snakes && <div className="corner" />}
+        {!snakes && Array.from({ length: size }, (_, i) => (
           <div key={`h${i}`} className="axis">{colLetter(i + 1)}</div>
         ))}
-        {Array.from({ length: size }, (_, r) => {
+        {!snakes && Array.from({ length: size }, (_, r) => {
           const row = r + 1;
           return [
             <div key={`a${row}`} className="axis">{row}</div>,

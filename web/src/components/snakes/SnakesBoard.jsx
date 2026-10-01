@@ -25,6 +25,7 @@ import TileIcon from '../TileIcon.jsx';
  */
 export default function SnakesBoard({
   tiles, teams, myTeamId, jumps, shown, sliding = {}, selected, onSelect, revealed = true,
+  showStart = true,
 }) {
   const byPosition = new Map(tiles.map((t) => [t.position, t]));
   const starts = new Map(jumps.map((j) => [Number(j.from), Number(j.to)]));
@@ -147,7 +148,7 @@ export default function SnakesBoard({
         </svg>
       </div>
 
-      <div className="snakes-start" aria-label="Teams at Start">
+      {showStart && <div className="snakes-start" aria-label="Teams at Start">
         <span className="snakes-start-label">Start</span>
         {atStart.length === 0
           ? <span className="muted">Everyone is on the board.</span>
@@ -158,7 +159,7 @@ export default function SnakesBoard({
             </span>
           ))}
         {myTile !== myRealTile && <span className="muted snakes-moving">moving…</span>}
-      </div>
+      </div>}
     </div>
   );
 }

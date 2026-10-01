@@ -12,6 +12,8 @@
  * Reload the page to start over.
  */
 
+import { DEFAULT_JUMPS, checkJumps } from '../lib/snakes.js';
+
 const uid = () => crypto.randomUUID();
 const now = () => new Date().toISOString();
 const inHours = (h) => new Date(Date.now() + h * 3600000).toISOString();
@@ -63,6 +65,10 @@ const members = [];
 const tilesByGame = {};
 const webhooks = [];
 const presets = [];
+// Snakes and Ladders: the jumps per game, and per team where it stands.
+const jumpsByGame = {};
+const race = {};   // teamId -> { tile, done: Set, rb, used, movedAt }
+const raceOf = (teamId) => (race[teamId] ??= { tile: 0, done: new Set(), rb: 0, used: 0, movedAt: null });
 
 function tileFromPayload(gameId, row, col, p, libraryId = null) {
   return {
@@ -126,12 +132,61 @@ teams.filter((t) => t.game_id === bingo).slice(0, 3).forEach((t, i) => {
   });
 });
 
+// A Snakes and Ladders game being set up: the standard board, most squares
+// filled, three teams with players.
+const snk = addGame({
+  name: 'Snakes and Ladders — Winter', mode: 'snakes', grid: 10, status: 'setup',
+  teamNames: ['Varrock', 'Falador', 'Ardougne'], startsAt: inHours(30),
+});
+jumpsByGame[snk] = structuredClone(DEFAULT_JUMPS);
+{
+  const starts = new Set(DEFAULT_JUMPS.map((j) => j.from));
+  let k = 0;
+  for (let n = 1; n <= 100; n++) {
+    if (starts.has(n) || n % 9 === 0) continue;   // leave a few gaps to fill
+    const row = Math.floor((n - 1) / 10) + 1;
+    const col = ((n - 1) % 10) + 1;
+    tilesByGame[snk].push(fromLibrary(library[k++ % library.length], row, col));
+  }
+  tilesByGame[snk].push(fromLibrary(library[3], 2, 7));   // a task stranded on 17, a snake head
+}
+teams.filter((t) => t.game_id === snk).forEach((t, i) => {
+  PLAYERS.slice(12 + i * 2, 14 + i * 2).forEach((name, j) => {
+    const p = profiles.find((x) => x.display_name === name);
+    members.push({ team_id: t.id, profile_id: p.id, role: j === 0 ? 'captain' : 'member' });
+  });
+});
+
+// And one already running, for the Track pane.
+const live = addGame({
+  name: 'Snakes and Ladders — Live', mode: 'snakes', grid: 10, status: 'active',
+  teamNames: ['Lumbridge', 'Draynor', 'Al Kharid', 'Edgeville'],
+});
+jumpsByGame[live] = structuredClone(DEFAULT_JUMPS);
+{
+  const starts = new Set(DEFAULT_JUMPS.map((j) => j.from));
+  let k = 5;
+  for (let n = 1; n <= 100; n++) {
+    if (starts.has(n)) continue;
+    tilesByGame[live].push(fromLibrary(library[k++ % library.length], Math.floor((n - 1) / 10) + 1, ((n - 1) % 10) + 1));
+  }
+  const at = [[34, [2, 3, 5, 14, 15, 31, 34], 1], [22, [3, 14, 22], 0], [8, [1, 2, 3, 6, 8], 2], [0, [], 0]];
+  teams.filter((t) => t.game_id === live).forEach((t, i) => {
+    const [tile, done, rb] = at[i];
+    Object.assign(raceOf(t.id), { tile, done: new Set(done), rb, movedAt: now() });
+    const p = profiles.find((x) => x.display_name === PLAYERS[i]);
+    members.push({ team_id: t.id, profile_id: p.id, role: 'captain' });
+  });
+}
+
 // ---- helpers --------------------------------------------------------------
 
 const game = (id) => games.find((g) => g.id === id);
 const teamsOf = (id) => teams.filter((t) => t.game_id === id);
 const tilesOf = (id) => (tilesByGame[id] ??= []);
 const isBingo = (g) => g?.mode === 'bingo';
+const isSnakes = (g) => g?.mode === 'snakes';
+const startsOf = (id) => new Set((jumpsByGame[id] ?? []).map((j) => Number(j.from)));
 
 function removeTeam(teamId) {
   const i = teams.findIndex((t) => t.id === teamId);
@@ -196,6 +251,11 @@ export const adminCreateGame = (name, a, b) =>
 
 export function adminNewGame({ name, mode, teams: names, gridSize = 10, endsAt = null }) {
   if (mode === 'battleships') return adminCreateGame(name, names[0], names[1]);
+  if (mode === 'snakes') {
+    if (!names.length) return fail('Snakes and Ladders needs at least one team');
+    if (endsAt) return fail('Snakes and Ladders has no end time — it ends when a team finishes tile 100');
+    return wait(addGame({ name, mode, grid: 10, status: 'setup', teamNames: names }));
+  }
   if (!names.length) return fail('A bingo needs at least one team');
   if (gridSize < 3 || gridSize > 10) return fail('A bingo card is 3×3 to 10×10');
   if (endsAt && Date.parse(endsAt) <= Date.now()) return fail('The end time is in the past');
@@ -236,8 +296,24 @@ export function startGame(id) {
   const g = game(id);
   const ts = teamsOf(id);
   const need = g.grid_size * g.grid_size;
-  if (tilesOf(id).length !== need) return fail(`The board has ${tilesOf(id).length} of ${need} tiles`);
-  if (isBingo(g)) {
+  if (isSnakes(g)) {
+    const starts = startsOf(id);
+    const missing = [];
+    for (let n = 1; n <= 100; n++) {
+      if (!starts.has(n) && !tilesOf(id).some((t) => t.position === n)) missing.push(n);
+    }
+    if (missing.length) {
+      return fail(`Game needs a tile on every square except snake heads and ladder bottoms — ${missing.length} missing (${missing.join(', ')})`);
+    }
+    const empty = ts.find((t) => !members.some((m) => m.team_id === t.id));
+    if (!ts.length) return fail('Game needs at least one team before it can start');
+    if (empty) return fail(`${empty.name} has no players yet — add them in the roster`);
+  } else if (tilesOf(id).length !== need) {
+    return fail(`The board has ${tilesOf(id).length} of ${need} tiles`);
+  }
+  if (isSnakes(g)) {
+    // checked above
+  } else if (isBingo(g)) {
     if (!ts.length) return fail('A bingo needs at least one team');
     const empty = ts.find((t) => !members.some((m) => m.team_id === t.id));
     if (empty) return fail(`${empty.name} has no players yet — add them in the roster`);
@@ -259,11 +335,13 @@ export function adminEndGame(id) {
 
 export function adminResetGame(id) {
   Object.assign(game(id), { status: 'placement', winner_team_id: null, ended_reason: null });
+  teamsOf(id).forEach((t) => { race[t.id] = undefined; });
   return wait(null);
 }
 
 export const adminGameReadiness = () => wait(games.map((g) => ({
   game_id: g.id, tile_count: tilesOf(g.id).length, tiles_needed: g.grid_size * g.grid_size,
+
   teams_with_full_fleet: 0, webhook_count: webhooks.filter((w) => w.game_id === g.id).length,
 })));
 
@@ -333,6 +411,7 @@ export function adminAutofillBoard(gameId) {
   for (let row = 1; row <= g.grid_size; row++) {
     for (let col = 1; col <= g.grid_size; col++) {
       if (list.some((t) => t.row === row && t.col === col)) continue;
+      if (startsOf(gameId).has(pos(row, col))) continue;   // snake heads, ladder feet
       empty++;
       const entry = pool.shift();
       if (entry) { list.push(fromLibrary(entry, row, col)); filled++; }
@@ -414,6 +493,115 @@ export function adminSetWebhook(gameId, teamId, url, enabled = true) {
 export function adminDeleteWebhook(id) {
   webhooks.splice(webhooks.findIndex((w) => w.id === id), 1);
   return wait(null);
+}
+
+// ---- Snakes and Ladders ------------------------------------------------------
+// A sketch of the organiser's controls: positions and completions change the
+// way the console expects, but none of snakes_move's rules (skips, bounces,
+// chains) run here. That is the SQL's job and the smoke test's.
+
+export const listBoardJumps = (gameId = null) => wait(Object.entries(jumpsByGame)
+  .filter(([id]) => !gameId || id === gameId)
+  .flatMap(([id, list]) => list.map((j) => ({ game_id: id, from_tile: j.from, to_tile: j.to })))
+  .sort((a, b) => a.from_tile - b.from_tile));
+
+export function adminSetSnakes(gameId, list) {
+  const g = game(gameId);
+  if (g.status !== 'setup' && g.status !== 'placement') return fail('The snakes and ladders are fixed once the game starts');
+  const problem = checkJumps(list);
+  if (problem) return fail(problem.replace(/\.$/, ''));
+  jumpsByGame[gameId] = list.map((j) => ({ from: Number(j.from), to: Number(j.to) }));
+  return wait(list.length);
+}
+
+function standingsOf(gameId) {
+  const g = game(gameId);
+  return teamsOf(gameId)
+    .map((t) => {
+      const r = raceOf(t.id);
+      return {
+        team_id: t.id, team_name: t.name, slot: t.slot, board_tile: r.tile, board_moved_at: r.movedAt,
+        tiles_completed: r.done.size, rollbacks_available: r.rb, rollbacks_used: r.used,
+        completed_tiles: [...r.done].sort((a, b) => a - b),
+      };
+    })
+    .sort((a, b) => (Number(g.ended_reason === 'won' && g.winner_team_id === b.team_id)
+                    - Number(g.ended_reason === 'won' && g.winner_team_id === a.team_id))
+      || b.board_tile - a.board_tile || b.tiles_completed - a.tiles_completed || a.slot - b.slot)
+    .map((s, i) => ({ ...s, place: i + 1 }));
+}
+
+export const snakesStandings = (gameId) => wait(standingsOf(gameId));
+
+const teamGame = (teamId) => game(teams.find((t) => t.id === teamId).game_id);
+const nameOf = (teamId) => teams.find((t) => t.id === teamId).name;
+
+function land(teamId, to, kind) {
+  const r = raceOf(teamId);
+  const from = r.tile;
+  const jump = (jumpsByGame[teamGame(teamId).id] ?? []).find((j) => j.from === to);
+  r.tile = jump ? jump.to : to;
+  r.movedAt = now();
+  return { kind, from, landed: to, to: r.tile, jumps: jump ? [{ from: jump.from, to: jump.to }] : [] };
+}
+
+export function adminSnakesPunish(teamId) {
+  if (teamGame(teamId).status !== 'active') return fail('The game is not running');
+  const die = 1 + Math.floor(Math.random() * 6);
+  return wait({ ...land(teamId, Math.max(1, raceOf(teamId).tile - die), 'punish'), dice: [die] });
+}
+
+export function adminSnakesMove(teamId, tile) {
+  const g = teamGame(teamId);
+  if (g.status !== 'active') return fail('The game is not running');
+  const jump = (jumpsByGame[g.id] ?? []).find((j) => j.from === tile);
+  if (jump && jump.to < tile) return fail(`Tile ${tile} is a snake head — pick another tile`);
+  if (jump) return fail(`Tile ${tile} is the bottom of a ladder — pick another tile`);
+  if (tile < 1 || tile > 100) return fail('Pick a tile from 1 to 100');
+  return wait(land(teamId, tile, 'move'));
+}
+
+export function adminSnakesGiveRollback(teamId, amount) {
+  const r = raceOf(teamId);
+  if (teamGame(teamId).status === 'finished') return fail('The game is over');
+  if (r.rb + amount < 0) return fail(`${nameOf(teamId)} only has ${r.rb} rollback(s)`);
+  r.rb += amount;
+  return wait(r.rb);
+}
+
+export function adminSnakesCompleteTile(teamId) {
+  const g = teamGame(teamId);
+  const r = raceOf(teamId);
+  if (g.status !== 'active') return fail(`The game is ${g.status} — nothing to complete now`);
+  if (r.tile < 1) return fail(`${nameOf(teamId)} has not left Start yet`);
+  if (r.done.has(r.tile)) return fail(`${nameOf(teamId)} has already completed tile ${r.tile}`);
+  r.done.add(r.tile);
+  if (r.tile === 100) Object.assign(g, { status: 'finished', ended_reason: 'won', winner_team_id: teamId, ended_at: now() });
+  return wait(uid());
+}
+
+export function adminSnakesUncompleteTile(teamId, tile) {
+  const g = teamGame(teamId);
+  const r = raceOf(teamId);
+  if (!r.done.has(tile)) return fail(`${nameOf(teamId)} has not completed tile ${tile}`);
+  r.done.delete(tile);
+  let reopened = false;
+  if (g.status === 'finished' && g.ended_reason === 'won' && g.winner_team_id === teamId && tile === 100) {
+    Object.assign(g, { status: 'active', ended_reason: null, winner_team_id: null, ended_at: null });
+    reopened = true;
+  }
+  return wait({ mode: 'snakes', position: tile, game_reopened: reopened, winner_changed: false });
+}
+
+export function adminSnakesEndGame(gameId, winnerId) {
+  const g = game(gameId);
+  if (g.status !== 'active') return fail(`The game is ${g.status} — it is not running`);
+  const lead = standingsOf(gameId).find((s) => s.board_tile > 0);
+  if (lead?.team_id !== winnerId) {
+    return fail(`The standings changed — ${lead?.team_name ?? 'nobody'} is in front now. Check again before ending.`);
+  }
+  Object.assign(g, { status: 'finished', ended_reason: 'admin', winner_team_id: winnerId, ended_at: now() });
+  return wait(winnerId);
 }
 
 export const adminListPetJars = () => wait([]);
