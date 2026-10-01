@@ -12,6 +12,7 @@ import { StrictMode, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import BingoGame from '../components/bingo/BingoGame.jsx';
 import BingoOverview from '../components/bingo/BingoOverview.jsx';
+import Wordmark from '../components/Wordmark.jsx';
 import { rpcFixtures } from './stub-supabase.js';
 import { cardCells } from '../lib/bingo.js';
 import { coordLabel, fromPosition } from '../lib/board.js';
@@ -135,6 +136,7 @@ function Harness() {
   const v = VIEWS[view];
   return (
     <main className="app game-app">
+      <header className="top"><Wordmark mode="bingo" /></header>
       <p className="muted" style={{ marginTop: 0 }}>
         Harness — no database. Kandarin&rsquo;s view of a 5×5 bingo with four teams. {at(3)},
         {' '}{at(16)} and {at(24)} are part-done; uploads are refused here.

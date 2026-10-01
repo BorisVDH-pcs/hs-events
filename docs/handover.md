@@ -1,4 +1,4 @@
-# Handover — HS_Battleships
+# Handover — High Society Events (formerly HS_Battleships)
 
 Current as of **2026-09-12**, end of session. Latest work is in the session log at the bottom. Written to be picked up cold, by
 Boris or by another session with no memory of this one.
@@ -18,8 +18,8 @@ team hiding a fleet of `2,3,3,4,5` on its own 10x10 board.
 
 | | |
 |---|---|
-| Repo | https://github.com/BorisVDH-pcs/HS_Battleships |
-| Live | https://borisvdh-pcs.github.io/HS_Battleships/ |
+| Repo | https://github.com/BorisVDH-pcs/hs-events |
+| Live | https://borisvdh-pcs.github.io/hs-events/ |
 | Supabase | project `Battleships` — `fjgcijmdxeebgkdokini`, eu-west-2 |
 | Local | No canonical path — clone it where you need it. On Boris's work laptop: `Desktop/BorisHS/HS_Battleships` |
 | Dev server | port **5174** (`npm run dev --prefix web`) |
@@ -306,7 +306,7 @@ old bundle was still live or cached. Check what is actually deployed before
 debugging:
 
 ```bash
-curl -s https://borisvdh-pcs.github.io/HS_Battleships/ | grep -o 'index-[^"]*\.js'
+curl -s https://borisvdh-pcs.github.io/hs-events/ | grep -o 'index-[^"]*\.js'
 ```
 
 Then hard-refresh (Ctrl+F5) — the browser caches the previous bundle. This bites
@@ -561,7 +561,7 @@ Roughly in priority order:
   A-J visible, zero overflow on both board and page, 44px yard buttons,
   `pointer: coarse` matched and the touch instructions rendered.
 - All ten committed icons serve HTTP 200 at
-  `/HS_Battleships/icons/<slug>.png` with the expected byte sizes.
+  `/hs-events/icons/<slug>.png` with the expected byte sizes.
 - **`place_fleet` emits `fleet_placed`** — replayed a captain's real fleet
   through the RPC inside a transaction: one event, payload `{"ships": 5}`, no
   `row`/`col` anywhere in it. Rolled back, and the fleet was intact afterwards

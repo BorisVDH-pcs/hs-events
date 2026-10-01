@@ -3,7 +3,7 @@
 - [iftach21](https://github.com/iftach21)
 - [BorisVDH-PCS](https://github.com/BorisVDH-pcs)
 
-# HS Battleships
+# High Society Events
 
 A browser-based platform for High Society clan events: teams complete Old School
 RuneScape challenges, submit screenshots as evidence, and the site keeps score
@@ -247,7 +247,7 @@ the PASS/FAIL report, and nothing is saved.
 ## Deploying
 
 Every push to `main` builds the site and publishes it to
-**https://borisvdh-pcs.github.io/HS_Battleships/**.
+**https://borisvdh-pcs.github.io/hs-events/**.
 
 The Supabase project URL and anon key live in `web/.env.production`, committed on
 purpose: Vite inlines them into the bundle, so they are public the moment the site

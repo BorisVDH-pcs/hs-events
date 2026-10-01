@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { GIF_DURATION_MS, REVEAL_DELAY_MS } from '../lib/fireEffect.js';
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion.js';
 
-// BASE_URL, not a leading slash: the site is served from /HS_Battleships/.
+// BASE_URL, not a leading slash: the site is served from /hs-events/.
 const CANNON_GIF = `${import.meta.env.BASE_URL}audio/boom-cannon.gif`;
 const CANNON_SOUND = `${import.meta.env.BASE_URL}audio/cannon.mp3`;
 const SOUND_BY_RESULT = {

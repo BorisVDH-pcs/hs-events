@@ -1482,44 +1482,93 @@ label {
   padding: clamp(2rem, 5vw, 4.5rem) 1.25rem;
   overflow: hidden;
 }
-/* A board waiting to be played. The grid is deliberately quieter than every
-   control, so it adds place without becoming information. */
+/* The front door of every event, so nothing here belongs to one game: no board
+   grid, no radar. A members'-club backdrop instead -- a fine gold lattice,
+   quieter than every control so it adds place without becoming information,
+   fading out down the page. */
 .login::before {
   content: '';
   position: absolute;
   z-index: -2;
   inset: -2px;
   background-image:
-    linear-gradient(rgba(242, 193, 78, .052) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(242, 193, 78, .052) 1px, transparent 1px),
-    radial-gradient(ellipse 42% 26% at 50% 12%, rgba(242, 193, 78, .13), transparent 72%);
-  background-size: clamp(58px, 8vw, 104px) clamp(58px, 8vw, 104px),
-                   clamp(58px, 8vw, 104px) clamp(58px, 8vw, 104px),
-                   auto;
-  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, .8), rgba(0, 0, 0, .38) 78%, transparent);
+    repeating-linear-gradient(45deg, rgba(242, 193, 78, .035) 0 1px, transparent 1px 46px),
+    repeating-linear-gradient(-45deg, rgba(242, 193, 78, .035) 0 1px, transparent 1px 46px);
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 22%, rgba(0, 0, 0, .9), transparent 80%);
 }
-.login-radar {
+/* A warm light behind the crest, breathing slowly. */
+.login-glow {
   position: absolute;
   z-index: -1;
-  top: clamp(2rem, 8vw, 7rem);
-  left: calc(50% + clamp(170px, 27vw, 440px));
-  width: clamp(210px, 30vw, 430px);
-  aspect-ratio: 1;
-  border: 1px solid rgba(242, 193, 78, .09);
-  border-radius: 50%;
-  background:
-    repeating-radial-gradient(circle, transparent 0 20%, rgba(242, 193, 78, .08) 20.25% 20.6%, transparent 20.85% 40%),
-    conic-gradient(from -24deg, rgba(242, 193, 78, .12), transparent 13% 100%);
-  opacity: .72;
+  top: clamp(-6rem, -4vw, -2rem);
+  left: 50%;
+  width: clamp(420px, 70vw, 900px);
+  aspect-ratio: 1.4;
+  transform: translateX(-50%);
+  background: radial-gradient(ellipse at 50% 40%,
+    rgba(242, 193, 78, .2), rgba(242, 160, 40, .07) 42%, transparent 70%);
+  animation: login-glow 9s ease-in-out infinite alternate;
+  pointer-events: none;
 }
-.login-radar::before,
-.login-radar::after {
-  content: '';
-  position: absolute;
-  background: rgba(242, 193, 78, .085);
+@keyframes login-glow {
+  from { opacity: .7; transform: translateX(-50%) scale(.96); }
+  to { opacity: 1; transform: translateX(-50%) scale(1.04); }
 }
-.login-radar::before { width: 1px; inset-block: 0; left: 50%; }
-.login-radar::after { height: 1px; inset-inline: 0; top: 50%; }
+@media (prefers-reduced-motion: reduce) {
+  .login-glow { animation: none; }
+}
+
+/* Which events are on, between the welcome and the form. */
+.now-running {
+  list-style: none;
+  margin: 1.1rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: .4rem;
+}
+.now-running li {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: .6rem;
+  align-items: baseline;
+  padding: .55rem .75rem;
+  border: 1px solid rgba(242, 193, 78, .22);
+  border-radius: var(--r-lg);
+  background: rgba(8, 8, 9, .45);
+}
+.now-running-state {
+  grid-row: span 2;
+  align-self: center;
+  padding: .12rem .45rem;
+  border-radius: 999px;
+  font-size: .7rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  /* One width for both labels, so the event names line up under each other. */
+  min-width: 8.6em;
+  text-align: center;
+  color: var(--label-2);
+  border: 1px solid var(--line);
+}
+.now-running .live .now-running-state {
+  color: #1a1408;
+  background: var(--gold-lit);
+  border-color: transparent;
+}
+.now-running-name {
+  color: var(--text);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.now-running-meta { color: var(--label-2); font-size: .8125rem; }
+/* On a phone the label beside the name leaves the name three words a line;
+   above it, the name gets the full width. */
+@media (max-width: 520px) {
+  .now-running li { grid-template-columns: 1fr; row-gap: .25rem; }
+  .now-running-state { grid-row: auto; justify-self: start; min-width: 0; }
+}
 
 .login-content {
   width: min(100%, 450px);
@@ -1680,7 +1729,6 @@ label {
   .login-card { padding: 1.25rem; border-radius: var(--r-xl); }
   .login-mode { margin-top: 1.1rem; }
   .login-intro h2 { font-size: 1.65rem; }
-  .login-radar { left: 58%; opacity: .45; }
 }
 @media (max-height: 760px) and (min-width: 521px) {
   .login { padding-block: 1rem; }
