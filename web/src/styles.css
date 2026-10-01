@@ -3852,7 +3852,9 @@ button.bingo-cell.clickable:active { transform: scale(.95); transition-duration:
    max-width keeps them inside a phone-width card. */
 .row.new-game-fields { justify-content: flex-start; }
 .row.new-game-fields > label { flex: 0 0 auto; max-width: 100%; }
-.row.new-game-fields > .field-name { width: 20rem; }
+/* Same width as a team field, so the name lines up with the column of
+   teams under it rather than overhanging it. */
+.row.new-game-fields > .field-name { width: 15rem; }
 .row.new-game-fields > .field-size { width: 12rem; }
 .row.new-game-fields > .field-team { width: 15rem; }
 .row.new-game-fields > .field-time { width: 15rem; }
