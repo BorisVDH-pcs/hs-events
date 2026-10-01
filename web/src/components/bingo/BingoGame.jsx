@@ -78,7 +78,7 @@ export default function BingoGame({ game, teams, myTeamId, myRole, tiles, standi
   if (isPreparation) {
     return (
       <>
-        {myTeamId && <StartTimeBadge startsAt={game.starts_at} />}
+        {myTeamId && <StartTimeBadge startsAt={game.starts_at} mode={game.mode} />}
         {myRole === 'captain' && myTeam && (
           <section className="card">
             <h2>Your team</h2>

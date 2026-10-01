@@ -643,8 +643,19 @@ begin
     v_log := v_log || pg_temp.smoke_refused('an ordinary empty square still stops the start',
       format('select start_game(%L)', g4), '%1 missing (50)%');
 
+    -- The random deal fills the one ordinary empty square and nothing else:
+    -- a task on a snake head or a ladder's foot would never be played.
+    v_step := 'the random deal leaves snake heads and ladder feet empty';
+    insert into tile_library (name) values ('Smoke autofill tile');
+    res := admin_autofill_board(g4);
+    v_log := v_log || pg_temp.smoke_line(v_step,
+               (res ->> 'filled')::int = 1 and (res ->> 'empty')::int = 1
+               and exists (select 1 from tiles where game_id = g4 and position = 50)
+               and not exists (select 1 from tiles where game_id = g4
+                                and position in (4, 9, 17, 40, 62)),
+               res::text);
+
     v_step := 'starts with no task on snake heads and ladder feet';
-    perform admin_set_tile(g4, 5::smallint, 10::smallint, '{"name":"Smoke tile 50"}'::jsonb);
     perform start_game(g4);
     v_log := v_log || pg_temp.smoke_line(v_step, (select status from games where id = g4) = 'active',
                (select count(*) from tiles where game_id = g4) || ' tiles');

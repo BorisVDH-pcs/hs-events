@@ -4198,3 +4198,59 @@ button.snakes-cell:hover {
   .marker, .marker.sliding { transition: none; }
   .dice.rolling { animation: none; }
 }
+
+/* ---- Snakes and Ladders: organiser console ----
+ *
+ * The builder draws a snakes board along the path, tile 1 bottom-left, with
+ * no letter and number axes: the tile number is the whole address. */
+.tile-board.snakes-path { grid-template-columns: repeat(10, minmax(88px, 1fr)); }
+@media (min-width: 1280px) {
+  .builder-board.snakes-path { grid-template-columns: repeat(10, minmax(56px, 1fr)); }
+}
+@media (min-width: 1580px) {
+  .builder-board.snakes-path { grid-template-columns: repeat(10, minmax(76px, 1fr)); }
+}
+button.builder-cell.jump-start { border-style: solid; opacity: .85; }
+button.builder-cell.snake-head { background: rgba(255, 69, 58, .12); }
+button.builder-cell.ladder-foot { background: rgba(217, 169, 91, .16); }
+.builder-cell .jump-start-what { font-weight: 700; color: var(--muted); }
+
+.snakes-editor-rows {
+  display: grid; gap: .35rem .9rem; margin: .6rem 0;
+  grid-template-columns: repeat(auto-fill, minmax(17.5rem, 1fr));
+}
+.snakes-editor-row { display: flex; align-items: center; gap: .4rem; }
+.snakes-editor-row label {
+  display: inline-flex; flex-direction: row; align-items: center; gap: .3rem;
+  margin: 0; font-size: .85rem; color: var(--muted);
+}
+.snakes-editor-row input { width: 3.6rem; padding: .3rem .4rem; }
+.snakes-editor-row button { padding: .25rem .5rem; }
+.snakes-team-controls label {
+  display: inline-flex; flex-direction: row; align-items: center; gap: .35rem; margin: 0;
+}
+.snakes-team-controls input { width: 4rem; }
+.snakes-team-controls .row { margin-top: .45rem; align-items: center; }
+.snakes-team-controls h3 { margin: 0; }
+.snakes-editor-row .kind { min-width: 6.5rem; font-weight: 600; }
+.snakes-editor-row .kind.snake { color: #ff7b72; }
+.snakes-editor-row .kind.ladder { color: #d9a95b; }
+.snakes-editor-layout { display: grid; gap: 1rem; }
+.snakes-editor-summary { list-style: none; padding: 0; margin: .4rem 0; display: grid; gap: .4rem; }
+@media (min-width: 1100px) {
+  .snakes-editor-layout { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+}
+.snakes-editor-preview { max-width: 520px; }
+
+.snakes-control-table { width: 100%; border-collapse: collapse; }
+.snakes-control-table th, .snakes-control-table td {
+  padding: .45rem .4rem; border-bottom: 1px solid var(--line, rgba(255,255,255,.08));
+  text-align: left; vertical-align: middle;
+}
+.snakes-control-table td .row { gap: .35rem; flex-wrap: wrap; }
+.snakes-control-table input { width: 4.5rem; }
+.snakes-track-layout { display: grid; gap: 1rem; }
+@media (min-width: 1100px) {
+  .snakes-track-layout { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); align-items: start; }
+}
+.table-scroll { overflow-x: auto; }

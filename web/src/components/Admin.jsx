@@ -11,7 +11,11 @@ import {
   adminListAccountDeletions,
   adminSaveBoardPreset, adminApplyBoardPreset, adminDeleteBoardPreset,
   adminNewGame, adminAddTeam, adminDeleteTeam, adminSetEndTime, adminEndGame,
+  listBoardJumps, adminSetSnakes, snakesStandings, adminSnakesEndGame,
 } from '../lib/supabase.js';
+import { LAST_TILE, isLadder } from '../lib/snakes.js';
+import SnakesJumpEditor from './snakes/SnakesJumpEditor.jsx';
+import SnakesAdminTrack from './snakes/SnakesAdminTrack.jsx';
 import BoardBuilder from './BoardBuilder.jsx';
 import AdminOverview from './AdminOverview.jsx';
 import BingoOverview from './bingo/BingoOverview.jsx';
@@ -50,7 +54,19 @@ const BINGO_STEP_HINT = {
   finished:  'This bingo is over.',
 };
 
+// Snakes and Ladders starts like bingo -- no fleets, preparation optional --
+// and asks for a tile on every square but the snake heads and ladder feet.
+const SNAKES_STEP_HINT = {
+  setup:     'Place the snakes and ladders, fill the board and add players to every team, then start — '
+           + 'or open preparation first so players can see their team before the board is revealed.',
+  placement: 'Players can see their team and the countdown. Start the game to reveal the board and open the first roll.',
+  active:    'The race is running. It ends when a team completes tile 100, or when you end it.',
+  finished:  'This race is over.',
+};
+
 const isBingoGame = (g) => g?.mode === 'bingo';
+const isSnakesGame = (g) => g?.mode === 'snakes';
+const NO_JUMPS = [];
 
 /**
  * What `run` resolves to when the action was refused.
@@ -97,11 +113,23 @@ const ALL_SLICES = ['games', 'detail', 'library'];
  * Empty too when the counts are missing — a console whose migration has not
  * landed shows no badges rather than accusing every game of having no tiles.
  */
-function readinessGaps(game, counts, teams, members) {
+function readinessGaps(game, counts, teams, members, jumps = NO_JUMPS) {
   if (!game || game.status === 'active' || game.status === 'finished') return [];
 
   const gaps = [];
   const gameTeams = teams.filter((t) => t.game_id === game.id);
+
+  // Snakes: the squares under a snake head or a ladder's foot need no task.
+  // A count, not positions, so a task left on one of those squares can make
+  // this look one better than it is -- the checklist inside the game counts
+  // properly.
+  if (isSnakesGame(game)) {
+    const need = LAST_TILE - jumps.length;
+    if (counts && counts.tile_count < need) gaps.push(`${need - counts.tile_count} more tiles`);
+    if (gameTeams.length === 0) gaps.push('a team');
+    if (gameTeams.some((t) => !members.some((m) => m.team_id === t.id))) gaps.push('players');
+    return gaps;
+  }
 
   if (counts && counts.tile_count < counts.tiles_needed) {
     gaps.push(`${counts.tiles_needed - counts.tile_count} more tiles`);
@@ -155,6 +183,9 @@ export default function Admin() {
   // authority, so a missing function leaves the list exactly as it was rather
   // than putting a red line above it.
   const [readiness, setReadiness] = useState({});
+  // Every game's snakes and ladders, keyed by game id. board_jumps is a small
+  // public table, so one read covers the Games list and the open game alike.
+  const [jumpsByGame, setJumpsByGame] = useState({});
   // Loaded only once the Accounts pane is opened: nobody else on the console
   // needs to know who has ever had their password reset or account deleted.
   const [passwordResets, setPasswordResets] = useState([]);
@@ -177,6 +208,7 @@ export default function Admin() {
 
   const game = games.find((g) => g.id === gameId) ?? null;
   const gameTeams = teams.filter((t) => t.game_id === gameId);
+  const jumps = jumpsByGame[gameId] ?? NO_JUMPS;
 
   const loadGames = useCallback(async () => {
     const [{ data: g }, { data: t }, { data: p }, { data: m }] = await Promise.all([
@@ -205,6 +237,16 @@ export default function Admin() {
       setReadiness(Object.fromEntries((counts ?? []).map((r) => [r.game_id, r])));
     } catch {
       setReadiness({});
+    }
+
+    try {
+      const byGame = {};
+      for (const j of await listBoardJumps()) {
+        (byGame[j.game_id] ??= []).push({ from: j.from_tile, to: j.to_tile });
+      }
+      setJumpsByGame(byGame);
+    } catch {
+      setJumpsByGame({});
     }
   }, []);
 
@@ -386,12 +428,16 @@ export default function Admin() {
   );
   const rosterCount = members.filter((m) => gameTeams.some((t) => t.id === m.team_id)).length;
   const bingo = isBingoGame(game);
+  const snakesMode = isSnakesGame(game);
+  // Bingo and snakes share everything about teams and starting: any number of
+  // teams, no captains or fleets to wait on, preparation optional.
+  const cardLike = bingo || snakesMode;
   const teamsWithoutPlayers = gameTeams.filter((t) => !members.some((m) => m.team_id === t.id));
 
   // Bingo's list is shorter because start_game asks less of it: a full card,
   // at least one team, and somebody on every team. Captains are still useful
   // (they can rename their team) but nothing waits on them.
-  const bingoChecks = game && bingo ? [
+  const cardChecks = game ? [
     {
       key: 'tiles', label: 'Tiles', required: true,
       ok: tiles.length === needTiles,
@@ -422,7 +468,35 @@ export default function Admin() {
     },
   ] : null;
 
-  const checks = !game ? [] : bingoChecks ?? [
+  // Snakes: a tile on every square but the snake heads and ladder feet --
+  // start_game's own rule -- and the same teams and players as bingo.
+  const jumpStarts = new Set(jumps.map((j) => Number(j.from)));
+  const snakesNeed = LAST_TILE - jumpStarts.size;
+  const snakesFilled = tiles.filter((t) => !jumpStarts.has(t.position)).length;
+  const ladderCount = jumps.filter(isLadder).length;
+  const snakesChecks = game && snakesMode ? [
+    {
+      key: 'jumps', label: 'Snakes and ladders', required: false,
+      ok: jumps.length > 0,
+      detail: jumps.length
+        ? `${ladderCount} ladder${ladderCount === 1 ? '' : 's'}, ${jumps.length - ladderCount} snake${jumps.length - ladderCount === 1 ? '' : 's'}`
+        : 'none',
+      fix: 'Place them in Snakes and ladders below, before filling the board — their squares need no task.',
+    },
+    {
+      key: 'tiles', label: 'Tiles', required: true,
+      ok: snakesFilled === snakesNeed,
+      detail: `${snakesFilled} of ${snakesNeed}`,
+      fix: snakesFilled === 0
+        ? 'Build the board below.'
+        : `${snakesNeed - snakesFilled} still empty — fill them in the board builder below.`,
+    },
+    ...cardChecks.filter((c) => c.key !== 'tiles'),
+  ] : null;
+
+  const bingoChecks = bingo ? cardChecks : null;
+
+  const checks = !game ? [] : bingoChecks ?? snakesChecks ?? [
     {
       key: 'tiles', label: 'Tiles', required: true,
       ok: tiles.length === needTiles,
@@ -481,11 +555,11 @@ export default function Admin() {
   const blocking = checks.filter((c) => c.required && !c.ok);
   // Bingo needs nothing before preparation: the card stays hidden until Start,
   // so opening it early only shows players their team and a countdown.
-  const canOpenPreparation = bingo || (checks.every((c) => c.key !== 'tiles' || c.ok)
+  const canOpenPreparation = cardLike || (checks.every((c) => c.key !== 'tiles' || c.ok)
     && teamsWithoutCaptain.length === 0 && gameTeams.length === 2 && rosterCount > 0);
   const canStart = blocking.length === 0;
   // Battleships starts only from placement; bingo from either side of it.
-  const startableStatus = bingo
+  const startableStatus = cardLike
     ? game.status === 'setup' || game.status === 'placement'
     : game?.status === 'placement';
 
@@ -495,7 +569,7 @@ export default function Admin() {
 
   // Tooltip for Open preparation: everything but fleets, which captains can
   // only place once it is open. Bingo has nothing to wait for here.
-  const openBlockedReason = !game || game.status !== 'setup' || bingo
+  const openBlockedReason = !game || game.status !== 'setup' || cardLike
     ? undefined
     : stillNeeded(blocking.filter((c) => c.key !== 'fleets'));
   const startBlockedReason = startableStatus ? stillNeeded(blocking) : undefined;
@@ -594,7 +668,9 @@ export default function Admin() {
             : await adminNewGame({ name, mode, teams: teamList, gridSize, endsAt });
           if (id && startsAt) await adminSetStartTime(id, startsAt);
           return id;
-        }, mode === 'bingo' ? 'Bingo created. Fill its card next.' : 'Game created. Add its tiles next.')
+        }, mode === 'bingo' ? 'Bingo created. Fill its card next.'
+          : mode === 'snakes' ? 'Snakes and Ladders created. Place the snakes and ladders, then fill the board.'
+            : 'Game created. Add its tiles next.')
           .then((id) => {
             if (worked(id) && id) { setGameId(id); setPane('configure'); }
             return id;
@@ -607,7 +683,7 @@ export default function Admin() {
         <ul className="game-list">
           {games.map((g) => {
             const names = teams.filter((t) => t.game_id === g.id).map((t) => t.name);
-            const outstanding = readinessGaps(g, readiness[g.id], teams, members);
+            const outstanding = readinessGaps(g, readiness[g.id], teams, members, jumpsByGame[g.id]);
             return (
               <li key={g.id} className={g.id === gameId ? 'on' : ''}>
                 <div>
@@ -616,13 +692,14 @@ export default function Admin() {
                   {isBingoGame(g) && (
                     <span className="pill mode-pill">Bingo · {g.grid_size}×{g.grid_size}</span>
                   )}
+                  {isSnakesGame(g) && <span className="pill mode-pill">Snakes &amp; Ladders</span>}
                   {g.is_featured && (
                     <span className="pill" title="Unassigned players see this game's countdown">
                       ★ Featured
                     </span>
                   )}
                   <div className="meta">
-                    {names.join(isBingoGame(g) ? ', ' : ' vs ') || 'no teams'}
+                    {names.join(isBingoGame(g) || isSnakesGame(g) ? ', ' : ' vs ') || 'no teams'}
                     {/* Named, not counted. "3" would send you into the game to
                         find out which three; the words are what stop the badge
                         being another thing to open. Only while a game can
@@ -725,8 +802,9 @@ export default function Admin() {
           <section className="card">
             <h2>{game.name} — {statusLabel(game.status)}</h2>
             <p className="muted">
-              {bingo && <span className="pill mode-pill">Bingo · {game.grid_size}×{game.grid_size}</span>}{' '}
-              {(bingo ? BINGO_STEP_HINT : STEP_HINT)[game.status]}
+              {bingo && <span className="pill mode-pill">Bingo · {game.grid_size}×{game.grid_size}</span>}
+              {snakesMode && <span className="pill mode-pill">Snakes &amp; Ladders</span>}{' '}
+              {(bingo ? BINGO_STEP_HINT : snakesMode ? SNAKES_STEP_HINT : STEP_HINT)[game.status]}
             </p>
 
             <SetupChecklist checks={checks} status={game.status} />
@@ -744,7 +822,9 @@ export default function Admin() {
                 title={startBlockedReason}
                 onClick={() => run(() => startGame(game.id), bingo
                   ? 'Bingo started — the card is open to every team.'
-                  : 'Game started — fleets are now frozen.')}
+                  : snakesMode
+                    ? 'The race has started — every team can roll.'
+                    : 'Game started — fleets are now frozen.')}
               >
                 Start game
               </button>
@@ -762,6 +842,44 @@ export default function Admin() {
                       { title: `End "${game.name}" now?`, confirmLabel: 'End the game', danger: true }
                     ))) return;
                     run(() => adminEndGame(game.id), 'The bingo is over.');
+                  }}
+                >
+                  End game now
+                </button>
+              )}
+              {/* Snakes: whoever is furthest along wins, and the dialog names
+                  them. The server checks the name is still right when it
+                  ends the game, so a roll landing in between is refused
+                  rather than handing the win to someone the organiser did not
+                  see. */}
+              {snakesMode && game.status === 'active' && (
+                <button
+                  className="danger"
+                  disabled={busy}
+                  onClick={async () => {
+                    let leader;
+                    try {
+                      leader = ((await snakesStandings(game.id)) ?? []).find((s) => s.board_tile > 0);
+                    } catch (err) {
+                      setError(err.message);
+                      return;
+                    }
+                    if (!leader) {
+                      setError('Nobody has left Start yet, so there is no one to declare the winner.');
+                      return;
+                    }
+                    if (!(await confirm(
+                      `${leader.team_name} is furthest along — on tile ${leader.board_tile}, with `
+                      + `${leader.tiles_completed} tile${leader.tiles_completed === 1 ? '' : 's'} done — and wins.\n`
+                      + 'The race ends now for every team.',
+                      {
+                        title: `End "${game.name}" now?`,
+                        confirmLabel: `End it — ${leader.team_name} wins`,
+                        danger: true,
+                      }
+                    ))) return;
+                    run(() => adminSnakesEndGame(game.id, leader.team_id),
+                      `The race is over — ${leader.team_name} wins.`);
                   }}
                 >
                   End game now
@@ -821,9 +939,30 @@ export default function Admin() {
               </div>
             )}
 
+            {snakesMode && (game.status === 'active' || game.status === 'finished') && (
+              <div className="row" style={{ marginTop: '.8rem' }}>
+                <button
+                  className="danger"
+                  disabled={busy}
+                  onClick={async () => {
+                    if (!(await confirm(
+                      'Cleared: every completed tile and submission, every move and rollback, '
+                      + 'the activity feed, and the winner. Every team goes back to Start.\n'
+                      + 'Kept: the tiles, the snakes and ladders, the teams and the roster.\n\n'
+                      + 'This cannot be undone.',
+                      { title: `Reset "${game.name}" to preparation?`, confirmLabel: 'Reset it', danger: true }
+                    ))) return;
+                    run(() => adminResetGame(game.id, true), 'Race reset — every team is back at Start.');
+                  }}
+                >
+                  Reset to preparation
+                </button>
+              </div>
+            )}
+
             {/* The way back out of a started game. Without it the only undo was
                 Delete, which takes the 100 tiles and the roster with it. */}
-            {!bingo && (game.status === 'active' || game.status === 'finished') && (
+            {!cardLike && (game.status === 'active' || game.status === 'finished') && (
               <div className="row" style={{ marginTop: '.8rem' }}>
                 <button
                   className="danger"
@@ -881,9 +1020,24 @@ export default function Admin() {
               as spreadsheet text, and everything it could do -- including
               filing a tile it did not recognise in the catalogue -- the builder
               now does one square at a time, against a catalogue it can search. */}
+          {snakesMode && (
+            <SnakesJumpEditor
+              game={game}
+              jumps={jumps}
+              tiles={tiles}
+              busy={busy}
+              onSave={(draft) => run(
+                () => adminSetSnakes(game.id, draft),
+                (n) => `${n} snake${n === 1 ? '' : 's'} and ladder${n === 1 ? '' : 's'} saved.`,
+                { refresh: ['games'] }
+              )}
+            />
+          )}
+
           <BoardBuilder
             game={game}
             tiles={tiles}
+            jumps={jumps}
             library={library}
             libraryError={libraryError}
             busy={busy}
@@ -1105,7 +1259,7 @@ export default function Admin() {
           />
 
           <section className="card">
-            <h2>{bingo ? 'Teams' : 'Team names'}</h2>
+            <h2>{cardLike ? 'Teams' : 'Team names'}</h2>
             <div className="columns">
               {gameTeams.map((team) => (
                 <div key={team.id}>
@@ -1114,7 +1268,7 @@ export default function Admin() {
                   {/* Only before the start: once tiles are being completed a
                       team is part of the standings, and deleting it would
                       rewrite a result rather than fix a setup mistake. */}
-                  {bingo && (game.status === 'setup' || game.status === 'placement') && (
+                  {cardLike && (game.status === 'setup' || game.status === 'placement') && (
                     <button
                       className="danger"
                       style={{ marginTop: '.5rem' }}
@@ -1133,13 +1287,14 @@ export default function Admin() {
                 </div>
               ))}
             </div>
-            {bingo && game.status !== 'finished' && (
+            {cardLike && game.status !== 'finished' && (
               <AddTeam busy={busy} onAdd={(name) => run(() => adminAddTeam(game.id, name), `${name} added.`)} />
             )}
           </section>
 
           <Roster
-            bingo={bingo}
+            bingo={cardLike}
+            snakes={snakesMode}
             gameTeams={gameTeams}
             profiles={profiles}
             members={members}
@@ -1197,7 +1352,30 @@ export default function Admin() {
         </>
       )}
 
-      {activePane === 'track' && game && !bingo && (
+      {activePane === 'track' && game && snakesMode && (
+        <>
+          <SnakesAdminTrack
+            game={game}
+            tiles={tiles}
+            jumps={jumps}
+            busy={busy}
+            run={run}
+            confirm={confirm}
+          />
+
+          <section className="card">
+            <h2>Evidence</h2>
+            <p className="muted">
+              Every screenshot submitted, newest first, with who submitted it.
+              There is nothing to approve — attaching what the tile asks for is
+              what completes it. Revoking one can take a tile back off a team.
+            </p>
+            <EvidenceReview gameId={game.id} />
+          </section>
+        </>
+      )}
+
+      {activePane === 'track' && game && !cardLike && (
         <>
           <section className="card">
             <h2>Boards</h2>
@@ -1281,6 +1459,7 @@ function SetupChecklist({ checks, status }) {
 const MODES = [
   { key: 'battleships', label: 'Battleships', blurb: 'Two teams, hidden fleets, one shot per completed tile.' },
   { key: 'bingo', label: 'Bingo', blurb: 'Any number of teams on the same card. Every tile is open at once; most tiles completed wins.' },
+  { key: 'snakes', label: 'Snakes & Ladders', blurb: 'Any number of teams racing up a 100-tile board. Finish your tile, roll, and mind the snakes; first to complete tile 100 wins.' },
 ];
 
 /**
@@ -1299,13 +1478,16 @@ function NewGame({ busy, onCreate }) {
   const [endsAt, setEndsAt] = useState('');
 
   const bingo = mode === 'bingo';
-  const names = bingo ? teamNames : teamNames.slice(0, 2);
+  const snakes = mode === 'snakes';
+  // Every mode but battleships takes any number of teams.
+  const multi = bingo || snakes;
+  const names = multi ? teamNames : teamNames.slice(0, 2);
   const filled = names.map((n) => n.trim()).filter(Boolean);
   // Case-insensitive, like the server: "Alpha" and "alpha" read as one team in
   // the standings, so they are refused here before they are refused there.
   const duplicate = new Set(filled.map((n) => n.toLowerCase())).size !== filled.length;
   const ready = name.trim() && !duplicate
-    && (bingo ? filled.length >= 1 : filled.length === 2 && names.every((n) => n.trim()));
+    && (multi ? filled.length >= 1 : filled.length === 2 && names.every((n) => n.trim()));
 
   const setTeam = (i, value) => setTeamNames((prev) => prev.map((n, j) => (j === i ? value : n)));
 
@@ -1332,7 +1514,7 @@ function NewGame({ busy, onCreate }) {
       <div className="row new-game-fields">
         <label className="field-name">Game name
           <input value={name} onChange={(e) => setName(e.target.value)}
-                 placeholder={bingo ? 'Clan Bingo' : 'Battleships V4'} />
+                 placeholder={bingo ? 'Clan Bingo' : snakes ? 'Snakes and Ladders' : 'Battleships V4'} />
         </label>
         {bingo && (
           <label className="field-size">Card size
@@ -1355,7 +1537,7 @@ function NewGame({ busy, onCreate }) {
                 onChange={(e) => setTeam(i, e.target.value)}
                 placeholder={`Team ${['Alpha', 'Bravo', 'Charlie', 'Delta', 'Echo', 'Foxtrot'][i] ?? i + 1}`}
               />
-              {bingo && names.length > 1 && (
+              {multi && names.length > 1 && (
                 <button
                   type="button" className="ghost" aria-label={`Remove team ${i + 1}`}
                   onClick={() => setTeamNames((prev) => prev.filter((_, j) => j !== i))}
@@ -1366,7 +1548,7 @@ function NewGame({ busy, onCreate }) {
             </span>
           </label>
         ))}
-        {bingo && (
+        {multi && (
           <button type="button" className="ghost" onClick={() => setTeamNames((prev) => [...prev, ''])}>
             + Another team
           </button>
@@ -1414,6 +1596,12 @@ function NewGame({ busy, onCreate }) {
       {bingo && (
         <p className="muted new-game-note">
           Without an end time, the game runs until a team fills the card.
+        </p>
+      )}
+      {snakes && (
+        <p className="muted new-game-note">
+          Always the 100-tile board. It ends when a team completes tile 100, or
+          when you end it from Configure.
         </p>
       )}
     </section>
@@ -1695,7 +1883,7 @@ function AddTeam({ busy, onAdd }) {
   );
 }
 
-function Roster({ bingo, gameTeams, profiles, members, busy, onSet, onRemove, onAddMany }) {
+function Roster({ bingo, snakes = false, gameTeams, profiles, members, busy, onSet, onRemove, onAddMany }) {
   return (
     <section className="card">
       <h2>Roster</h2>
@@ -1750,7 +1938,9 @@ function Roster({ bingo, gameTeams, profiles, members, busy, onSet, onRemove, on
       </div>
       <p className="muted" style={{ marginTop: '.8rem' }}>
         Players appear here once they have signed up on the login screen.
-        {bingo
+        {snakes
+          ? ' A captain can rename their team; anyone on a team can roll and complete its tiles.'
+          : bingo
           ? ' A captain can rename their team; anyone on a team can complete its tiles.'
           : ' Only a captain (or you) can place that team’s fleet.'}
       </p>

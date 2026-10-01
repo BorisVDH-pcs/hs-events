@@ -1,4 +1,5 @@
 import { useCountdown, pad } from '../lib/countdown.js';
+import { waitingWords } from '../lib/site.js';
 
 /**
  * A one-line reminder during placement: fleets can be arranged early, but the
@@ -6,15 +7,16 @@ import { useCountdown, pad } from '../lib/countdown.js';
  * nothing once a game has no `starts_at` set — a game without one gives this
  * nothing true to say.
  */
-export default function StartTimeBadge({ startsAt }) {
+export default function StartTimeBadge({ startsAt, mode }) {
   const remaining = useCountdown(startsAt);
   if (!remaining.set) return null;
+  const words = waitingWords(mode);
 
   return (
     <p className="start-time-badge">
       {remaining.started
-        ? 'Battle stations: waiting on an admin to start'
-        : `Battle stations in ${remaining.days > 0 ? `${remaining.days}d ` : ''}${pad(remaining.hours)}:${pad(remaining.minutes)}:${pad(remaining.seconds)}`}
+        ? words.standby
+        : `${words.soon} ${remaining.days > 0 ? `${remaining.days}d ` : ''}${pad(remaining.hours)}:${pad(remaining.minutes)}:${pad(remaining.seconds)}`}
     </p>
   );
 }
