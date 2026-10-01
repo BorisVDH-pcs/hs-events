@@ -238,6 +238,12 @@ They show what the screens look like. They prove nothing about the SQL.
 `npm run test:all --prefix web` runs the self-tests for the pure helpers, bingo
 included.
 
+`scripts/bingo-smoke-test.sql` is the SQL side. Paste it into the Supabase SQL
+editor and run it: it plays three small bingo games through the real functions,
+as throwaway accounts that exist only inside the run, then rolls everything
+back. The editor shows the result as an error on purpose: that error text is
+the PASS/FAIL report, and nothing is saved.
+
 ## Deploying
 
 Every push to `main` builds the site and publishes it to
