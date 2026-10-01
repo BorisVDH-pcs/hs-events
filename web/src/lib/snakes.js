@@ -1,0 +1,227 @@
+// Snakes and Ladders helpers. Pure functions only, so scripts/snakes-selftest.mjs
+// can run them under plain Node.
+//
+// TILE NUMBERS. The database numbers tiles 1-100 with `tiles.position`, and
+// that number IS the square on the snake path: nothing is converted on the
+// way in. Only the drawing differs from bingo: tile 1 is bottom-left, the
+// bottom row runs left to right, the next one right to left, and so on up to
+// 100 at the top-left, like the board game.
+//
+// The server decides every move (20261002120100, snakes_move). What lives
+// here is reading its answer back: where a square is drawn, how a marker walks
+// to where the server put it, and the words the feed uses.
+
+export const BOARD_SIZE = 10;
+export const LAST_TILE = 100;
+
+/** Where tile n sits on screen: row 1 is the top row, col 1 the left column. */
+export function tileCell(n) {
+  const i = n - 1;
+  const fromBottom = Math.floor(i / BOARD_SIZE);
+  const along = i % BOARD_SIZE;
+  const col = fromBottom % 2 === 0 ? along + 1 : BOARD_SIZE - along;
+  return { row: BOARD_SIZE - fromBottom, col };
+}
+
+/** Every tile number in the order a CSS grid lays squares out (reading order). */
+export function boardOrder() {
+  const out = [];
+  for (let row = 1; row <= BOARD_SIZE; row++) {
+    const fromBottom = BOARD_SIZE - row;
+    const first = fromBottom * BOARD_SIZE + 1;
+    const run = Array.from({ length: BOARD_SIZE }, (_, k) => first + k);
+    out.push(...(fromBottom % 2 === 0 ? run : run.reverse()));
+  }
+  return out;
+}
+
+/** The middle of tile n in a 0-100 square, for the SVG drawn over the grid. */
+export function tileCenter(n) {
+  const { row, col } = tileCell(n);
+  return { x: (col - 0.5) * 10, y: (row - 0.5) * 10 };
+}
+
+/**
+ * An SVG path for a snake from its head to its tail: a gentle S along the
+ * line between them, so a snake never reads as a ruler line. Deterministic
+ * (the same head and tail always draw the same snake), and which way it
+ * wiggles alternates with the head, so two snakes side by side do not lie
+ * exactly in step.
+ */
+export function snakePath(from, to) {
+  const a = tileCenter(from);
+  const b = tileCenter(to);
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len = Math.hypot(dx, dy) || 1;
+  // Unit normal to the line, and how far the body swings off it.
+  const nx = -dy / len;
+  const ny = dx / len;
+  const swing = Math.min(6, 2 + len / 12) * (from % 2 === 0 ? 1 : -1);
+  const at = (t, s) => ({ x: a.x + dx * t + nx * s, y: a.y + dy * t + ny * s });
+  const c1 = at(0.25, swing);
+  const mid = at(0.5, 0);
+  const c2 = at(0.75, -swing);
+  const f = (p) => `${p.x.toFixed(2)} ${p.y.toFixed(2)}`;
+  return `M ${f(a)} Q ${f(c1)} ${f(mid)} Q ${f(c2)} ${f(b)}`;
+}
+
+/** Counting steps from a to b, one tile at a time, excluding a. */
+function walk(a, b) {
+  const out = [];
+  if (b > a) for (let t = a + 1; t <= b; t++) out.push(t);
+  else for (let t = a - 1; t >= b; t--) out.push(t);
+  return out;
+}
+
+/**
+ * How a marker gets from where it was to where the server put it, as a list
+ * of { tile, kind } steps, read off a `team_moved` payload:
+ *
+ *   'step'  -- one tile along the path (the die, a rollback, a skip)
+ *   'slide' -- straight there (down a snake, or an organiser's move)
+ *
+ * Start (0) is off the board, so a walk from Start begins on tile 1.
+ */
+export function movePath(p) {
+  if (!p || p.to == null) return [];
+  const from = Number(p.from ?? 0);
+  const to = Number(p.to);
+  if (p.kind === 'move') return from === to || to < 1 ? [] : [{ tile: to, kind: 'slide' }];
+
+  const steps = [];
+  const stepTo = (b) => {
+    const a = steps.length ? steps[steps.length - 1].tile : from;
+    for (const t of walk(a, b)) if (t >= 1) steps.push({ tile: t, kind: 'step' });
+  };
+
+  const jumps = Array.isArray(p.jumps) ? p.jumps : [];
+  // Where the first skip ended: the first snake head, or the final tile.
+  const shifted = jumps.length ? Number(jumps[0].from) : to;
+  const landed = Number(p.landed ?? to);
+
+  if (p.kind === 'roll' && p.long_skip) {
+    stepTo(landed);
+  } else if (p.kind === 'roll' && p.bounced) {
+    stepTo(LAST_TILE);
+    stepTo(landed);
+  } else {
+    stepTo(landed);
+  }
+  stepTo(shifted);
+
+  for (const j of jumps) {
+    steps.push({ tile: Number(j.to), kind: 'slide' });
+    stepTo(Number(j.then ?? j.to));
+  }
+  // Belt and braces: whatever the payload said, end where the server put it.
+  if (!steps.length || steps[steps.length - 1].tile !== to) {
+    if (to >= 1) steps.push({ tile: to, kind: 'slide' });
+  }
+  return steps;
+}
+
+/** The tile row a team stands on, or null at Start. */
+export function currentTile(team, tiles) {
+  if (!team || !team.board_tile) return null;
+  return tiles.find((t) => t.position === team.board_tile) ?? null;
+}
+
+/**
+ * Whether the team may roll: from Start always, otherwise once its current
+ * tile is done. The server re-checks; this only decides which button shows.
+ */
+export function canRoll(team, tiles) {
+  if (!team) return false;
+  if (!team.board_tile) return true;
+  return currentTile(team, tiles)?.claim_status === 'completed';
+}
+
+/** How far the team's next rollback goes, in words. */
+export function rollbackSize(used = 0) {
+  if (used <= 0) return '1–3 tiles';
+  if (used === 1) return 'one die (1–6 tiles)';
+  return 'the higher of two dice';
+}
+
+/** "Start" or "tile 37". */
+export const tileWord = (n) => (Number(n) ? `tile ${n}` : 'Start');
+
+/** Team marker colours, by slot. Distinct on the dark board, gold kept for "you". */
+const MARKERS = ['#ff6b5e', '#64b5ff', '#4cd97b', '#c58cff', '#ff9f43', '#5ee0d6', '#ff7ab8', '#d4d46a'];
+export const markerColor = (slot) => MARKERS[((slot ?? 1) - 1) % MARKERS.length];
+
+/** The finished-game banner, read off the game row (the server's decision). */
+export function resultText(game, teams) {
+  if (game?.status !== 'finished') return null;
+  const winner = teams.find((t) => t.id === game.winner_team_id)?.name;
+  if (game.ended_reason === 'won' && winner) return `${winner} completed tile 100 and wins!`;
+  if (!winner) return 'The game is over — no team left Start, so nobody wins.';
+  return `The organiser ended the game — ${winner} wins, furthest along.`;
+}
+
+/**
+ * The feed line for a snakes event, or null for anything this mode words the
+ * same as the others (evidence submitted, withdrawn, ...). Plain text; the
+ * Discord version of the same lines is snakes_discord_line in the database.
+ */
+export function snakesEventText(e, who) {
+  const p = e?.payload ?? {};
+  if (p.mode !== 'snakes') return null;
+
+  switch (e.type) {
+    case 'game_started':
+      return 'Snakes and Ladders has begun! Every team starts before tile 1 — roll to get going.';
+    case 'game_reset':
+      return 'Snakes and Ladders has been reset — every team is back at Start.';
+    case 'team_moved': {
+      const to = Number(p.to) ? `tile ${p.to}${p.tile_name ? ` (${p.tile_name})` : ''}` : 'Start';
+      const from = tileWord(p.from);
+      const extra = [];
+      if (p.kind !== 'move') {
+        if (p.bounced) extra.push(`Overshot 100 and bounced back to ${p.landed}.`);
+        const skipped = Array.isArray(p.skipped) ? p.skipped : [];
+        if (!p.long_skip && skipped.length) extra.push(`Skipped ${skipped.join(', ')}, already done.`);
+        for (const j of p.jumps ?? []) extra.push(`Snake on ${j.from}, down to ${j.to}!`);
+        if (Number(p.to) === LAST_TILE) extra.push('Tile 100 — finish it to win!');
+      }
+      const tail = extra.length ? ` ${extra.join(' ')}` : '';
+      switch (p.kind) {
+        case 'roll':
+          return p.long_skip
+            ? `${who} skipped from ${from} to ${to} — the next six tiles were all done or snake heads.${tail}`
+            : `${who} rolled a ${p.dice?.[0]}: ${from} → ${to}.${tail}`;
+        case 'rollback':
+          return `${who} used a rollback and went back ${p.steps}: ${from} → ${to}. `
+            + `${p.rollbacks_available} rollback${p.rollbacks_available === 1 ? '' : 's'} left.${tail}`;
+        case 'punish':
+          return `An organiser punished ${who}: back ${p.steps}, ${from} → ${to}.${tail}`;
+        default:
+          return `An organiser moved ${who} to ${to}.`;
+      }
+    }
+    case 'rollback_gained': {
+      const n = Number(p.amount);
+      if (p.reason === 'auto') {
+        return `${who} earned a rollback for finishing tile ${p.tile} — ${p.rollbacks_available} available.`;
+      }
+      return n < 0
+        ? `An organiser took ${-n} rollback${n === -1 ? '' : 's'} from ${who} — ${p.rollbacks_available} left.`
+        : `An organiser gave ${who} ${n} rollback${n === 1 ? '' : 's'} — ${p.rollbacks_available} available.`;
+    }
+    case 'tile_reopened':
+      return `An organiser reopened tile ${p.position}${p.tile_name ? ` (${p.tile_name})` : ''} for ${who}`
+        + ' — it is no longer complete.'
+        + (p.game_reopened ? ' The game has been reopened.' : '')
+        + (p.winner_changed ? ' The winner has changed.' : '');
+    case 'tile_completed':
+      return `${who} completed tile ${p.position}, ${p.tile_name ?? 'a tile'}.`
+        + (p.early ? ' (Marked complete by an organiser.)' : '');
+    case 'game_ended':
+      if (p.reason === 'won') return `${who} completed tile 100 and wins Snakes and Ladders!`;
+      if (!e.team_id) return 'The organiser ended the game. No team had left Start, so nobody wins.';
+      return `The organiser ended the game. ${who} wins — furthest along, on tile ${p.tile}.`;
+    default:
+      return null;
+  }
+}

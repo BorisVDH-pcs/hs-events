@@ -1,5 +1,6 @@
 import { fromPosition, coordLabel } from '../lib/board.js';
 import { evidenceEventText, revokedProgressText } from '../lib/eventText.js';
+import { snakesEventText } from '../lib/snakes.js';
 
 /**
  * The live feed. Most event types never name a tile: `game_events` is readable
@@ -48,6 +49,11 @@ export default function EventFeed({ events, teams, myTeamId }) {
     const at = e.payload?.position
       ? coordLabel(fromPosition(e.payload.position).row, fromPosition(e.payload.position).col)
       : null;
+
+    // Snakes and Ladders words its own events (tiles are numbered 1-100, not
+    // lettered); anything it does not word falls through to the lines below.
+    const snakes = snakesEventText(e, who);
+    if (snakes) return snakes;
 
     switch (e.type) {
       case 'fleet_placed':

@@ -75,6 +75,13 @@ const VERBS = {
     busy: 'Completing…',
     needed: 'needed to complete it',
   },
+  snakes: {
+    lastPiece: 'completes the tile — then your team can roll.',
+    title: 'Complete the tile?',
+    confirm: 'Submit & complete',
+    busy: 'Completing…',
+    needed: 'needed to complete it',
+  },
 };
 
 /*
