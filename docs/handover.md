@@ -20,7 +20,7 @@ team hiding a fleet of `2,3,3,4,5` on its own 10x10 board.
 |---|---|
 | Repo | https://github.com/BorisVDH-pcs/hs-events |
 | Live | https://borisvdh-pcs.github.io/hs-events/ |
-| Supabase | project `Battleships` — `fjgcijmdxeebgkdokini`, eu-west-2 |
+| Supabase | project `High Society Events` (was `Battleships`) — `fjgcijmdxeebgkdokini`, eu-west-2 |
 | Local | No canonical path — clone it where you need it. On Boris's work laptop: `Desktop/BorisHS/HS_Battleships` |
 | Dev server | port **5174** (`npm run dev --prefix web`) |
 
