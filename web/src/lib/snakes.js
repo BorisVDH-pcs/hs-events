@@ -10,6 +10,10 @@
 // The server decides every move (20261002120100, snakes_move). What lives
 // here is reading its answer back: where a square is drawn, how a marker walks
 // to where the server put it, and the words the feed uses.
+//
+// SNAKES AND LADDERS are one list of jumps, { from, to }: going down is a
+// snake, going up a ladder. Landing on `from` moves a team straight on, so
+// nobody ever stands there and those squares carry no task.
 
 export const BOARD_SIZE = 10;
 export const LAST_TILE = 100;
@@ -66,6 +70,85 @@ export function snakePath(from, to) {
   return `M ${f(a)} Q ${f(c1)} ${f(mid)} Q ${f(c2)} ${f(b)}`;
 }
 
+/** A ladder goes up; everything else on the board that jumps is a snake. */
+export const isLadder = (j) => Number(j.to) > Number(j.from);
+
+/** The jump starting on tile n, or null. */
+export function jumpFrom(jumps, n) {
+  return (jumps ?? []).find((j) => Number(j.from) === n) ?? null;
+}
+
+/**
+ * The standard board: ten snakes and eight ladders, where the classic board
+ * game has them, give or take. A few ladders early to get everyone going,
+ * catch-up ladders through the middle, one late ladder to 99, and the
+ * nastiest snakes in the top rows. No ladder ends on a snake and no snake
+ * ends on a ladder, so a move never chains by accident.
+ */
+export const DEFAULT_JUMPS = [
+  // ladders
+  { from: 4, to: 14 }, { from: 9, to: 31 }, { from: 21, to: 42 }, { from: 28, to: 56 },
+  { from: 36, to: 44 }, { from: 51, to: 67 }, { from: 71, to: 91 }, { from: 80, to: 99 },
+  // snakes
+  { from: 17, to: 7 }, { from: 47, to: 26 }, { from: 49, to: 11 }, { from: 54, to: 34 },
+  { from: 62, to: 19 }, { from: 64, to: 60 }, { from: 87, to: 24 }, { from: 93, to: 73 },
+  { from: 95, to: 75 }, { from: 98, to: 79 },
+];
+
+/**
+ * What is wrong with a set of snakes and ladders, in words, or null. The same
+ * rules admin_set_snakes enforces, checked here first so the organiser's
+ * editor can say so before anything is sent.
+ */
+export function checkJumps(jumps) {
+  const starts = new Map();
+  for (const j of jumps) {
+    const from = Number(j.from);
+    const to = Number(j.to);
+    if (!Number.isInteger(from) || !Number.isInteger(to)) return 'Every snake and ladder needs a start and an end.';
+    if (from < 1 || from > 99) return `A snake or ladder starts on tile 1 to 99 (not ${from}).`;
+    if (to < 1 || to > LAST_TILE) return `A snake or ladder ends on tile 1 to 100 (not ${to}).`;
+    if (to === from) return `The snake or ladder on tile ${from} goes nowhere.`;
+    if (starts.has(from)) return `Two snakes or ladders start on tile ${from}.`;
+    starts.set(from, to);
+  }
+  for (const [from, to] of starts) {
+    let t = to;
+    for (let hops = 0; starts.has(t); hops++) {
+      if (t === from || hops > LAST_TILE) return `The snakes and ladders from tile ${from} go round in a circle.`;
+      t = starts.get(t);
+    }
+  }
+  return null;
+}
+
+/**
+ * A ladder from tile a up to tile b in the board's 0-100 square: two rails
+ * and the rungs between them, as SVG path data.
+ */
+export function ladderShape(from, to) {
+  const a = tileCenter(from);
+  const b = tileCenter(to);
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const ux = dx / len;
+  const uy = dy / len;
+  const w = 1.35;            // half the ladder's width
+  const nx = -uy * w;
+  const ny = ux * w;
+  const f = (x, y) => `${x.toFixed(2)} ${y.toFixed(2)}`;
+  const rails = `M ${f(a.x + nx, a.y + ny)} L ${f(b.x + nx, b.y + ny)} `
+    + `M ${f(a.x - nx, a.y - ny)} L ${f(b.x - nx, b.y - ny)}`;
+  let rungs = '';
+  for (let d = 1.6; d < len - 0.8; d += 2.6) {
+    const x = a.x + ux * d;
+    const y = a.y + uy * d;
+    rungs += `M ${f(x + nx, y + ny)} L ${f(x - nx, y - ny)} `;
+  }
+  return { rails, rungs: rungs.trim() };
+}
+
 /** Counting steps from a to b, one tile at a time, excluding a. */
 function walk(a, b) {
   const out = [];
@@ -79,7 +162,7 @@ function walk(a, b) {
  * of { tile, kind } steps, read off a `team_moved` payload:
  *
  *   'step'  -- one tile along the path (the die, a rollback, a skip)
- *   'slide' -- straight there (down a snake, or an organiser's move)
+ *   'slide' -- straight there (down a snake, up a ladder, or an organiser's move)
  *
  * Start (0) is off the board, so a walk from Start begins on tile 1.
  */
@@ -182,7 +265,9 @@ export function snakesEventText(e, who) {
         if (p.bounced) extra.push(`Overshot 100 and bounced back to ${p.landed}.`);
         const skipped = Array.isArray(p.skipped) ? p.skipped : [];
         if (!p.long_skip && skipped.length) extra.push(`Skipped ${skipped.join(', ')}, already done.`);
-        for (const j of p.jumps ?? []) extra.push(`Snake on ${j.from}, down to ${j.to}!`);
+        for (const j of p.jumps ?? []) {
+          extra.push(isLadder(j) ? `Ladder on ${j.from}, up to ${j.to}!` : `Snake on ${j.from}, down to ${j.to}!`);
+        }
         if (Number(p.to) === LAST_TILE) extra.push('Tile 100 — finish it to win!');
       }
       const tail = extra.length ? ` ${extra.join(' ')}` : '';

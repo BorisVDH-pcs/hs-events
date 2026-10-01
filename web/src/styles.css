@@ -3992,6 +3992,7 @@ button.snakes-cell:hover {
 }
 
 .snakes-cell.head { background: rgba(255, 69, 58, .12); }
+.snakes-cell.foot { background: rgba(217, 169, 91, .16); }
 .snakes-cell.progress { border: 1px dashed rgba(242, 193, 78, .6); color: var(--gold-lit); }
 .snakes-cell.done {
   background: rgba(48, 209, 88, .18);
@@ -4037,6 +4038,14 @@ button.snakes-cell:hover {
 .snake-head   { fill: #d6453b; stroke: rgba(0, 0, 0, .65); stroke-width: .5; }
 .snake-eye    { fill: #fff3c4; }
 .snake { opacity: .82; }
+
+/* Ladders: warm wood, drawn under the snakes. A dark outline first so the
+   rails read against both the light and the dark squares. */
+.ladder path { fill: none; stroke-linecap: round; }
+.ladder-edge { stroke: rgba(0, 0, 0, .6); stroke-width: 1.15; }
+.ladder-rail { stroke: #d9a95b; stroke-width: .62; }
+.ladder-rung { stroke: #b88644; stroke-width: .5; }
+.ladder { opacity: .92; }
 
 .marker {
   transition: transform .17s var(--ease-out);
@@ -4148,6 +4157,21 @@ button.snakes-cell:hover {
   font-weight: 600;
 }
 .snakes-head-note   { background: rgba(255, 69, 58, .14); color: #ff9d95; }
+.snakes-ladder-note {
+  padding: .5rem .7rem;
+  border-radius: var(--r-md);
+  font-size: .875rem;
+  font-weight: 600;
+  background: rgba(217, 169, 91, .16);
+  color: #f0cf95;
+}
+.snakes-jump-art {
+  display: grid; place-items: center;
+  aspect-ratio: 1;
+  font-size: 1.8rem;
+  border-radius: var(--r-md);
+  background: var(--fill-3);
+}
 .snakes-finish-note { background: rgba(242, 193, 78, .14); color: var(--gold-lit); }
 
 .snakes-how summary { cursor: pointer; font-weight: 600; }

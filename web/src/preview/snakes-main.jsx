@@ -12,7 +12,7 @@ import { createRoot } from 'react-dom/client';
 import SnakesGame from '../components/snakes/SnakesGame.jsx';
 import Wordmark from '../components/Wordmark.jsx';
 import { snakesHandlers } from './stub-supabase.js';
-import { LAST_TILE } from '../lib/snakes.js';
+import { DEFAULT_JUMPS, LAST_TILE } from '../lib/snakes.js';
 import '../styles.css';
 
 const ago = (mins) => new Date(Date.now() - mins * 60000).toISOString();
@@ -32,17 +32,14 @@ const TASKS = [
   ['Max a skill', null], ['Full Barrows set', null], ['Mega-rare from a clue', null],
 ];
 
-// A classic board's snakes, head -> tail. 47 -> 26 and 26 is not a head, so
-// no chains here; the selftest covers those.
-const JUMPS = [
-  [17, 7], [47, 26], [49, 11], [54, 34], [62, 19], [64, 60], [87, 24], [93, 73], [95, 75], [98, 79],
-].map(([from, to]) => ({ from, to }));
+// The standard board (lib/snakes.js): ten snakes, eight ladders.
+const JUMPS = DEFAULT_JUMPS;
 const HEADS = new Map(JUMPS.map((j) => [j.from, j.to]));
 
 const ME = 't-1';
 
 function freshStore(status) {
-  const done = new Set([1, 4, 9, 12]);
+  const done = new Set([1, 3, 8, 12]);
   return {
     seq: 0,
     game: {
@@ -74,9 +71,9 @@ function freshStore(status) {
 
 const taskFor = (n) => TASKS[(n - 1) % TASKS.length];
 
+// A real game has no tile on a snake head or a ladder's foot.
 function tilesOf(store) {
-  return Array.from({ length: LAST_TILE }, (_, i) => {
-    const n = i + 1;
+  return Array.from({ length: LAST_TILE }, (_, i) => i + 1).filter((n) => !HEADS.has(n)).map((n) => {
     const [name, icon] = taskFor(n);
     const done = store.done.has(n);
     const have = store.progress.get(n) ?? 0;
@@ -96,18 +93,24 @@ function tilesOf(store) {
   });
 }
 
-/** Skip finished tiles and slide down snakes from `pos`, as snakes_move does. */
+/**
+ * Skip finished tiles and follow snakes and ladders from `pos`, as snakes_move
+ * does -- each one at most once per move, passed over after that.
+ */
 function settle(pos, isDone, cap = LAST_TILE) {
   const jumps = [];
   const skipped = [];
+  const used = new Set();
   for (let guard = 0; guard < 300; guard++) {
-    if (HEADS.has(pos)) {
+    if (HEADS.has(pos) && !used.has(pos)) {
       const to = HEADS.get(pos);
+      used.add(pos);
       jumps.push({ from: pos, to, then: to });
       pos = to;
+      cap = LAST_TILE;
       continue;
     }
-    if (isDone(pos) && pos < cap) {
+    if ((isDone(pos) || used.has(pos)) && pos < cap) {
       skipped.push(pos);
       pos += 1;
       if (jumps.length) jumps[jumps.length - 1].then = pos;
@@ -226,6 +229,14 @@ function Harness() {
     bump();
   }
 
+  function ladderMe() {
+    // Two short of the ladder at 51 (49 is a snake head, so start from 48).
+    me.board_tile = 48;
+    store.done.add(48);
+    move(store, me, 'roll', 3, [3]);
+    bump();
+  }
+
   function pick(k) {
     setView(k);
     setStore(freshStore(k));
@@ -248,6 +259,7 @@ function Harness() {
           <button onClick={completeMine}>Complete my tile</button>
           <button onClick={otherRolls}>Another team rolls</button>
           <button onClick={snakeMe}>Land me on a snake</button>
+          <button onClick={ladderMe}>Land me on a ladder</button>
         </div>
       )}
       <SnakesGame

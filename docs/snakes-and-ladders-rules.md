@@ -3,8 +3,7 @@
 Agreed with Boris, 2026-10-01. The third game mode on High Society Events,
 next to Battleships and Bingo. The rules come from the clan's earlier
 **Snakes & Rats** event (github.com/iftachShoham/HighSociety-Bingo), with
-everything rat-related removed. Ladders are planned for later; the design below
-leaves room for them.
+everything rat-related removed, and ladders added (2026-10-01).
 
 Decisions made by Boris are marked **(decided)**.
 
@@ -15,16 +14,20 @@ Decisions made by Boris are marked **(decided)**.
 - **Create** from the New game form, mode *Snakes and Ladders*: name, any number
   of teams (added before creating, like bingo), optional start time.
   **(decided)**
-- **Board**: always 100 tiles, filled from the tile catalogue in the existing
-  board builder. Every tile uses one of the platform's five completion rules
+- **Board**: 100 squares, filled from the tile catalogue in the existing
+  board builder. Snake heads and ladder feet get **no task** — landing there
+  moves the team on at once, so nobody ever stands on one **(decided)**. Every tile uses one of the platform's five completion rules
   (`points`, `value`, `one_set`, `each_set`, `points_per_set`), exactly as in
   bingo and battleships. **(decided)**
-- **Snakes**: placed per game in the admin console, as *from → to* pairs
-  (head → tail). **(decided)**
-  - The head is higher than the tail, so a snake always goes down.
-  - No snake on tile 1 or tile 100, and no two snakes share a head.
-  - A tail may land on another snake's head (snakes chain, as before).
-  - Stored as "jumps", so a ladder later is the same thing going *up*.
+- **Snakes and ladders**: placed per game in the admin console, as *from → to*
+  pairs. Going down is a snake (head → tail), going up a ladder (foot → top).
+  **(decided)**
+  - Nothing starts on tile 100, and no two share a starting tile.
+  - One may end where another starts (a chain), but never in a circle.
+  - The console starts from a **standard board** of 10 snakes and 8 ladders,
+    which the organiser can change: ladders 4→14, 9→31, 21→42, 28→56, 36→44,
+    51→67, 71→91, 80→99; snakes 17→7, 47→26, 49→11, 54→34, 62→19, 64→60,
+    87→24, 93→73, 95→75, 98→79.
 - **Teams and rosters** work as in bingo: every team needs at least one player
   before the game can start.
 
@@ -42,10 +45,14 @@ Teams start before tile 1 ("Start").
    the team has already completed, it moves forward to the next tile it has
    not. **(decided — keep)**
 4. **Long skip.** If the next six tiles are all completed by the team or are
-   snake heads, the roll is replaced by a jump to the first open tile ahead.
-5. **Snakes.** Landing on a head moves the team to the tail; the skip in rule 3
-   then applies from the tail, and if that lands on another head the team slides
-   again.
+   snake heads, the roll is replaced by a jump to the first open tile ahead. A
+   ladder's foot within reach counts as open: landing on it is good luck.
+5. **Snakes and ladders.** Landing on a snake's head moves the team down to the
+   tail; landing on a ladder's foot moves it up to the top. Passing over either
+   does nothing. The skip in rule 3 then applies from where the team arrived,
+   and if that lands on another snake or ladder, it moves again. Each snake or
+   ladder moves a team at most once per move; after that it is passed over
+   like a finished tile.
 6. The tile the team ends on is its new task.
 
 ## 3. Completing a tile
@@ -89,11 +96,11 @@ everyone else stops. Reaching 100 is not enough; its task has to be done.
 ## 7. What players see
 
 - The 100-tile board in the snake path, fully open: every tile's task is
-  visible to everyone from the start, as in bingo **(decided)**. Snakes are drawn
-  on it, with every team's marker.
+  visible to everyone from the start, as in bingo **(decided)**. Snakes and
+  ladders are drawn on it, with every team's marker.
 - Their own current tile, its task, and the uploader.
 - Dice roll, slide and skip animations, plus a feed line for each one.
-- Discord messages: rolled, snake bite, skipped, completed, rollback earned or
+- Discord messages: rolled, snake bite, ladder climb, skipped, completed, rollback earned or
   used, punished, moved, won.
 
 ## 8. Not carried over
@@ -106,24 +113,25 @@ everyone else stops. Reaching 100 is not enough; its task has to be done.
 
 ## 9. How it is built (database, step 2)
 
-Migrations `20261002120000_snakes_enums.sql` and `20261002120100_snakes_mode.sql`.
+Migrations `20261002120000_snakes_enums.sql`, `20261002120100_snakes_mode.sql`
+and, for ladders, `20261003120000_snakes_ladders.sql`.
 
 - A third game mode, `snakes`, next to `battleships` and `bingo`. Every rule
   that used to ask "is this bingo?" now asks "is this battleships?", so the new
   mode can never fall into battleships logic.
 - Where a team stands is on `teams` (`board_tile`, 0 = Start), with its
-  rollbacks. Snakes are rows in `board_jumps` (head → tail); a ladder later is
-  the same row going up.
+  rollbacks. Snakes and ladders are rows in `board_jumps` (from → to): down is
+  a snake, up is a ladder.
 - The die is rolled in the database, never in the browser.
 - Player calls: `snakes_roll`, `snakes_spend_rollback`, `snakes_open_tile`
   (then the usual `add_evidence`).
-- Organiser calls: `admin_set_snakes`, `admin_snakes_punish`,
+- Organiser calls: `admin_set_snakes` (snakes and ladders together), `admin_snakes_punish`,
   `admin_snakes_move`, `admin_snakes_give_rollback` (a negative amount takes
   some back), `admin_snakes_complete_tile`, `admin_snakes_uncomplete_tile`,
   `admin_snakes_end_game` (it is passed the winner the confirmation screen
   showed; if the standings changed in between, it refuses).
-- `scripts/snakes-smoke-test.sql` plays two games end to end with fixed dice
-  and rolls everything back.
+- `scripts/snakes-smoke-test.sql` plays the games end to end with fixed dice
+  (one of them with ladders) and rolls everything back.
 
 Small calls made while building, open to change:
 
@@ -131,9 +139,12 @@ Small calls made while building, open to change:
   its current tile is already done.
 - The first rollback's "1–3" is a d6 folded onto 1–3 (1 and 4 → 1, and so on),
   so every result is equally likely.
-- The organiser's Move cannot put a team on a snake head (as in the old game),
-  and does no skipping or snakes: the team lands exactly where it is put.
-- Snakes can only be changed before the game starts.
+- The organiser's Move cannot put a team on a snake head or a ladder's foot (as
+  in the old game), and does no skipping, snakes or ladders: the team lands
+  exactly where it is put.
+- Snakes and ladders work on every move except the organiser's Move: a
+  rollback or a punishment that lands on a ladder's foot climbs it.
+- Snakes and ladders can only be changed before the game starts.
 - A team added mid-game starts at Start.
 - Undoing a completion keeps the rollback it may have earned.
 - Withdrawing evidence from a tile the organiser completed early does not

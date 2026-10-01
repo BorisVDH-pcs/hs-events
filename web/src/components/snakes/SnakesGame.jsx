@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { usePrefersReducedMotion } from '../../hooks/usePrefersReducedMotion.js';
-import { movePath, resultText, LAST_TILE } from '../../lib/snakes.js';
+import { isLadder, jumpFrom, movePath, resultText, LAST_TILE } from '../../lib/snakes.js';
 import { tileProgressText } from '../../lib/tileProgress.js';
 import EventFeed from '../EventFeed.jsx';
 import TeamNameEditor from '../TeamNameEditor.jsx';
@@ -68,8 +68,9 @@ export default function SnakesGame({
           <h2>{game.name}</h2>
           <p className="muted">
             Snakes and Ladders: 100 tiles along a winding path. Roll the die, do the tile you
-            land on, roll again. Land on a snake&rsquo;s head and you slide down to its tail.
-            The tasks are revealed when the organiser starts the game.
+            land on, roll again. Land at the foot of a ladder and you climb it; land on a
+            snake&rsquo;s head and you slide down to its tail. The tasks are revealed when the
+            organiser starts the game.
           </p>
         </section>
         <section className="boards snakes-prep">{board(false)}</section>
@@ -79,8 +80,7 @@ export default function SnakesGame({
   }
 
   const result = resultText(game, teams);
-  const picked = selected ? tiles.find((t) => t.position === selected) ?? null : null;
-  const browsing = picked && picked.position !== myTeam?.board_tile;
+  const browsing = selected != null && selected !== myTeam?.board_tile;
 
   return (
     <>
@@ -108,7 +108,8 @@ export default function SnakesGame({
           <div className="side-col">
             {browsing ? (
               <SnakesTilePanel
-                tile={picked}
+                position={selected}
+                tile={tiles.find((t) => t.position === selected) ?? null}
                 jumps={jumps}
                 teams={teams}
                 myTeamId={myTeamId}
@@ -135,9 +136,40 @@ export default function SnakesGame({
 /**
  * A square someone pressed to read, that is not where my team stands. The
  * whole board is open to read; only the square you are on takes screenshots.
+ *
+ * A snake's head or a ladder's foot has no task, so it gets a few words about
+ * where it leads instead.
  */
-function SnakesTilePanel({ tile, jumps, teams, myTeamId, onClose }) {
-  const snake = jumps.find((j) => Number(j.from) === tile.position);
+function SnakesTilePanel({ position, tile, jumps, teams, myTeamId, onClose }) {
+  const jump = jumpFrom(jumps, position);
+  if (jump || !tile) {
+    const up = jump && isLadder(jump);
+    return (
+      <section className="bingo-tile-panel" aria-labelledby="snakes-tile-title">
+        <div className="bingo-tile-head snakes-jump-head">
+          <div className="slot-art snakes-jump-art" aria-hidden="true">{jump ? (up ? '🪜' : '🐍') : position}</div>
+          <div>
+            <h2 id="snakes-tile-title">
+              {jump ? (up ? 'Bottom of a ladder' : 'A snake’s head') : `Tile ${position}`}
+            </h2>
+            <p className="muted">Tile {position}</p>
+          </div>
+          <button className="ghost" onClick={onClose} aria-label="Close tile">Close</button>
+        </div>
+        {jump ? (
+          <p className={up ? 'snakes-ladder-note' : 'snakes-head-note'}>
+            {up
+              ? `Land here and you climb straight up to tile ${jump.to}.`
+              : `Land here and you slide straight down to tile ${jump.to}.`}
+            {' '}There is no task on this tile — nobody ever stops on it.
+          </p>
+        ) : (
+          <p className="muted">This tile has no task yet.</p>
+        )}
+      </section>
+    );
+  }
+
   const here = teams.filter((t) => t.board_tile === tile.position);
   const done = tile.claim_status === 'completed';
   return (
@@ -158,12 +190,6 @@ function SnakesTilePanel({ tile, jumps, teams, myTeamId, onClose }) {
         </div>
         <button className="ghost" onClick={onClose} aria-label="Close tile">Close</button>
       </div>
-      {snake && (
-        <p className="snakes-head-note">
-          🐍 A snake&rsquo;s head — land here and you slide down to tile {snake.to}.
-          A team that lands here never has to do this tile.
-        </p>
-      )}
       {tile.position === LAST_TILE && (
         <p className="snakes-finish-note">The finish. The first team to complete it wins.</p>
       )}
@@ -186,7 +212,9 @@ function HowItWorks() {
       <ul>
         <li>Roll the die and move that many tiles. Anyone on the team can roll.</li>
         <li>Complete the tile you land on before you roll again.</li>
+        <li>Land at the foot of a ladder and you climb to its top.</li>
         <li>Land on a snake&rsquo;s head and you slide down to its tail.</li>
+        <li>Ladders and snakes only work when you land on them — passing over does nothing.</li>
         <li>Tiles your team has already completed are skipped.</li>
         <li>Overshoot 100 and you bounce back by the extra.</li>
         <li>A rollback moves you back a few tiles, to get off a tile you would rather not do.</li>
