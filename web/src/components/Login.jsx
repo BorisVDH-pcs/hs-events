@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import Wordmark from './Wordmark.jsx';
+import NowRunning from './NowRunning.jsx';
 import { supabase } from '../lib/supabase.js';
 import { usernameToEmail, validateUsername, friendlyAuthError } from '../lib/auth.js';
+import { REPO_URL, SITE_NAME } from '../lib/site.js';
 
 /**
  * Username + password. No email anywhere — see lib/auth.js for how the username
@@ -88,7 +90,7 @@ export default function Login() {
 
   return (
     <div className="login">
-      <div className="login-radar" aria-hidden="true" />
+      <div className="login-glow" aria-hidden="true" />
       <div className="login-content">
         <Wordmark />
         <div className="login-credits">
@@ -98,7 +100,7 @@ export default function Login() {
             and{' '}
             <span className="credit-creator">Soft Papi</span>
           </span>
-          <a className="credit-star credit-star-compact" href="https://github.com/BorisVDH-pcs/HS_Battleships" target="_blank" rel="noreferrer">
+          <a className="credit-star credit-star-compact" href={REPO_URL} target="_blank" rel="noreferrer">
             <span aria-hidden="true">★</span>
             GitHub
           </a>
@@ -106,9 +108,15 @@ export default function Login() {
 
         <section className="login-card" aria-labelledby="login-title">
           <header className="login-intro">
-            <h2 id="login-title">Welcome aboard</h2>
-            <p>{signingUp ? 'Create your account to join the battle.' : 'Sign in to join the battle.'}</p>
+            <h2 id="login-title">Welcome</h2>
+            <p>
+              {signingUp
+                ? `Create your account for ${SITE_NAME}.`
+                : `Sign in to ${SITE_NAME}.`}
+            </p>
           </header>
+
+          <NowRunning />
 
           <div className="login-mode" role="group" aria-label="Account mode">
             <button
@@ -188,7 +196,7 @@ export default function Login() {
             <button className="login-submit" type="submit" disabled={busy || mismatch}>
               {busy
                 ? (signingUp ? 'Creating account…' : 'Signing in…')
-                : (signingUp ? 'Create account' : 'Enter the battle')}
+                : (signingUp ? 'Create account' : 'Sign in')}
             </button>
           </form>
 

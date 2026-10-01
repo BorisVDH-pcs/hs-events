@@ -41,7 +41,7 @@ export default function TileIcon({ slug, fallback, standIn = false }) {
       // leaving the browser's broken-image state on the same element.
       key={name}
       className={`tile-icon${name === PLACEHOLDER && slug ? ' stand-in' : ''}`}
-      // BASE_URL, not a leading slash: the site is served from /HS_Battleships/.
+      // BASE_URL, not a leading slash: the site is served from /hs-events/.
       src={`${import.meta.env.BASE_URL}icons/${name}.png`}
       alt=""
       loading="lazy"

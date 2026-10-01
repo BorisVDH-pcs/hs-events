@@ -148,11 +148,29 @@ const TABLES = {
   team_members: () => members,
 };
 
-/** `supabase.from(t).select(...).order(...)`, resolved straight from memory. */
+/**
+ * Canned rows for a table, in place of the console's seeded ones. The login
+ * harness (login-main.jsx) uses it to put events on the front page.
+ */
+export const tableFixtures = {};
+
+/**
+ * `supabase.from(t).select(...).order(...)`, resolved straight from memory.
+ * `in` and `limit` are honoured because the login page's list depends on
+ * them; `eq` and `order` stay no-ops, as the console never needed more.
+ */
 export function adminFrom(table) {
+  const filters = [];
+  let max = Infinity;
   const q = {
     select: () => q, order: () => q, eq: () => q,
-    then: (resolve) => resolve({ data: structuredClone(TABLES[table]?.() ?? []), error: null }),
+    in: (col, values) => { filters.push((r) => values.includes(r[col])); return q; },
+    limit: (n) => { max = n; return q; },
+    then: (resolve) => {
+      const rows = tableFixtures[table] ?? TABLES[table]?.() ?? [];
+      const data = rows.filter((r) => filters.every((f) => f(r))).slice(0, max);
+      return resolve({ data: structuredClone(data), error: null });
+    },
   };
   return q;
 }

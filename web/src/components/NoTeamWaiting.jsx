@@ -1,4 +1,5 @@
 import { useCountdown, pad } from '../lib/countdown.js';
+import { REPO_URL } from '../lib/site.js';
 
 const DATE_FORMAT = new Intl.DateTimeFormat(undefined, {
   weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
@@ -58,7 +59,7 @@ export default function NoTeamWaiting({ gameName, startsAt, assigned = false, te
         </span>
         <a
           className="waiting-star"
-          href="https://github.com/BorisVDH-pcs/HS_Battleships"
+          href={REPO_URL}
           target="_blank"
           rel="noreferrer"
         >

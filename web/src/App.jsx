@@ -16,6 +16,7 @@ import StartTimeBadge from './components/StartTimeBadge.jsx';
 import Admin from './components/Admin.jsx';
 import TeamNameEditor from './components/TeamNameEditor.jsx';
 import Wordmark from './components/Wordmark.jsx';
+import { REPO_URL, pageTitle } from './lib/site.js';
 import EvidencePanel from './components/EvidencePanel.jsx';
 import BoardLegend from './components/BoardLegend.jsx';
 import PetJar from './components/PetJar.jsx';
@@ -246,6 +247,11 @@ export default function App() {
     game.myRole !== 'captain';
   const waitingScreen = waitingForTeam || notYetOpen;
 
+  // The tab names the game a player is in, or just the platform. Organisers
+  // move between games in the console, so theirs stays on the platform name.
+  const titleGame = session && !isAdmin ? game.game?.name ?? null : null;
+  useEffect(() => { document.title = pageTitle(titleGame); }, [titleGame]);
+
   // Being added to a team writes no game_event, so the Realtime subscription
   // never fires for it. Poll while waiting so the page lets them in by itself
   // rather than needing to be told to refresh. Must sit above the early returns
@@ -408,7 +414,8 @@ export default function App() {
   return (
     <main className={`app game-app${waitingScreen ? ' waiting-app' : ''}`}>
       <header className="top" id="app-header">
-        <Wordmark />
+        {/* The subtitle follows the game on screen; the console is every game. */}
+        <Wordmark mode={isAdmin ? null : game.game?.mode ?? null} />
         {!isAdmin && game.game && (!waitingScreen || myGames.length > 1) && (
           <p className="status header-status">
             <GamePicker
@@ -736,7 +743,7 @@ export default function App() {
             and{' '}
             <span className="credit-creator">Soft Papi</span>
           </span>
-          <a className="credit-star" href="https://github.com/BorisVDH-pcs/HS_Battleships" target="_blank" rel="noreferrer">
+          <a className="credit-star" href={REPO_URL} target="_blank" rel="noreferrer">
             <span aria-hidden="true">★</span>
             Star on GitHub
           </a>
