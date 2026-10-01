@@ -88,6 +88,36 @@ export async function settleBingo(gameId) {
   return data;
 }
 
+// ---- Snakes and Ladders (20261002120100) -----------------------------------
+
+/**
+ * Roll the die for my team. The server rolls it, moves the team (skips,
+ * bounce, snakes) and answers with the whole move -- the same payload the
+ * `team_moved` event carries.
+ */
+export async function snakesRoll(gameId) {
+  const { data, error } = await supabase.rpc('snakes_roll', { p_game_id: gameId });
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+/** Spend one of my team's rollbacks. Answers with the move, like snakesRoll. */
+export async function snakesSpendRollback(gameId) {
+  const { data, error } = await supabase.rpc('snakes_spend_rollback', { p_game_id: gameId });
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+/**
+ * The id of my team's progress row for the tile it stands on, made on first
+ * use -- the upload path needs it before the file goes up, as in bingo.
+ */
+export async function snakesOpenTile(gameId) {
+  const { data, error } = await supabase.rpc('snakes_open_tile', { p_game_id: gameId });
+  if (error) throw new Error(error.message);
+  return data;
+}
+
 // ---- Admin API -----------------------------------------------------------
 // Every one of these re-checks is_admin() server-side, so hiding the admin tab
 // in the UI is a convenience, never the control.

@@ -3928,3 +3928,249 @@ button.bingo-cell.clickable:active { transform: scale(.95); transition-duration:
 @media (max-width: 860px) {
   .bingo-overview { grid-template-columns: 1fr; }
 }
+
+/* ==== snakes and ladders ====
+ *
+ * The same materials as the other two modes: .board, .cell and the side
+ * column's card. What the mode adds sits in two layers: a 10x10 grid of
+ * squares numbered along the snake path, and an SVG of the same size over it
+ * that draws the snakes and the team markers. The SVG takes no clicks, so a
+ * press always lands on the square underneath.
+ *
+ * Green still means done and gold still means "yours". The snakes are red,
+ * so a snake never looks like progress.
+ */
+
+.snakes-board { max-width: 780px; }
+.snakes-stage { position: relative; }
+.snakes-grid {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: 3px;
+}
+
+.snakes-cell {
+  position: relative;
+  overflow: hidden;
+  padding: .15rem;
+  border-radius: var(--r-sm);
+  color: var(--label-2);
+  cursor: pointer;
+}
+/* A faint checkerboard, so the eye can follow a row without counting. */
+.snakes-cell.alt { background: var(--fill-2); }
+button.snakes-cell:hover {
+  border-color: transparent;
+  background: var(--fill);
+  color: var(--text);
+  box-shadow: var(--glow-sm);
+}
+.snakes-cell .tile-icon { width: 70%; height: 70%; animation: none; }
+.snakes-cell .tile-icon, .snakes-cell .snakes-name, .snakes-cell .mark { grid-area: 1 / 1; }
+
+.snakes-num {
+  position: absolute;
+  top: .12rem; left: .22rem;
+  font-size: clamp(.5rem, .9vw, .66rem);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--label-3);
+  line-height: 1;
+  pointer-events: none;
+}
+.snakes-name {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-top: .45rem;
+  text-align: center;
+  font-size: clamp(.48rem, .8vw, .62rem);
+  line-height: 1.15;
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.snakes-cell.head { background: rgba(255, 69, 58, .12); }
+.snakes-cell.progress { border: 1px dashed rgba(242, 193, 78, .6); color: var(--gold-lit); }
+.snakes-cell.done {
+  background: rgba(48, 209, 88, .18);
+  border-color: transparent;
+  box-shadow: inset 0 0 0 1.5px rgba(48, 209, 88, .8);
+  color: #b7f0c8;
+}
+.snakes-cell.done .tile-icon { opacity: .5; }
+.snakes-cell.done .mark {
+  font-size: 1.3em;
+  line-height: 1;
+  color: var(--strike-lit);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .8);
+}
+.snakes-cell.finish {
+  background: linear-gradient(135deg, rgba(242, 193, 78, .28), rgba(242, 193, 78, .08));
+  border-color: rgba(242, 193, 78, .45);
+}
+.snakes-cell.finish .snakes-num { color: var(--gold-lit); }
+/* Where my team stands: the gold ring every mode uses for "yours, now". */
+.snakes-cell.here {
+  border-color: transparent;
+  box-shadow: var(--glow-md);
+  color: var(--gold-lit);
+}
+.snakes-cell.picked {
+  border-color: transparent;
+  box-shadow: 0 0 0 2px var(--text);
+}
+
+.snakes-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%; height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.snake path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.snake-edge   { stroke: rgba(0, 0, 0, .65); stroke-width: 2.7; }
+.snake-body   { stroke: #d6453b; stroke-width: 1.8; }
+.snake-scales { stroke: #8f231c; stroke-width: .8; stroke-dasharray: .6 1.4; }
+.snake-head   { fill: #d6453b; stroke: rgba(0, 0, 0, .65); stroke-width: .5; }
+.snake-eye    { fill: #fff3c4; }
+.snake { opacity: .82; }
+
+.marker {
+  transition: transform .17s var(--ease-out);
+}
+/* Down a snake (or an organiser's move): one long glide, not a hop. */
+.marker.sliding { transition: transform .68s cubic-bezier(.45, 0, .3, 1); }
+.marker circle { stroke: rgba(0, 0, 0, .75); stroke-width: .45; }
+.marker.mine circle { stroke: var(--gold-lit); stroke-width: .7; }
+.marker text {
+  font-size: 2.3px;
+  font-weight: 800;
+  fill: #111;
+  font-family: inherit;
+}
+.marker text.small { font-size: 1.8px; }
+
+.snakes-start {
+  display: flex; flex-wrap: wrap; align-items: center;
+  gap: .4rem;
+  margin-top: .65rem;
+  font-size: .8rem;
+}
+.snakes-start-label {
+  font-weight: 700;
+  color: var(--label-2);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  font-size: .7rem;
+}
+.start-chip {
+  display: inline-flex; align-items: center; gap: .35rem;
+  padding: .15rem .55rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-pill);
+  background: var(--fill-3);
+}
+.start-chip.mine { border-color: rgba(242, 193, 78, .6); color: var(--gold-lit); }
+.snakes-moving { margin-left: auto; }
+
+.snakes-standings .dot,
+.snakes-start .dot {
+  display: inline-block;
+  width: .6rem; height: .6rem;
+  border-radius: 50%;
+  margin-right: .4rem;
+  vertical-align: baseline;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .5);
+}
+.snakes-start .dot { margin-right: 0; }
+.snakes-standings .standings-row {
+  grid-template-areas: "place team count" "place sub sub" "place bar bar";
+}
+.snakes-standings .standings-row .sub { grid-area: sub; font-size: .75rem; }
+.snakes-standings li:first-child .place { color: var(--gold); }
+
+/* ---- the die ---- */
+
+.dice {
+  display: inline-grid;
+  grid-template: repeat(3, 1fr) / repeat(3, 1fr);
+  flex: none;
+  width: 2.4rem; aspect-ratio: 1;
+  padding: .32rem;
+  gap: .1rem;
+  border-radius: .5rem;
+  background: linear-gradient(145deg, #fbf6e6, #ded3b4);
+  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, .18), 0 2px 8px rgba(0, 0, 0, .45);
+}
+.dice-lg { width: 3.3rem; padding: .42rem; border-radius: .7rem; }
+.pip { border-radius: 50%; }
+.pip.on { background: #1b1b1d; box-shadow: inset 0 1px 1px rgba(0, 0, 0, .6); }
+.dice.rolling { animation: dice-tumble .5s linear infinite; }
+@keyframes dice-tumble {
+  0%   { transform: rotate(0deg) translateY(0); }
+  25%  { transform: rotate(90deg) translateY(-4px); }
+  50%  { transform: rotate(180deg) translateY(0); }
+  75%  { transform: rotate(270deg) translateY(-4px); }
+  100% { transform: rotate(360deg) translateY(0); }
+}
+
+/* ---- the side column ---- */
+
+.snakes-turn h2 {
+  display: flex; align-items: baseline; justify-content: space-between; gap: .5rem;
+}
+.snakes-where {
+  font-size: .8rem;
+  font-weight: 600;
+  color: var(--gold-lit);
+  font-variant-numeric: tabular-nums;
+}
+.snakes-roll-row { display: flex; align-items: center; gap: .85rem; }
+.snakes-last { font-size: .875rem; color: var(--label-2); }
+.snakes-roll { width: 100%; font-size: 1rem; padding-block: .65rem; }
+.snakes-current,
+.snakes-rollback {
+  display: grid; gap: .6rem;
+  padding-top: .7rem;
+  border-top: 1px solid var(--hairline);
+}
+.snakes-current h3 { margin: 0; font-size: 1rem; }
+.snakes-rollback button { justify-self: start; }
+
+.snakes-head-note,
+.snakes-finish-note {
+  padding: .5rem .7rem;
+  border-radius: var(--r-md);
+  font-size: .875rem;
+  font-weight: 600;
+}
+.snakes-head-note   { background: rgba(255, 69, 58, .14); color: #ff9d95; }
+.snakes-finish-note { background: rgba(242, 193, 78, .14); color: var(--gold-lit); }
+
+.snakes-how summary { cursor: pointer; font-weight: 600; }
+.snakes-how ul {
+  margin: .5rem 0 0; padding-left: 1.1rem;
+  display: grid; gap: .3rem;
+  font-size: .85rem; color: var(--label-2);
+}
+
+.snakes-prep { margin: 1.25rem 0; }
+.snakes-tabs button:not(.on) { font-weight: 500; }
+
+/* A phone gives each square ~32px: room for the number and the artwork, not
+   a name as well. The name is one press away in the panel. */
+@media (max-width: 600px) {
+  .snakes-grid { gap: 2px; }
+  .snakes-name { display: none; }
+  .snakes-cell { padding: 0; }
+  .snakes-cell .tile-icon { width: 62%; height: 62%; margin-top: .3rem; }
+  .snakes-board { padding: .45rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marker, .marker.sliding { transition: none; }
+  .dice.rolling { animation: none; }
+}

@@ -17,6 +17,7 @@ export const REPO_URL = 'https://github.com/BorisVDH-pcs/hs-events';
 const MODE_TITLES = {
   battleships: { text: 'Battleships', image: 'battleships-wordmark.png' },
   bingo: { text: 'Bingo' },
+  snakes: { text: 'Snakes & Ladders' },
 };
 
 export function modeTitle(mode) {

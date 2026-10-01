@@ -33,7 +33,8 @@ const BLANK = {
   events: [],
   scores: [],       // team_scores: derived totals for BOTH teams, no free text
   evidence: [],     // my_evidence: my team's uploads, keyed to claims
-  standings: [],    // bingo_standings: every team in finishing order (bingo only)
+  standings: [],    // bingo_standings / snakes_standings: every team, best first
+  jumps: [],        // snakes: [{ from, to }] -- the snakes on the board
 };
 
 /**
@@ -110,6 +111,7 @@ export function useGame(gameId, session) {
         scores: board.scores ?? [],
         evidence: board.evidence ?? [],
         standings: board.standings ?? [],
+        jumps: board.jumps ?? [],
       });
     } catch (err) {
       if (seq !== loadSeq.current || gameId !== shownId.current) return;

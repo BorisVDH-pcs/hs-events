@@ -243,6 +243,15 @@ export const supabase = {
 export const settleBingo = () => Promise.resolve(false);
 export const openBingoTile = () => Promise.reject(new Error('Uploads are not available in the harness.'));
 
+// The snakes screen's calls. The snakes harness (snakes-main.jsx) plugs in a
+// small simulation so the die and the marker can be watched moving; anywhere
+// else they refuse, like the bingo ones.
+export const snakesHandlers = {};
+const noSnakes = () => Promise.reject(new Error('Not available in the harness.'));
+export const snakesRoll = (g) => (snakesHandlers.roll ?? noSnakes)(g);
+export const snakesSpendRollback = (g) => (snakesHandlers.rollback ?? noSnakes)(g);
+export const snakesOpenTile = (g) => (snakesHandlers.open ?? noSnakes)(g);
+
 // Imported by AdminOverview, which the bingo overview borrows a helper from.
 // Never called on the bingo page.
 export const adminListShipCells = () => Promise.resolve([]);

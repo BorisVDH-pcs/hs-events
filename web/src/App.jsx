@@ -25,6 +25,7 @@ import NoTeamWaiting from './components/NoTeamWaiting.jsx';
 import { useConfirm } from './components/ConfirmDialog.jsx';
 import GamePicker from './components/GamePicker.jsx';
 import BingoGame from './components/bingo/BingoGame.jsx';
+import SnakesGame from './components/snakes/SnakesGame.jsx';
 import { listMyGames, readGamePick, writeGamePick } from './lib/games.js';
 import { readMuted, writeMuted } from './lib/sound.js';
 import { REVEAL_DELAY_MS, SHOT_RESULT_DURATION_MS } from './lib/fireEffect.js';
@@ -373,6 +374,9 @@ export default function App() {
   // Which game this is. Everything below the waiting room is battleships unless
   // it says otherwise; a bingo hands the whole board area to BingoGame.
   const isBingo = game.game?.mode === 'bingo';
+  const isSnakes = game.game?.mode === 'snakes';
+  // Everything written for battleships alone: the guide, its board, its slots.
+  const isBattleships = Boolean(game.game) && !isBingo && !isSnakes;
   // Matches the column's own default, set to 3 by migration 0031. It was 2
   // here long after the database moved, which is the kind of disagreement that
   // stays invisible until the one game whose column is somehow null renders a
@@ -461,8 +465,8 @@ export default function App() {
             {muted ? '🔇' : '🔊'}
             <span className="sound-toggle-label">{muted ? 'Sound off' : 'Sound on'}</span>
           </button>
-          {/* The guide teaches battleships; a bingo explains itself on the card. */}
-          {!isAdmin && !isBingo && (
+          {/* The guide teaches battleships; the other modes explain themselves on the board. */}
+          {!isAdmin && !isBingo && !isSnakes && (
             <button className="link" onClick={() => guideRef.current?.openWelcome()}>
               📖 How to Play
             </button>
@@ -471,7 +475,7 @@ export default function App() {
         </div>
       </header>
 
-      {!isAdmin && !isBingo && (
+      {!isAdmin && !isBingo && !isSnakes && (
         <Guide
           ref={guideRef}
           autoShow={!loading && Boolean(game.game) && !waitingScreen}
@@ -523,7 +527,22 @@ export default function App() {
         />
       )}
 
-      {game.game && !waitingScreen && !isBingo && (
+      {game.game && !waitingScreen && isSnakes && (
+        <SnakesGame
+          game={game.game}
+          teams={teams}
+          myTeamId={myTeamId}
+          myRole={myRole}
+          tiles={tiles}
+          standings={game.standings}
+          jumps={game.jumps}
+          events={events}
+          evidence={evidence}
+          onRefresh={game.refresh}
+        />
+      )}
+
+      {game.game && !waitingScreen && isBattleships && (
         <>
           {/* The name/status/team line and its "reconnecting" warning moved up
               into the sticky header (#app-header) — see the GamePicker there. */}
