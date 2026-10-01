@@ -1326,13 +1326,16 @@ function NewGame({ busy, onCreate }) {
         ))}
       </div>
 
-      <div className="row">
-        <label>Game name
+      {/* .new-game-fields: every field keeps its own width rather than
+          stretching across the card, so adding a team adds one more field
+          beside the others instead of squeezing or widening them all. */}
+      <div className="row new-game-fields">
+        <label className="field-name">Game name
           <input value={name} onChange={(e) => setName(e.target.value)}
                  placeholder={bingo ? 'Clan Bingo' : 'Battleships V4'} />
         </label>
         {bingo && (
-          <label>Card size
+          <label className="field-size">Card size
             <select value={gridSize} onChange={(e) => setGridSize(Number(e.target.value))}>
               {[3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
                 <option key={n} value={n}>{n}×{n} — {n * n} tiles</option>
@@ -1342,9 +1345,9 @@ function NewGame({ busy, onCreate }) {
         )}
       </div>
 
-      <div className="row">
+      <div className="row new-game-fields">
         {names.map((n, i) => (
-          <label key={i}>
+          <label key={i} className="field-team">
             {`Team ${i + 1}`}
             <span className="team-name-field">
               <input
@@ -1371,15 +1374,21 @@ function NewGame({ busy, onCreate }) {
       </div>
       {duplicate && <p className="error">Two teams have the same name.</p>}
 
-      <div className="row">
+      <div className="row new-game-fields">
         {/* Optional: teams can be rostered and fleets placed well before this
             moment. Left blank, players just see "time to be announced" until
             one is set from Configure. */}
-        <label>Start time <span className="muted">(optional)</span>
+        {/* One span for the caption, so the label's grid keeps "(optional)"
+            on the same line instead of giving it a row of its own. */}
+        <label className="field-time"><span>Start time <span className="muted">(optional)</span></span>
           <input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} />
         </label>
         {bingo && (
-          <label>End time <span className="muted">(optional — without one, it runs until a card is full)</span>
+          <label
+            className="field-time"
+            title="Without an end time, the game runs until a team fills the card."
+          >
+            <span>End time <span className="muted">(optional)</span></span>
             <input type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} />
           </label>
         )}
@@ -1402,6 +1411,11 @@ function NewGame({ busy, onCreate }) {
           Create
         </button>
       </div>
+      {bingo && (
+        <p className="muted new-game-note">
+          Without an end time, the game runs until a team fills the card.
+        </p>
+      )}
     </section>
   );
 }

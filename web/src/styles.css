@@ -3845,6 +3845,19 @@ button.bingo-cell.clickable:active { transform: scale(.95); transition-duration:
 .team-name-field input { flex: 1; min-width: 0; }
 .team-name-field button { flex: none; padding: .3rem .55rem; }
 
+/* New game: fixed-width fields. The shared `.row > label { flex: 1 1 10rem }`
+   stretches every field to fill the card, which turned a game name into a
+   field the width of the page and made each added team resize all the
+   others. Here each kind of field has its own size and the row just wraps.
+   max-width keeps them inside a phone-width card. */
+.row.new-game-fields { justify-content: flex-start; }
+.row.new-game-fields > label { flex: 0 0 auto; max-width: 100%; }
+.row.new-game-fields > .field-name { width: 20rem; }
+.row.new-game-fields > .field-size { width: 12rem; }
+.row.new-game-fields > .field-team { width: 15rem; }
+.row.new-game-fields > .field-time { width: 15rem; }
+.new-game-note { margin: .5rem 0 0; }
+
 /* The organiser's cards sit inside a .card, which already blurs -- a second
    backdrop-filter nested inside one is what made the confirm dialog flicker
    (see .confirm-backdrop). So the board and its legend go flat here. */
