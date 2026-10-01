@@ -1,4 +1,6 @@
-import { boardOrder, markerColor, snakePath, tileCell, tileCenter, LAST_TILE } from '../../lib/snakes.js';
+import {
+  boardOrder, isLadder, ladderShape, markerColor, snakePath, tileCell, tileCenter, LAST_TILE,
+} from '../../lib/snakes.js';
 import TileIcon from '../TileIcon.jsx';
 
 /**
@@ -6,8 +8,12 @@ import TileIcon from '../TileIcon.jsx';
  * turning back on themselves, 100 at the top-left.
  *
  * Two layers. The squares are a CSS grid of buttons -- press one to read its
- * task. Over them sits one SVG, the same size, that draws the snakes and the
- * team markers and lets every click fall through to the squares below.
+ * task. Over them sits one SVG, the same size, that draws the ladders, the
+ * snakes and the team markers and lets every click fall through to the
+ * squares below.
+ *
+ * A snake's head or a ladder's foot has no task (nobody ever stands there),
+ * so its square shows only its number and the colour of what it does.
  *
  * `shown` is where each marker is drawn right now, which during a move is a
  * step behind the server (SnakesGame walks it there). `sliding` marks markers
@@ -21,7 +27,9 @@ export default function SnakesBoard({
   tiles, teams, myTeamId, jumps, shown, sliding = {}, selected, onSelect, revealed = true,
 }) {
   const byPosition = new Map(tiles.map((t) => [t.position, t]));
-  const heads = new Map(jumps.map((j) => [Number(j.from), Number(j.to)]));
+  const starts = new Map(jumps.map((j) => [Number(j.from), Number(j.to)]));
+  const ladders = jumps.filter(isLadder);
+  const snakes = jumps.filter((j) => !isLadder(j));
   const myTile = shown[myTeamId] ?? 0;
   const me = teams.find((t) => t.id === myTeamId);
   const myRealTile = me?.board_tile ?? 0;
@@ -43,10 +51,12 @@ export default function SnakesBoard({
       <div className="snakes-stage">
         <div className="snakes-grid">
           {boardOrder().map((n) => {
-            const tile = byPosition.get(n);
+            const jumpTo = starts.get(n);
+            const tile = jumpTo ? null : byPosition.get(n);
             const done = tile?.claim_status === 'completed';
             const progress = !done && (tile?.evidence_count ?? 0) > 0;
-            const head = heads.get(n);
+            const head = jumpTo != null && jumpTo < n;
+            const foot = jumpTo != null && jumpTo > n;
             const cls = [
               'cell', 'snakes-cell',
               (tileCell(n).row + tileCell(n).col) % 2 === 0 ? 'alt' : '',
@@ -54,6 +64,7 @@ export default function SnakesBoard({
               progress ? 'progress' : '',
               n === myRealTile ? 'here' : '',
               head ? 'head' : '',
+              foot ? 'foot' : '',
               n === LAST_TILE ? 'finish' : '',
               selected === n ? 'picked' : '',
             ].filter(Boolean).join(' ');
@@ -66,7 +77,8 @@ export default function SnakesBoard({
                 title={[
                   `Tile ${n}`,
                   name,
-                  head ? `snake — down to ${head}` : null,
+                  head ? `snake — down to ${jumpTo}` : null,
+                  foot ? `ladder — up to ${jumpTo}` : null,
                   done ? 'done' : progress ? 'in progress' : null,
                 ].filter(Boolean).join(' · ')}
                 aria-pressed={selected === n}
@@ -83,7 +95,18 @@ export default function SnakesBoard({
         </div>
 
         <svg className="snakes-overlay" viewBox="0 0 100 100" aria-hidden="true">
-          {jumps.map((j) => {
+          {ladders.map((j) => {
+            const { rails, rungs } = ladderShape(Number(j.from), Number(j.to));
+            return (
+              <g key={`l${j.from}`} className="ladder">
+                <path className="ladder-edge" d={`${rails} ${rungs}`} />
+                <path className="ladder-rung" d={rungs} />
+                <path className="ladder-rail" d={rails} />
+              </g>
+            );
+          })}
+
+          {snakes.map((j) => {
             const d = snakePath(Number(j.from), Number(j.to));
             const h = tileCenter(Number(j.from));
             return (

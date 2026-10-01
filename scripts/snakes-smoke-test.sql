@@ -19,6 +19,7 @@
 -- not depend on the number.
 --
 -- Snakes on game 1: 16->6, 33->26, 26->12 (a chain), 53->39, 71->59, 96->83.
+-- Game 4 has ladders: 4->14, 9->31, 62->80, and snakes 17->7, 40->22.
 --
 -- The games:
 --   1. Red, Blue, Green (+ Yellow mid-game) -- set-up refusals, every way to
@@ -27,6 +28,9 @@
 --   2. One team -- reaches tile 100, finishes it and wins; the win is undone
 --      and redone; reset.
 --   3. A battleships game, to show it still has exactly two teams.
+--   4. One team on a board with ladders -- climbing, skipping after a ladder,
+--      a ladder in reach stops the long skip, a snake that cannot loop, no
+--      task needed on a snake head or a ladder's foot.
 
 create function pg_temp.smoke_as(p_id uuid) returns void
 language plpgsql as $$
@@ -83,7 +87,7 @@ declare
   v_blue  uuid := gen_random_uuid();
   v_green uuid := gen_random_uuid();
   v_out   uuid := gen_random_uuid();
-  g1 uuid; g2 uuid; g3 uuid;
+  g1 uuid; g2 uuid; g3 uuid; g4 uuid; lad uuid;
   red uuid; blue uuid; green uuid; yellow uuid; solo uuid;
   c uuid; c20 uuid; c4 uuid; c100 uuid;
   ev uuid;
@@ -147,7 +151,7 @@ begin
       format('update games set grid_size = 9 where id = %L', g1), '%grid_size%');
 
     v_log := v_log || pg_temp.smoke_refused('cannot start with an empty board',
-      format('select start_game(%L)', g1), '%needs 100 tiles%');
+      format('select start_game(%L)', g1), '%needs a tile on every square%100 missing%');
 
     v_step := 'fill the board (tile 20 needs two screenshots)';
     for r in 1 .. 10 loop
@@ -171,14 +175,17 @@ begin
 
     perform pg_temp.smoke_as(v_admin);
     v_log := v_log || pg_temp.smoke_refused('no snake on tile 100',
-      format($q$select admin_set_snakes(%L, '[{"from":100,"to":6}]')$q$, g1), '%2 to 99%');
-    v_log := v_log || pg_temp.smoke_refused('no snake on tile 1',
-      format($q$select admin_set_snakes(%L, '[{"from":1,"to":1}]')$q$, g1), '%2 to 99%');
-    v_log := v_log || pg_temp.smoke_refused('a snake must go down',
-      format($q$select admin_set_snakes(%L, '[{"from":16,"to":20}]')$q$, g1), '%must go down%');
+      format($q$select admin_set_snakes(%L, '[{"from":100,"to":6}]')$q$, g1), '%1 to 99%');
+    v_log := v_log || pg_temp.smoke_refused('a snake or ladder must go somewhere',
+      format($q$select admin_set_snakes(%L, '[{"from":1,"to":1}]')$q$, g1), '%goes nowhere%');
+    v_log := v_log || pg_temp.smoke_refused('nothing ends past 100',
+      format($q$select admin_set_snakes(%L, '[{"from":90,"to":101}]')$q$, g1), '%ends on tile 1 to 100%');
+    v_log := v_log || pg_temp.smoke_refused('a ladder and a snake cannot make a circle',
+      format($q$select admin_set_snakes(%L, '[{"from":20,"to":40},{"from":40,"to":20}]')$q$, g1),
+      '%go round in a circle%');
     v_log := v_log || pg_temp.smoke_refused('two snakes cannot share a head',
       format($q$select admin_set_snakes(%L, '[{"from":16,"to":6},{"from":16,"to":2}]')$q$, g1),
-      '%two snakes start on tile 16%');
+      '%two snakes or ladders start on tile 16%');
 
     v_step := 'place six snakes, one chain';
     n := admin_set_snakes(g1, '[{"from":16,"to":6},{"from":33,"to":26},{"from":26,"to":12},
@@ -611,6 +618,87 @@ begin
     loop
       v_log := v_log || E'\nINFO  ' || s;
     end loop;
+
+    -- ========================================================
+    -- Game 4: ladders
+    -- ========================================================
+    perform pg_temp.smoke_as(v_admin);
+    v_step := 'create game 4 with three ladders and two snakes';
+    g4 := admin_new_game('Smoke snakes 4', 'snakes', array['Ladder'], 10::smallint, null);
+    select id into lad from teams where game_id = g4;
+    n := admin_set_snakes(g4, '[{"from":4,"to":14},{"from":9,"to":31},{"from":62,"to":80},
+                               {"from":17,"to":7},{"from":40,"to":22}]'::jsonb);
+    v_log := v_log || pg_temp.smoke_line(v_step, n = 5, n || ' placed');
+
+    -- Every square but the five starts, and leave 50 empty too for now.
+    for r in 1 .. 10 loop
+      for k in 1 .. 10 loop
+        if ((r - 1) * 10 + k) not in (4, 9, 17, 40, 50, 62) then
+          perform admin_set_tile(g4, r::smallint, k::smallint,
+                    jsonb_build_object('name', 'Smoke tile ' || ((r - 1) * 10 + k)));
+        end if;
+      end loop;
+    end loop;
+    perform admin_set_member(lad, v_red, 'captain');
+    v_log := v_log || pg_temp.smoke_refused('an ordinary empty square still stops the start',
+      format('select start_game(%L)', g4), '%1 missing (50)%');
+
+    v_step := 'starts with no task on snake heads and ladder feet';
+    perform admin_set_tile(g4, 5::smallint, 10::smallint, '{"name":"Smoke tile 50"}'::jsonb);
+    perform start_game(g4);
+    v_log := v_log || pg_temp.smoke_line(v_step, (select status from games where id = g4) = 'active',
+               (select count(*) from tiles where game_id = g4) || ' tiles');
+
+    v_step := 'a 4 from Start climbs the ladder to 14';
+    perform pg_temp.smoke_as(v_red);
+    res := snakes_move(lad, 'roll', array[4]);
+    v_log := v_log || pg_temp.smoke_line(v_step,
+               (res ->> 'landed')::int = 4 and (res ->> 'to')::int = 14
+               and (res -> 'jumps' -> 0 ->> 'to')::int = 14,
+               (res ->> 'landed') || ' -> ' || (res ->> 'to'));
+
+    v_log := v_log || pg_temp.smoke_refused('the organiser cannot park a team on a ladder''s foot',
+      format('select pg_temp.smoke_done(%L, %L, 9)', v_admin, lad), '%bottom of a ladder%');
+
+    v_step := 'after a ladder, finished tiles are skipped (5 + 4 = 9 -> 31 done -> 32)';
+    perform pg_temp.smoke_done(v_admin, lad, 31);
+    perform pg_temp.smoke_done(v_admin, lad, 5);
+    perform pg_temp.smoke_as(v_red);
+    res := snakes_move(lad, 'roll', array[4]);
+    v_log := v_log || pg_temp.smoke_line(v_step,
+               (res ->> 'to')::int = 32 and (res -> 'jumps' -> 0 ->> 'then')::int = 32,
+               'on ' || (res ->> 'to'));
+
+    v_step := 'a ladder in reach is no reason for the long skip (60: 61, 63-66 done -> 62 -> 80)';
+    for k in 60 .. 66 loop
+      if k <> 62 then perform pg_temp.smoke_done(v_admin, lad, k); end if;
+    end loop;
+    perform admin_snakes_move(lad, 60);
+    perform pg_temp.smoke_as(v_red);
+    res := snakes_move(lad, 'roll', array[1]);
+    v_log := v_log || pg_temp.smoke_line(v_step,
+               (res ->> 'to')::int = 80 and not (res ->> 'long_skip')::boolean,
+               'on ' || (res ->> 'to') || ', long_skip=' || (res ->> 'long_skip'));
+
+    v_step := 'a snake bites once per move: 22-39 all done, 38 + 2 = 40 -> 22, skip on to 41';
+    for k in 22 .. 39 loop
+      if k <> 31 then perform pg_temp.smoke_done(v_admin, lad, k); end if;
+    end loop;
+    perform admin_snakes_move(lad, 38);
+    perform pg_temp.smoke_as(v_red);
+    res := snakes_move(lad, 'roll', array[2]);
+    v_log := v_log || pg_temp.smoke_line(v_step,
+               (res ->> 'to')::int = 41 and jsonb_array_length(res -> 'jumps') = 1
+               and (res -> 'jumps' -> 0 ->> 'then')::int = 41,
+               'on ' || coalesce(res ->> 'to', '-'));
+
+    v_step := 'game 4 board shows five jumps, and the ladder in Discord';
+    res := board_for_me(g4);
+    select discord_line(e) into s from game_events e
+     where e.game_id = g4 and e.type = 'team_moved' and e.payload -> 'jumps' -> 0 ->> 'from' = '4';
+    v_log := v_log || pg_temp.smoke_line(v_step,
+               jsonb_array_length(res -> 'jumps') = 5 and s like '%Ladder on 4, up to 14!%', s);
+    perform pg_temp.smoke_as(v_admin);
 
     v_step := 'reset game 1: everyone back at Start, snakes kept';
     perform admin_reset_game(g1);

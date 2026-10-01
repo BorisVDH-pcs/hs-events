@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {
-  boardOrder, canRoll, currentTile, movePath, resultText, rollbackSize, snakePath,
+  DEFAULT_JUMPS, boardOrder, canRoll, checkJumps, isLadder, jumpFrom, ladderShape, currentTile, movePath, resultText, rollbackSize, snakePath,
   snakesEventText, tileCell, tileCenter,
 } from '../src/lib/snakes.js';
 
@@ -104,5 +104,29 @@ assert.match(snakesEventText(ev('rollback_gained', { reason: 'admin', amount: -1
 assert.match(snakesEventText(ev('game_ended', { reason: 'won' }), 'Red'), /wins Snakes and Ladders/);
 assert.match(snakesEventText(ev('game_ended', { reason: 'admin' }, null), 'Someone'), /nobody wins/);
 assert.equal(snakesEventText(ev('evidence_submitted', {}), 'Red'), null);
+
+// ---- ladders ----
+assert.equal(checkJumps(DEFAULT_JUMPS), null, 'the standard board is valid');
+assert.equal(DEFAULT_JUMPS.filter(isLadder).length, 8);
+assert.equal(DEFAULT_JUMPS.filter((j) => !isLadder(j)).length, 10);
+const starts = new Set(DEFAULT_JUMPS.map((j) => j.from));
+for (const j of DEFAULT_JUMPS) assert.ok(!starts.has(j.to), `nothing chains on the standard board (${j.from} -> ${j.to})`);
+assert.equal(jumpFrom(DEFAULT_JUMPS, 4).to, 14);
+assert.equal(jumpFrom(DEFAULT_JUMPS, 5), null);
+assert.match(checkJumps([{ from: 20, to: 40 }, { from: 40, to: 20 }]), /circle/);
+assert.match(checkJumps([{ from: 16, to: 6 }, { from: 16, to: 30 }]), /Two snakes or ladders start on tile 16/);
+assert.match(checkJumps([{ from: 100, to: 3 }]), /1 to 99/);
+assert.match(checkJumps([{ from: 90, to: 101 }]), /1 to 100/);
+assert.match(checkJumps([{ from: 5, to: 5 }]), /goes nowhere/);
+assert.equal(checkJumps([{ from: 33, to: 26 }, { from: 26, to: 12 }]), null, 'a chain is fine');
+const lad = ladderShape(4, 14);
+assert.ok(lad.rails.startsWith('M ') && lad.rungs.split('M').length > 3, 'rails and rungs');
+
+assert.deepEqual(tiles({ kind: 'roll', from: 0, landed: 4, to: 14, jumps: [{ from: 4, to: 14, then: 14 }] }),
+  [1, 2, 3, 4, '>14'], 'up a ladder');
+assert.deepEqual(tiles({ kind: 'roll', from: 5, landed: 9, to: 32, jumps: [{ from: 9, to: 31, then: 32 }] }),
+  [6, 7, 8, 9, '>31', 32], 'up a ladder, then past a finished tile');
+assert.equal(snakesEventText(ev('team_moved', { kind: 'roll', from: 0, landed: 4, to: 14, dice: [4],
+  jumps: [{ from: 4, to: 14 }] }), 'Red'), 'Red rolled a 4: Start → tile 14. Ladder on 4, up to 14!');
 
 console.log('snakes selftest passed');
