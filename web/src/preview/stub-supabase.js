@@ -15,7 +15,13 @@
  * the SQL unwinds a sinking correctly.
  *
  * Swapped in by vite.preview.config.js. The app build never sees this file.
+ *
+ * The admin console's calls live in stub-admin.js and are re-exported from
+ * here, since this is the one module the alias points at.
  */
+import { adminFrom, adminRpc } from './stub-admin.js';
+
+export * from './stub-admin.js';
 
 /** A grey placeholder in the shape of a screenshot thumbnail. */
 const shot = (label) =>
@@ -202,14 +208,45 @@ let live = [...DEMO];
 
 export const resetDemo = () => { live = [...DEMO]; };
 
+/**
+ * Canned answers for any other RPC, keyed by name. The bingo harness
+ * (bingo-main.jsx) fills this in; the evidence harness leaves it empty.
+ */
+export const rpcFixtures = {};
+
+/** A realtime channel that never hears anything, for components that subscribe. */
+const quietChannel = {
+  on() { return quietChannel; },
+  subscribe(cb) { cb?.('SUBSCRIBED'); return quietChannel; },
+};
+
 export const supabase = {
-  rpc(name) {
+  rpc(name, args) {
+    if (name in rpcFixtures) {
+      return Promise.resolve({ data: rpcFixtures[name], error: null });
+    }
+    if (name in adminRpc) {
+      return Promise.resolve({ data: adminRpc[name](args ?? {}), error: null });
+    }
     if (name === 'admin_list_evidence') {
       return Promise.resolve({ data: live.map(({ _preview, ...r }) => r), error: null });
     }
     return Promise.resolve({ data: null, error: { message: `stub: no ${name}` } });
   },
+  from: adminFrom,
+  channel() { return quietChannel; },
+  removeChannel() {},
 };
+
+// The bingo screens' own calls. They do nothing here: the harness shows what
+// the screens look like, and has no game for them to change.
+export const settleBingo = () => Promise.resolve(false);
+export const openBingoTile = () => Promise.reject(new Error('Uploads are not available in the harness.'));
+
+// Imported by AdminOverview, which the bingo overview borrows a helper from.
+// Never called on the bingo page.
+export const adminListShipCells = () => Promise.resolve([]);
+export const adminReleaseClaim = () => Promise.reject(new Error('Not available in the harness.'));
 
 export function adminRevokeEvidence(evidenceId, dryRun = false) {
   const row = live.find((r) => r.id === evidenceId);

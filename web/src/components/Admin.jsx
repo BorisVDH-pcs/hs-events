@@ -10,9 +10,11 @@ import {
   adminClearBoard, adminGameReadiness, adminResetPassword, adminListPasswordResets,
   adminListAccountDeletions,
   adminSaveBoardPreset, adminApplyBoardPreset, adminDeleteBoardPreset,
+  adminNewGame, adminAddTeam, adminDeleteTeam, adminSetEndTime, adminEndGame,
 } from '../lib/supabase.js';
 import BoardBuilder from './BoardBuilder.jsx';
 import AdminOverview from './AdminOverview.jsx';
+import BingoOverview from './bingo/BingoOverview.jsx';
 import TeamNameEditor from './TeamNameEditor.jsx';
 import EvidenceReview from './EvidenceReview.jsx';
 import PetJarReview from './PetJarReview.jsx';
@@ -36,6 +38,19 @@ const STEP_HINT = {
   active:    'The game is running.',
   finished:  'This game is over.',
 };
+
+// Bingo has no fleets and no captains to wait on, so it can start straight
+// from setup. Preparation still exists for it — it is where players can see
+// their team and a countdown before the card is revealed — but it is optional.
+const BINGO_STEP_HINT = {
+  setup:     'Fill the card and add players to every team, then start — or open '
+           + 'preparation first so players can see their team before the card is revealed.',
+  placement: 'Players can see their team and the countdown. Start the game to reveal the card.',
+  active:    'The bingo is running. It ends when a team fills the card, or when the end time passes.',
+  finished:  'This bingo is over.',
+};
+
+const isBingoGame = (g) => g?.mode === 'bingo';
 
 /**
  * What `run` resolves to when the action was refused.
@@ -90,6 +105,13 @@ function readinessGaps(game, counts, teams, members) {
 
   if (counts && counts.tile_count < counts.tiles_needed) {
     gaps.push(`${counts.tiles_needed - counts.tile_count} more tiles`);
+  }
+  // Bingo: any number of teams, no captains, no fleets — players are the only
+  // other thing start_game insists on.
+  if (isBingoGame(game)) {
+    if (gameTeams.length === 0) gaps.push('a team');
+    if (gameTeams.some((t) => !members.some((m) => m.team_id === t.id))) gaps.push('players');
+    return gaps;
   }
   if (gameTeams.length !== 2) gaps.push('two teams');
   if (gameTeams.some((t) => !members.some((m) => m.team_id === t.id && m.role === 'captain'))) {
@@ -363,8 +385,44 @@ export default function Admin() {
     (t) => new Set(shipCells.filter((c) => c.team_id === t.id).map((c) => c.ship_id)).size !== fleetSize
   );
   const rosterCount = members.filter((m) => gameTeams.some((t) => t.id === m.team_id)).length;
+  const bingo = isBingoGame(game);
+  const teamsWithoutPlayers = gameTeams.filter((t) => !members.some((m) => m.team_id === t.id));
 
-  const checks = game ? [
+  // Bingo's list is shorter because start_game asks less of it: a full card,
+  // at least one team, and somebody on every team. Captains are still useful
+  // (they can rename their team) but nothing waits on them.
+  const bingoChecks = game && bingo ? [
+    {
+      key: 'tiles', label: 'Tiles', required: true,
+      ok: tiles.length === needTiles,
+      detail: `${tiles.length} of ${needTiles}`,
+      fix: tiles.length === 0
+        ? 'Build the card below.'
+        : `${needTiles - tiles.length} still empty — fill them in the board builder below.`,
+    },
+    {
+      key: 'teams', label: 'Teams', required: true,
+      ok: gameTeams.length > 0,
+      detail: `${gameTeams.length}`,
+      fix: 'Add at least one team in Teams below.',
+    },
+    {
+      key: 'roster', label: 'Players', required: true,
+      ok: gameTeams.length > 0 && teamsWithoutPlayers.length === 0,
+      detail: `${rosterCount} assigned`,
+      fix: teamsWithoutPlayers.length
+        ? `${teamsWithoutPlayers.map((t) => t.name).join(', ')} — add players in Roster below.`
+        : 'Add players in Roster below.',
+    },
+    {
+      key: 'discord', label: 'Discord', required: false,
+      ok: webhooks.length > 0,
+      detail: webhooks.length ? `${webhooks.length} configured` : 'none',
+      fix: 'Optional. With none set, this game posts nothing to Discord.',
+    },
+  ] : null;
+
+  const checks = !game ? [] : bingoChecks ?? [
     {
       key: 'tiles', label: 'Tiles', required: true,
       ok: tiles.length === needTiles,
@@ -418,21 +476,29 @@ export default function Admin() {
       // posts nothing at all, and silence is easy to mistake for a fault.
       fix: 'Optional. With none set, this game posts nothing to Discord.',
     },
-  ] : [];
+  ];
 
   const blocking = checks.filter((c) => c.required && !c.ok);
-  const canOpenPreparation = checks.every((c) => c.key !== 'tiles' || c.ok)
-    && teamsWithoutCaptain.length === 0 && gameTeams.length === 2 && rosterCount > 0;
+  // Bingo needs nothing before preparation: the card stays hidden until Start,
+  // so opening it early only shows players their team and a countdown.
+  const canOpenPreparation = bingo || (checks.every((c) => c.key !== 'tiles' || c.ok)
+    && teamsWithoutCaptain.length === 0 && gameTeams.length === 2 && rosterCount > 0);
   const canStart = blocking.length === 0;
+  // Battleships starts only from placement; bingo from either side of it.
+  const startableStatus = bingo
+    ? game.status === 'setup' || game.status === 'placement'
+    : game?.status === 'placement';
 
-  function blockedReason(forStatus) {
-    if (!game || game.status !== forStatus) return undefined;
-    const missing = forStatus === 'setup'
-      ? blocking.filter((c) => c.key !== 'fleets')
-      : blocking;
-    if (missing.length === 0) return undefined;
-    return 'Still needed: ' + missing.map((c) => c.label.toLowerCase()).join(', ');
-  }
+  const stillNeeded = (missing) => (missing.length === 0
+    ? undefined
+    : 'Still needed: ' + missing.map((c) => c.label.toLowerCase()).join(', '));
+
+  // Tooltip for Open preparation: everything but fleets, which captains can
+  // only place once it is open. Bingo has nothing to wait for here.
+  const openBlockedReason = !game || game.status !== 'setup' || bingo
+    ? undefined
+    : stillNeeded(blocking.filter((c) => c.key !== 'fleets'));
+  const startBlockedReason = startableStatus ? stillNeeded(blocking) : undefined;
 
   // Keep this badge in sync with the setup overview: it represents everything
   // still blocking the game, including fleets that captains place later.
@@ -518,13 +584,21 @@ export default function Admin() {
       )}
 
       {activePane === 'games' && <>
-      <NewGame busy={busy} onCreate={(name, a, b, startsAt) =>
+      <NewGame busy={busy} onCreate={({ name, mode, teams: teamList, gridSize, startsAt, endsAt }) =>
         run(async () => {
-          const id = await adminCreateGame(name, a, b);
+          // Battleships still goes through the call it always has; the new one
+          // delegates to it anyway, and this keeps a console ahead of its
+          // migration able to create the game it could create yesterday.
+          const id = mode === 'battleships'
+            ? await adminCreateGame(name, teamList[0], teamList[1])
+            : await adminNewGame({ name, mode, teams: teamList, gridSize, endsAt });
           if (id && startsAt) await adminSetStartTime(id, startsAt);
           return id;
-        }, 'Game created. Add its tiles next.')
-          .then((id) => { if (worked(id) && id) { setGameId(id); setPane('configure'); } })
+        }, mode === 'bingo' ? 'Bingo created. Fill its card next.' : 'Game created. Add its tiles next.')
+          .then((id) => {
+            if (worked(id) && id) { setGameId(id); setPane('configure'); }
+            return id;
+          })
       } />
 
       <section className="card">
@@ -539,13 +613,16 @@ export default function Admin() {
                 <div>
                   <strong>{g.name}</strong>{' '}
                   <span className={`pill ${g.status}`}>{statusLabel(g.status)}</span>
+                  {isBingoGame(g) && (
+                    <span className="pill mode-pill">Bingo · {g.grid_size}×{g.grid_size}</span>
+                  )}
                   {g.is_featured && (
                     <span className="pill" title="Unassigned players see this game's countdown">
                       ★ Featured
                     </span>
                   )}
                   <div className="meta">
-                    {names.join(' vs ') || 'no teams'}
+                    {names.join(isBingoGame(g) ? ', ' : ' vs ') || 'no teams'}
                     {/* Named, not counted. "3" would send you into the game to
                         find out which three; the words are what stop the badge
                         being another thing to open. Only while a game can
@@ -591,7 +668,8 @@ export default function Admin() {
                       // The dialog holds its confirm button disabled until the
                       // name matches, so there is no mismatch to report anymore.
                       if (!(await confirm(
-                        `Delete "${g.name}" and everything in it — the 100 tiles, every locked-in tile, the roster and the feed.`,
+                        `Delete "${g.name}" and everything in it — the ${g.grid_size * g.grid_size} tiles, `
+                        + 'every submission and claim, the roster and the feed.',
                         {
                           title: 'Delete this game?',
                           confirmLabel: 'Delete it',
@@ -646,25 +724,49 @@ export default function Admin() {
         <>
           <section className="card">
             <h2>{game.name} — {statusLabel(game.status)}</h2>
-            <p className="muted">{STEP_HINT[game.status]}</p>
+            <p className="muted">
+              {bingo && <span className="pill mode-pill">Bingo · {game.grid_size}×{game.grid_size}</span>}{' '}
+              {(bingo ? BINGO_STEP_HINT : STEP_HINT)[game.status]}
+            </p>
 
             <SetupChecklist checks={checks} status={game.status} />
 
             <div className="row">
               <button
                 disabled={busy || game.status !== 'setup' || !canOpenPreparation}
-                title={blockedReason('setup')}
+                title={openBlockedReason}
                 onClick={() => run(() => adminOpenPlacement(game.id), 'Preparation is open.')}
               >
                 Open preparation
               </button>
               <button
-                disabled={busy || game.status !== 'placement' || !canStart}
-                title={blockedReason('placement')}
-                onClick={() => run(() => startGame(game.id), 'Game started — fleets are now frozen.')}
+                disabled={busy || !startableStatus || !canStart}
+                title={startBlockedReason}
+                onClick={() => run(() => startGame(game.id), bingo
+                  ? 'Bingo started — the card is open to every team.'
+                  : 'Game started — fleets are now frozen.')}
               >
                 Start game
               </button>
+              {/* Bingo only. The timer ends a game on its own, but an organiser
+                  may need to call it early — a full card is not the only way an
+                  evening runs out. */}
+              {bingo && game.status === 'active' && (
+                <button
+                  className="danger"
+                  disabled={busy}
+                  onClick={async () => {
+                    if (!(await confirm(
+                      'Submissions close now and the team with the most completed tiles wins. '
+                      + 'Ties go to whoever reached their total first.',
+                      { title: `End "${game.name}" now?`, confirmLabel: 'End the game', danger: true }
+                    ))) return;
+                    run(() => adminEndGame(game.id), 'The bingo is over.');
+                  }}
+                >
+                  End game now
+                </button>
+              )}
             </div>
 
             {/* Display-only: nothing here gates Start game, which stays
@@ -680,9 +782,48 @@ export default function Admin() {
               />
             )}
 
+            {/* Unlike the start time, this one is enforced: from this moment the
+                server refuses every submission, and the standings at that point
+                are the result. Editable while running, so an evening can be
+                extended — but never into the past, which would end it by stealth. */}
+            {bingo && game.status !== 'finished' && (
+              <TimeEditor
+                label="End time"
+                hint="(submissions close at this moment)"
+                value={game.ends_at}
+                resetKey={game.id}
+                busy={busy}
+                onSave={(iso) => run(() => adminSetEndTime(game.id, iso),
+                  iso ? 'End time saved.' : 'End time cleared — the game now runs until a card is full.')}
+              />
+            )}
+
+            {bingo && (game.status === 'active' || game.status === 'finished') && (
+              <div className="row" style={{ marginTop: '.8rem' }}>
+                <button
+                  className="danger"
+                  disabled={busy}
+                  onClick={async () => {
+                    if (!(await confirm(
+                      'Cleared: every completed tile and submission, the activity feed, and the winner.\n'
+                      + `Kept: the ${needTiles} tiles, the teams and the roster.\n\n`
+                      + (game.ends_at && Date.parse(game.ends_at) <= Date.now()
+                        ? 'The end time has already passed — set a new one before starting again.\n\n'
+                        : '')
+                      + 'This cannot be undone.',
+                      { title: `Reset "${game.name}" to preparation?`, confirmLabel: 'Reset it', danger: true }
+                    ))) return;
+                    run(() => adminResetGame(game.id, true), 'Bingo reset — every tile is open again once you start.');
+                  }}
+                >
+                  Reset to preparation
+                </button>
+              </div>
+            )}
+
             {/* The way back out of a started game. Without it the only undo was
                 Delete, which takes the 100 tiles and the roster with it. */}
-            {(game.status === 'active' || game.status === 'finished') && (
+            {!bingo && (game.status === 'active' || game.status === 'finished') && (
               <div className="row" style={{ marginTop: '.8rem' }}>
                 <button
                   className="danger"
@@ -964,18 +1105,41 @@ export default function Admin() {
           />
 
           <section className="card">
-            <h2>Team names</h2>
+            <h2>{bingo ? 'Teams' : 'Team names'}</h2>
             <div className="columns">
               {gameTeams.map((team) => (
                 <div key={team.id}>
                   <h3>{team.name}</h3>
                   <TeamNameEditor team={team} onRenamed={() => loadGames()} />
+                  {/* Only before the start: once tiles are being completed a
+                      team is part of the standings, and deleting it would
+                      rewrite a result rather than fix a setup mistake. */}
+                  {bingo && (game.status === 'setup' || game.status === 'placement') && (
+                    <button
+                      className="danger"
+                      style={{ marginTop: '.5rem' }}
+                      disabled={busy}
+                      onClick={async () => {
+                        if (!(await confirm(
+                          `${team.name} is removed from this game, and its players go back to the free list.`,
+                          { title: `Delete the team "${team.name}"?`, confirmLabel: 'Delete it', danger: true }
+                        ))) return;
+                        run(() => adminDeleteTeam(team.id), `${team.name} deleted.`);
+                      }}
+                    >
+                      Delete team
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
+            {bingo && game.status !== 'finished' && (
+              <AddTeam busy={busy} onAdd={(name) => run(() => adminAddTeam(game.id, name), `${name} added.`)} />
+            )}
           </section>
 
           <Roster
+            bingo={bingo}
             gameTeams={gameTeams}
             profiles={profiles}
             members={members}
@@ -1009,7 +1173,31 @@ export default function Admin() {
       {/* Watching a game that is already set up. Both of these fetch on mount,
           so keeping them in their own pane also means a game you only came in to
           configure no longer loads every board and every screenshot first. */}
-      {activePane === 'track' && game && (
+      {activePane === 'track' && game && bingo && (
+        <>
+          <section className="card">
+            <h2>Cards</h2>
+            <p className="muted">
+              Every team’s card, with what it has completed and what it is part-way
+              through. Pick a team to see its card; a tile in progress shows its
+              evidence count.
+            </p>
+            <BingoOverview game={game} teams={gameTeams} />
+          </section>
+
+          <section className="card">
+            <h2>Evidence</h2>
+            <p className="muted">
+              Every screenshot submitted, newest first, with who submitted it.
+              There is nothing to approve — attaching the required number is what
+              completes a tile. Revoking one can take a tile back off a team’s count.
+            </p>
+            <EvidenceReview gameId={game.id} />
+          </section>
+        </>
+      )}
+
+      {activePane === 'track' && game && !bingo && (
         <>
           <section className="card">
             <h2>Boards</h2>
@@ -1090,29 +1278,125 @@ function SetupChecklist({ checks, status }) {
   );
 }
 
+const MODES = [
+  { key: 'battleships', label: 'Battleships', blurb: 'Two teams, hidden fleets, one shot per completed tile.' },
+  { key: 'bingo', label: 'Bingo', blurb: 'Any number of teams on the same card. Every tile is open at once; most tiles completed wins.' },
+];
+
+/**
+ * Create a game of either mode.
+ *
+ * Battleships keeps its fixed two team fields. Bingo grows a row per team,
+ * because "how many teams" is exactly the question a bingo organiser is
+ * answering here, and a count field followed by N names is two steps for one.
+ */
 function NewGame({ busy, onCreate }) {
+  const [mode, setMode] = useState('battleships');
   const [name, setName] = useState('');
-  const [a, setA] = useState('');
-  const [b, setB] = useState('');
+  const [teamNames, setTeamNames] = useState(['', '']);
+  const [gridSize, setGridSize] = useState(5);
   const [startsAt, setStartsAt] = useState('');
+  const [endsAt, setEndsAt] = useState('');
+
+  const bingo = mode === 'bingo';
+  const names = bingo ? teamNames : teamNames.slice(0, 2);
+  const filled = names.map((n) => n.trim()).filter(Boolean);
+  // Case-insensitive, like the server: "Alpha" and "alpha" read as one team in
+  // the standings, so they are refused here before they are refused there.
+  const duplicate = new Set(filled.map((n) => n.toLowerCase())).size !== filled.length;
+  const ready = name.trim() && !duplicate
+    && (bingo ? filled.length >= 1 : filled.length === 2 && names.every((n) => n.trim()));
+
+  const setTeam = (i, value) => setTeamNames((prev) => prev.map((n, j) => (j === i ? value : n)));
+
   return (
     <section className="card">
       <h2>New game</h2>
+      <div className="mode-picker" role="radiogroup" aria-label="Game mode">
+        {MODES.map((m) => (
+          <label key={m.key} className={`mode-option${mode === m.key ? ' on' : ''}`}>
+            <input
+              type="radio" name="game-mode" value={m.key}
+              checked={mode === m.key}
+              onChange={() => setMode(m.key)}
+            />
+            <strong>{m.label}</strong>
+            <span className="muted">{m.blurb}</span>
+          </label>
+        ))}
+      </div>
+
       <div className="row">
-        <label>Game name<input value={name} onChange={(e) => setName(e.target.value)} placeholder="Battleships V4" /></label>
-        <label>Team one<input value={a} onChange={(e) => setA(e.target.value)} placeholder="Team Alpha" /></label>
-        <label>Team two<input value={b} onChange={(e) => setB(e.target.value)} placeholder="Team Bravo" /></label>
+        <label>Game name
+          <input value={name} onChange={(e) => setName(e.target.value)}
+                 placeholder={bingo ? 'Clan Bingo' : 'Battleships V4'} />
+        </label>
+        {bingo && (
+          <label>Card size
+            <select value={gridSize} onChange={(e) => setGridSize(Number(e.target.value))}>
+              {[3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+                <option key={n} value={n}>{n}×{n} — {n * n} tiles</option>
+              ))}
+            </select>
+          </label>
+        )}
+      </div>
+
+      <div className="row">
+        {names.map((n, i) => (
+          <label key={i}>
+            {`Team ${i + 1}`}
+            <span className="team-name-field">
+              <input
+                value={n}
+                onChange={(e) => setTeam(i, e.target.value)}
+                placeholder={`Team ${['Alpha', 'Bravo', 'Charlie', 'Delta', 'Echo', 'Foxtrot'][i] ?? i + 1}`}
+              />
+              {bingo && names.length > 1 && (
+                <button
+                  type="button" className="ghost" aria-label={`Remove team ${i + 1}`}
+                  onClick={() => setTeamNames((prev) => prev.filter((_, j) => j !== i))}
+                >
+                  ✕
+                </button>
+              )}
+            </span>
+          </label>
+        ))}
+        {bingo && (
+          <button type="button" className="ghost" onClick={() => setTeamNames((prev) => [...prev, ''])}>
+            + Another team
+          </button>
+        )}
+      </div>
+      {duplicate && <p className="error">Two teams have the same name.</p>}
+
+      <div className="row">
         {/* Optional: teams can be rostered and fleets placed well before this
             moment. Left blank, players just see "time to be announced" until
             one is set from Configure. */}
         <label>Start time <span className="muted">(optional)</span>
           <input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} />
         </label>
+        {bingo && (
+          <label>End time <span className="muted">(optional — without one, it runs until a card is full)</span>
+            <input type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} />
+          </label>
+        )}
         <button
-          disabled={busy || !name.trim() || !a.trim() || !b.trim()}
-          onClick={() => {
-            onCreate(name, a, b, startsAt ? new Date(startsAt).toISOString() : null);
-            setName(''); setA(''); setB(''); setStartsAt('');
+          disabled={busy || !ready}
+          onClick={async () => {
+            const result = await onCreate({
+              name: name.trim(),
+              mode,
+              teams: filled,
+              gridSize: bingo ? gridSize : 10,
+              startsAt: startsAt ? new Date(startsAt).toISOString() : null,
+              endsAt: bingo && endsAt ? new Date(endsAt).toISOString() : null,
+            });
+            if (worked(result)) {
+              setName(''); setTeamNames(['', '']); setStartsAt(''); setEndsAt('');
+            }
           }}
         >
           Create
@@ -1127,31 +1411,49 @@ function NewGame({ busy, onCreate }) {
  * console's own error/notice banner rather than a local receipt, same as
  * every other button on this pane. */
 function StartTimeEditor({ game, busy, onSave }) {
-  const toLocalInput = (iso) => {
-    if (!iso) return '';
-    const d = new Date(iso);
-    // datetime-local wants "YYYY-MM-DDTHH:mm" in the input's own timezone,
-    // which toISOString (UTC) does not give — build it from local fields.
-    const pad = (n) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  };
+  return (
+    <TimeEditor
+      label="Start time"
+      hint="(shown to players as a countdown)"
+      value={game.starts_at}
+      resetKey={game.id}
+      busy={busy}
+      onSave={onSave}
+    />
+  );
+}
 
-  const [value, setValue] = useState(() => toLocalInput(game.starts_at));
+/**
+ * datetime-local wants "YYYY-MM-DDTHH:mm" in the input's own timezone, which
+ * toISOString (UTC) does not give — build it from local fields.
+ */
+function toLocalInput(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
-  useEffect(() => { setValue(toLocalInput(game.starts_at)); }, [game.id, game.starts_at]);
+/** One timestamp on a game, set or cleared. Shared by the start and end time. */
+function TimeEditor({ label, hint, value: saved, resetKey, busy, onSave }) {
+  const [value, setValue] = useState(() => toLocalInput(saved));
+
+  useEffect(() => { setValue(toLocalInput(saved)); }, [resetKey, saved]);
 
   const nextIso = value ? new Date(value).toISOString() : null;
-  const changed = nextIso !== (game.starts_at ?? null);
+  // Compared at minute precision: the input cannot hold seconds, so a saved
+  // value with any would otherwise look edited the moment the form loads.
+  const changed = value !== toLocalInput(saved);
 
   return (
     <div className="row start-time-editor">
-      <label>Start time <span className="muted">(shown to players as a countdown)</span>
+      <label>{label} <span className="muted">{hint}</span>
         <input type="datetime-local" value={value} onChange={(e) => setValue(e.target.value)} />
       </label>
       <button disabled={busy || !changed} onClick={() => onSave(nextIso)}>
-        Save start time
+        Save {label.toLowerCase()}
       </button>
-      {game.starts_at && (
+      {saved && (
         <button className="ghost" disabled={busy} onClick={() => { setValue(''); onSave(null); }}>
           Clear
         </button>
@@ -1360,7 +1662,26 @@ function Accounts({ profiles, busy, confirm, onReset, onDelete, resets, deletion
   );
 }
 
-function Roster({ gameTeams, profiles, members, busy, onSet, onRemove, onAddMany }) {
+/** Add one more team to a bingo. Battleships is always exactly two. */
+function AddTeam({ busy, onAdd }) {
+  const [name, setName] = useState('');
+  return (
+    <div className="row" style={{ marginTop: '.8rem' }}>
+      <label>New team<input value={name} onChange={(e) => setName(e.target.value)} placeholder="Team Charlie" /></label>
+      <button
+        disabled={busy || !name.trim()}
+        onClick={async () => {
+          const result = await onAdd(name.trim());
+          if (worked(result)) setName('');
+        }}
+      >
+        Add team
+      </button>
+    </div>
+  );
+}
+
+function Roster({ bingo, gameTeams, profiles, members, busy, onSet, onRemove, onAddMany }) {
   return (
     <section className="card">
       <h2>Roster</h2>
@@ -1415,7 +1736,9 @@ function Roster({ gameTeams, profiles, members, busy, onSet, onRemove, onAddMany
       </div>
       <p className="muted" style={{ marginTop: '.8rem' }}>
         Players appear here once they have signed up on the login screen.
-        Only a captain (or you) can place that team’s fleet.
+        {bingo
+          ? ' A captain can rename their team; anyone on a team can complete its tiles.'
+          : ' Only a captain (or you) can place that team’s fleet.'}
       </p>
     </section>
   );

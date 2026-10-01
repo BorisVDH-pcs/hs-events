@@ -92,7 +92,18 @@ function submissionLabel(r) {
 function consequences(p) {
   const out = [];
 
-  if (p.unfired) {
+  // Bingo has no shot, ship or slot -- only whether the tile still counts, and
+  // what that does to the result.
+  if (p.mode === 'bingo') {
+    if (p.uncompleted) {
+      out.push(`The tile is no longer complete — it stops counting for ${p.team_name}, who can submit against it again.`);
+    } else if (p.was_completed) {
+      out.push('The tile still meets its target without this piece, so it stays completed.');
+    }
+    if (p.game_reopened) out.push(`The game is reopened — ${p.team_name} no longer has a full card.`);
+    if (p.winner_changed) out.push('The winner changes to whoever now leads the standings.');
+    out.push('Other teams are told nothing, though the standings show the lower count.');
+  } else if (p.unfired) {
     out.push(p.shot_result === 'hit'
       ? 'The shot is withdrawn — that HIT stops counting.'
       : 'The shot is withdrawn — that miss stops counting.');
@@ -119,9 +130,11 @@ function consequences(p) {
   // this in the middle of a live event, and "does the other team find out"
   // is the question they will actually have — worth answering in the dialog
   // rather than leaving them to reason about RLS policies.
-  out.push(p.announced_to_all
-    ? `The other team is told a shot was withdrawn — not which square, which tile, or what was on it.`
-    : `The other team is told nothing.`);
+  if (p.mode !== 'bingo') {
+    out.push(p.announced_to_all
+      ? `The other team is told a shot was withdrawn — not which square, which tile, or what was on it.`
+      : `The other team is told nothing.`);
+  }
   if (p.over_slot_limit) {
     out.push(`${p.team_name} will be holding ${p.active_tiles} tiles, over the limit of ${p.max_active_tiles}.`);
   }
@@ -374,7 +387,9 @@ export default function EvidenceReview({ gameId }) {
                     <span className="muted">
                       {r.team_name} · {r.uploaded_by_name} ·{' '}
                       {new Date(r.created_at).toLocaleString()}
-                      {r.status === 'fired' ? ' · fired' : ' · not yet fired'}
+                      {r.status === 'fired'
+                        ? ' · fired'
+                        : r.status === 'completed' ? ' · completed' : ' · not yet finished'}
                     </span>
                   </div>
                   <button

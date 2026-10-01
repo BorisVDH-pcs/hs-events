@@ -23,6 +23,7 @@ import StatsPanel from './components/StatsPanel.jsx';
 import NoTeamWaiting from './components/NoTeamWaiting.jsx';
 import { useConfirm } from './components/ConfirmDialog.jsx';
 import GamePicker from './components/GamePicker.jsx';
+import BingoGame from './components/bingo/BingoGame.jsx';
 import { listMyGames, readGamePick, writeGamePick } from './lib/games.js';
 import { readMuted, writeMuted } from './lib/sound.js';
 import { REVEAL_DELAY_MS, SHOT_RESULT_DURATION_MS } from './lib/fireEffect.js';
@@ -363,6 +364,9 @@ export default function App() {
   }
 
   const { loading, error, teams, myTeamId, myRole, tiles, myShipCells, myFleet, enemyShots, events, evidence, live } = game;
+  // Which game this is. Everything below the waiting room is battleships unless
+  // it says otherwise; a bingo hands the whole board area to BingoGame.
+  const isBingo = game.game?.mode === 'bingo';
   // Matches the column's own default, set to 3 by migration 0031. It was 2
   // here long after the database moved, which is the kind of disagreement that
   // stays invisible until the one game whose column is somehow null renders a
@@ -450,7 +454,8 @@ export default function App() {
             {muted ? '🔇' : '🔊'}
             <span className="sound-toggle-label">{muted ? 'Sound off' : 'Sound on'}</span>
           </button>
-          {!isAdmin && (
+          {/* The guide teaches battleships; a bingo explains itself on the card. */}
+          {!isAdmin && !isBingo && (
             <button className="link" onClick={() => guideRef.current?.openWelcome()}>
               📖 How to Play
             </button>
@@ -459,7 +464,7 @@ export default function App() {
         </div>
       </header>
 
-      {!isAdmin && (
+      {!isAdmin && !isBingo && (
         <Guide
           ref={guideRef}
           autoShow={!loading && Boolean(game.game) && !waitingScreen}
@@ -497,7 +502,21 @@ export default function App() {
         />
       )}
 
-      {game.game && !waitingScreen && (
+      {game.game && !waitingScreen && isBingo && (
+        <BingoGame
+          game={game.game}
+          teams={teams}
+          myTeamId={myTeamId}
+          myRole={myRole}
+          tiles={tiles}
+          standings={game.standings}
+          events={events}
+          evidence={evidence}
+          onRefresh={game.refresh}
+        />
+      )}
+
+      {game.game && !waitingScreen && !isBingo && (
         <>
           {/* The name/status/team line and its "reconnecting" warning moved up
               into the sticky header (#app-header) — see the GamePicker there. */}

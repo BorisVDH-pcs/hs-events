@@ -1,5 +1,12 @@
 # Architecture
 
+> **Game modes.** Since `feat/game-modes`, every game has a `mode`:
+> `battleships` (everything below) or `bingo`. Bingo reuses tiles, claims,
+> evidence and the feed. It hides its claims from players, stores a finished
+> tile as `status = 'completed'` rather than a shot, and ends on a full card or
+> on `games.ends_at`. See [multi-game-plan.md](multi-game-plan.md) for what
+> changes per mode and how to add another one.
+
 ## Data model
 
 ```

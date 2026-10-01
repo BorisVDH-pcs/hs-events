@@ -8,13 +8,14 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "npm run test:all",
-    "test:all": "npm run test:board && npm run test:auth && npm run test:tile-rules && npm run test:tile-draft",
+    "test:all": "npm run test:board && npm run test:auth && npm run test:tile-rules && npm run test:tile-draft && npm run test:bingo",
     "test:board": "node scripts/board-selftest.mjs",
     "test:auth": "node scripts/auth-selftest.mjs",
     "test:tile-rules": "node scripts/tile-rules-selftest.mjs",
     "test:tile-draft": "node scripts/tile-draft-selftest.mjs",
     "icons:manifest": "node scripts/build-icon-manifest.mjs",
-    "preview:evidence": "vite --config vite.preview.config.js"
+    "preview:evidence": "vite --config vite.preview.config.js",
+    "test:bingo": "node scripts/bingo-selftest.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.58.0",

@@ -64,6 +64,30 @@ export async function spendPetJar(tileId) {
   return data;
 }
 
+// ---- Bingo (20261001120100) ------------------------------------------------
+
+/**
+ * The id of this team's progress row for a bingo tile, made on first use.
+ * Bingo has no lock-in, but evidence still hangs off a claim row, and the
+ * upload path needs its id before the file goes up.
+ */
+export async function openBingoTile(tileId) {
+  const { data, error } = await supabase.rpc('bingo_open_tile', { p_tile_id: tileId });
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+/**
+ * Record the result of a bingo whose timer has run out. Harmless at any other
+ * time -- it answers false and does nothing -- so every open page calls it
+ * when its countdown reaches zero, and whichever lands first settles it.
+ */
+export async function settleBingo(gameId) {
+  const { data, error } = await supabase.rpc('bingo_settle', { p_game_id: gameId });
+  if (error) throw new Error(error.message);
+  return data;
+}
+
 // ---- Admin API -----------------------------------------------------------
 // Every one of these re-checks is_admin() server-side, so hiding the admin tab
 // in the UI is a convenience, never the control.
@@ -83,6 +107,31 @@ export const adminCreateGame = (name, teamA, teamB, gridSize = 10, maxActive = 3
     p_name: name, p_team_a: teamA, p_team_b: teamB,
     p_grid_size: gridSize, p_max_active: maxActive,
   });
+
+/**
+ * Either mode. `teams` is a list of names: exactly two for battleships, one or
+ * more for bingo. `endsAt` (ISO or null) is bingo only.
+ */
+export const adminNewGame = ({ name, mode, teams, gridSize = 10, endsAt = null }) =>
+  rpc('admin_new_game', {
+    p_name: name, p_mode: mode, p_teams: teams,
+    p_grid_size: gridSize, p_ends_at: endsAt,
+  });
+
+/** Bingo only. Adding works until the game is over; removing only before it starts. */
+export const adminAddTeam = (gameId, name) =>
+  rpc('admin_add_team', { p_game_id: gameId, p_name: name });
+
+export const adminDeleteTeam = (teamId) =>
+  rpc('admin_delete_team', { p_team_id: teamId });
+
+/** Bingo only. ISO string, or null for no timer. Must be in the future. */
+export const adminSetEndTime = (gameId, endsAt) =>
+  rpc('admin_set_end_time', { p_game_id: gameId, p_ends_at: endsAt });
+
+/** Bingo only: finish a running game now, winner by the standings. */
+export const adminEndGame = (gameId) =>
+  rpc('admin_end_game', { p_game_id: gameId });
 
 export const adminSetMember = (teamId, profileId, role) =>
   rpc('admin_set_member', { p_team_id: teamId, p_profile_id: profileId, p_role: role });

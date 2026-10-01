@@ -3602,3 +3602,266 @@ button.danger.ghost:hover:not(:disabled) {
   flex: 0 1 auto; min-width: 0;
 }
 .builder-deals .row { gap: .35rem; flex-wrap: wrap; }
+
+/* ==== bingo ====
+ *
+ * The same materials as battleships -- .board, .cell, the side-column card --
+ * so the two modes read as one app. What bingo adds is a square that can hold
+ * a name, a green "done" state, and a standings list in place of the score.
+ *
+ * Green for done because it is the colour this app already uses for "this
+ * counted" (a struck hull, an active game). Gold stays what it is everywhere
+ * else: the thing you have selected or are working on.
+ */
+
+/* Fewer columns than ten means bigger squares, and the board's 780px cap
+   would turn a 3x3 into three slabs; capped tighter so a small card stays
+   a card. The columns themselves come inline from BingoCard. */
+.bingo-board { max-width: 720px; }
+.bingo-grid { gap: 5px; }
+
+.bingo-cell {
+  position: relative;
+  overflow: hidden;
+  padding: .25rem;
+  color: var(--label-2);
+}
+button.bingo-cell.clickable { cursor: pointer; }
+button.bingo-cell.clickable:hover {
+  border-color: transparent;
+  background: var(--fill);
+  color: var(--text);
+  box-shadow: var(--glow-sm);
+  transform: scale(1.04);
+  z-index: 1;
+}
+button.bingo-cell.clickable:active { transform: scale(.95); transition-duration: .09s; }
+
+/* A square's own name, when it has no artwork or the card is small enough to
+   fit one. Clamped to three lines: a long task name is in the panel anyway. */
+.bingo-name {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-align: center;
+  font-size: clamp(.6rem, 1.1vw, .78rem);
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: -.003em;
+  word-break: break-word;
+}
+.bingo-caption {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  padding: .15rem .25rem;
+  background: linear-gradient(to top, rgba(0, 0, 0, .78), rgba(0, 0, 0, 0));
+  color: var(--text);
+  font-size: .62rem;
+  font-weight: 600;
+  line-height: 1.15;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+.bingo-grid.compact .bingo-name { font-size: .62rem; font-weight: 500; }
+.bingo-cell .bingo-name, .bingo-cell .tile-icon { grid-area: 1 / 1; }
+
+/* Part-done: something submitted, not enough yet. A dashed gold ring -- the
+   outline of the selected state, which is what it is on its way to. */
+.bingo-cell.progress {
+  border: 1px dashed rgba(242, 193, 78, .6);
+  color: var(--gold-lit);
+}
+.bingo-cell.done {
+  background: rgba(48, 209, 88, .20);
+  border-color: transparent;
+  box-shadow: inset 0 0 0 2px rgba(48, 209, 88, .85);
+  color: #b7f0c8;
+}
+.bingo-cell.done .tile-icon { opacity: .55; }
+.bingo-cell.done .mark {
+  grid-area: 1 / 1;
+  font-size: 1.6em;
+  line-height: 1;
+  color: var(--strike-lit);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .8), 0 0 7px rgba(0, 0, 0, .55);
+}
+.bingo-cell.picked {
+  border-color: transparent;
+  box-shadow: var(--glow-md);
+  color: var(--gold-lit);
+}
+.bingo-cell.done.picked {
+  box-shadow: inset 0 0 0 2px rgba(48, 209, 88, .85), var(--glow-md);
+}
+
+.legend .key.bingo-key.done {
+  background: rgba(48, 209, 88, .20); border-color: transparent;
+  box-shadow: inset 0 0 0 1.5px rgba(48, 209, 88, .85);
+}
+.legend .key.bingo-key.progress { background: transparent; border: 1px dashed rgba(242, 193, 78, .6); }
+
+/* The countdown sits where battleships shows the next move. */
+.board-tabs .bingo-timer { font-variant-numeric: tabular-nums; }
+
+/* ---- standings ---- */
+
+.bingo-standings ol { list-style: none; margin: 0; padding: 0; display: grid; gap: .25rem; }
+.standings-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1.4rem 1fr auto;
+  grid-template-areas: "place team count" "place bar bar";
+  align-items: center;
+  column-gap: .55rem; row-gap: .3rem;
+  padding: .45rem .55rem;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  color: var(--text);
+  font: inherit;
+  font-size: .875rem;
+  text-align: left;
+  text-transform: none;
+  letter-spacing: -.003em;
+  cursor: pointer;
+  transition: background .2s var(--ease-out), border-color .2s var(--ease-out);
+}
+.standings-row:hover { background: var(--fill-3); filter: none; }
+.bingo-standings li.viewing .standings-row {
+  border-color: rgba(242, 193, 78, .5);
+  background: rgba(242, 193, 78, .08);
+}
+.bingo-standings li.mine .standings-row .team { color: var(--gold-lit); }
+.standings-row .place {
+  grid-area: place;
+  color: var(--label-3);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.bingo-standings li:first-child .place { color: var(--gold); }
+.standings-row .team {
+  grid-area: team; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-weight: 600;
+}
+.standings-row .count { grid-area: count; font-variant-numeric: tabular-nums; color: var(--label-2); }
+.standings-row .bar {
+  grid-area: bar;
+  height: 4px;
+  border-radius: var(--r-pill);
+  background: var(--fill-2);
+  overflow: hidden;
+}
+.standings-row .bar > span {
+  display: block; height: 100%;
+  border-radius: inherit;
+  background: var(--strike);
+  transition: width .5s var(--ease-out);
+}
+
+/* ---- the tile panel ---- */
+
+/* Same grouped surface as the battleships side-column cards. */
+.side-col .bingo-tile-panel {
+  margin: 0;
+  padding: .95rem 1rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-xl);
+  background: var(--panel);
+  backdrop-filter: blur(30px) saturate(180%);
+  -webkit-backdrop-filter: blur(30px) saturate(180%);
+  box-shadow: var(--shadow-sm);
+  display: grid;
+  gap: .7rem;
+  align-content: start;
+}
+@media (prefers-reduced-transparency: reduce) {
+  .side-col .bingo-tile-panel {
+    background: var(--panel-solid);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+.bingo-tile-panel h2 { margin: 0; font-size: 1.05rem; }
+.bingo-tile-panel p { margin: 0; }
+.bingo-tile-head {
+  display: grid;
+  grid-template-columns: 3.5rem 1fr auto;
+  gap: .7rem;
+  align-items: start;
+}
+.bingo-tile-head .slot-art { width: 3.5rem; }
+.bingo-done-note {
+  padding: .5rem .7rem;
+  border-radius: var(--r-md);
+  background: rgba(48, 209, 88, .14);
+  color: var(--strike-lit);
+  font-weight: 600;
+  font-size: .875rem;
+}
+/* Inside the panel, the evidence list is a section of the card, not a second
+   card -- and it carries no blur of its own, so nothing here nests one. */
+.bingo-tile-panel .tile-evidence-panel { margin-top: 0; }
+
+/* ---- admin ---- */
+
+.mode-pill { color: var(--gold-lit); background: rgba(242, 193, 78, .14); }
+
+.mode-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: .6rem;
+  margin-bottom: 1rem;
+}
+.mode-option {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas: "radio title" "radio blurb";
+  column-gap: .6rem; row-gap: .15rem;
+  padding: .7rem .85rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  background: var(--fill-3);
+  cursor: pointer;
+  transition: border-color .2s var(--ease-out), background .2s var(--ease-out);
+}
+/* The global input rule gives every input full width and padding; a radio
+   wants neither. */
+.mode-option input {
+  grid-area: radio; align-self: start;
+  width: auto; padding: 0; margin: .2rem 0 0;
+  accent-color: var(--gold);
+}
+.mode-option strong { grid-area: title; color: var(--text); font-size: .9375rem; }
+.mode-option .muted { grid-area: blurb; }
+.mode-option.on { border-color: rgba(242, 193, 78, .6); background: rgba(242, 193, 78, .08); }
+
+.team-name-field { display: flex; gap: .3rem; align-items: center; }
+.team-name-field input { flex: 1; min-width: 0; }
+.team-name-field button { flex: none; padding: .3rem .55rem; }
+
+/* The organiser's cards sit inside a .card, which already blurs -- a second
+   backdrop-filter nested inside one is what made the confirm dialog flicker
+   (see .confirm-backdrop). So the board and its legend go flat here. */
+.bingo-overview {
+  display: grid;
+  grid-template-columns: minmax(14rem, 1fr) minmax(0, 2.4fr);
+  gap: 1.2rem;
+  align-items: start;
+}
+.bingo-overview h3 { margin: 0 0 .6rem; }
+.bingo-overview .board,
+.bingo-overview .legend {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: var(--fill-3);
+}
+.bingo-overview-panel { grid-column: 1 / -1; }
+@media (max-width: 860px) {
+  .bingo-overview { grid-template-columns: 1fr; }
+}

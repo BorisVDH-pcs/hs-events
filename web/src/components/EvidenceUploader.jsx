@@ -55,9 +55,38 @@ import { useConfirm } from './ConfirmDialog.jsx';
  * the card nearly twice as tall for something a player has already seen; the
  * organiser's review screen is where the images actually need looking at.
  */
+/**
+ * What the finishing submission is called. Battleships fires a shot with it;
+ * bingo just completes the square, and saying "fire" there would describe a
+ * game nobody is playing.
+ */
+const VERBS = {
+  battleships: {
+    lastPiece: 'completes the tile and fires the shot.',
+    title: 'Fire the shot?',
+    confirm: 'Submit & fire',
+    busy: 'Firing…',
+    needed: 'needed before you can fire',
+  },
+  bingo: {
+    lastPiece: 'completes the tile.',
+    title: 'Complete the tile?',
+    confirm: 'Submit & complete',
+    busy: 'Completing…',
+    needed: 'needed to complete it',
+  },
+};
+
+/*
+ * `claimId` may be null in bingo: there is no lock-in, so a tile nobody has
+ * submitted against yet has no claim row. `ensureClaimId` makes one on the
+ * first submit (bingo_open_tile) and resolves to its id -- the upload path is
+ * built from it, so it has to exist before the file goes up.
+ */
 const EvidenceUploader = forwardRef(function EvidenceUploader({
-  claimId, gameId, teamId, tile, onUploaded,
+  claimId, ensureClaimId, gameId, teamId, tile, onUploaded, mode = 'battleships',
 }, ref) {
+  const verbs = VERBS[mode] ?? VERBS.battleships;
   const [staged, setStaged] = useState([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -135,8 +164,8 @@ const EvidenceUploader = forwardRef(function EvidenceUploader({
   async function submit() {
     if (willComplete && !(await confirm(
       `This is the last piece of evidence for "${tileName}". Submitting it ` +
-      'completes the tile and fires the shot.',
-      { title: 'Fire the shot?', confirmLabel: 'Submit & fire' }
+      verbs.lastPiece,
+      { title: verbs.title, confirmLabel: verbs.confirm }
     ))) return;
 
     setBusy(true);
@@ -145,22 +174,24 @@ const EvidenceUploader = forwardRef(function EvidenceUploader({
       // Sequentially: parallel uploads racing the same locked-in tile is a good way
       // sail past the required count and confuse the person doing it.
       let last = null;
+      const id = claimId ?? await ensureClaimId?.();
+      if (!id) throw new Error('Could not open this tile for evidence.');
       for (const item of staged) {
         last = await uploadEvidence({
-          gameId, teamId, claimId, file: item.file,
+          gameId, teamId, claimId: id, file: item.file,
           optionId: item.optionId,
           amount: isValue ? millionsToTenths(item.amount) : null,
         });
         // The database fires as soon as this submission completes the rule.
         // Anything after it belongs to a claim that is now closed and would
         // fail with "already fired" after the useful work had succeeded.
-        if (last?.fired) break;
+        if (last?.fired || last?.completed) break;
       }
       setStaged([]);
       // add_evidence() fires the shot itself once the requirement is met, and
       // says so. `completed` is what the caller falls back on if it did not.
       await onUploaded?.({
-        completed: willComplete,
+        completed: willComplete || Boolean(last?.completed),
         fired: Boolean(last?.fired),
         result: last?.result ?? null,
       });
@@ -279,7 +310,7 @@ const EvidenceUploader = forwardRef(function EvidenceUploader({
         {!now.done && stagedPoints > 0 && !grouped && (
           <span className="muted"> (+{stagedPoints} staged)</span>
         )}
-        {!now.done && <span className="muted"> — needed before you can fire</span>}
+        {!now.done && <span className="muted"> — {verbs.needed}</span>}
       </p>
 
       {/* The price list used to sit here, open on the card whenever the tile
@@ -328,8 +359,8 @@ const EvidenceUploader = forwardRef(function EvidenceUploader({
             </button>
             <button onClick={submit} disabled={busy || !allAssigned}>
               {busy
-                ? (willComplete ? 'Firing…' : 'Submitting…')
-                : (willComplete ? 'Submit & fire' : 'Submit')}
+                ? (willComplete ? verbs.busy : 'Submitting…')
+                : (willComplete ? verbs.confirm : 'Submit')}
             </button>
           </div>
           {!allAssigned && (

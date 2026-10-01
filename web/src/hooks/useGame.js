@@ -33,6 +33,7 @@ const BLANK = {
   events: [],
   scores: [],       // team_scores: derived totals for BOTH teams, no free text
   evidence: [],     // my_evidence: my team's uploads, keyed to claims
+  standings: [],    // bingo_standings: every team in finishing order (bingo only)
 };
 
 /**
@@ -108,6 +109,7 @@ export function useGame(gameId, session) {
         events: board.events ?? [],
         scores: board.scores ?? [],
         evidence: board.evidence ?? [],
+        standings: board.standings ?? [],
       });
     } catch (err) {
       if (seq !== loadSeq.current || gameId !== shownId.current) return;
