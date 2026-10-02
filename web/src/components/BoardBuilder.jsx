@@ -41,7 +41,7 @@ export default function BoardBuilder({
   game, tiles, library, libraryError, busy,
   onSetTile, onClearTile, onSwapTiles, onSaveLibraryTile, onDeleteLibraryTile,
   onAutofillBoard, onShuffleBoard, onReshuffleBoard, onClearBoard,
-  onSaveBoard, onLoadBoard, onDeleteBoard, jumps = [],
+  onSaveBoard, onLoadBoard, onDeleteBoard, jumps = [], jumpsUnsaved = false,
 }) {
   // Saved boards. Held here rather than in the console's own slices because
   // nothing outside this panel reads them, and re-fetching a list of names
@@ -625,6 +625,14 @@ export default function BoardBuilder({
           </>
         )}
       </p>
+      {/* `jumps` is the Snakes and ladders card's draft while it has unsaved
+          changes (Admin, onDraft), so this board is their preview. Said, so a
+          snake that is only typed is not taken for one that is saved. */}
+      {snakes && jumpsUnsaved && (
+        <p className="builder-draft-note">
+          Showing the snakes and ladders as typed above — not saved yet.
+        </p>
+      )}
 
       {tiles.length > 0 && (
         <p className="builder-view-toggle">

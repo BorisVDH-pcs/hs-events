@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { DEFAULT_JUMPS, LAST_TILE, checkJumps, isLadder } from '../../lib/snakes.js';
-import SnakesBoard from './SnakesBoard.jsx';
 
 let nextKey = 1;
 const toRows = (jumps) => [...jumps]
@@ -24,14 +23,17 @@ const sameJumps = (a, b) => {
  *
  * A draft, saved as a whole: admin_set_snakes replaces the full set, so a
  * half-edited layout never reaches the players' board one row at a time. The
- * same checks the server makes run as you type (checkJumps), and the board
- * beside the list draws the draft so a ladder that ends on a snake is seen
- * rather than worked out.
+ * same checks the server makes run as you type (checkJumps).
+ *
+ * It has no board of its own any more. The draft goes up through `onDraft`
+ * (null when nothing is changed) and the board builder underneath draws it,
+ * so the Board tab shows one board, not the same hundred squares twice -- and
+ * the tiles a new snake head would strand are seen before saving, not after.
  *
  * Fixed once the game starts -- the server refuses it -- so a running or
  * finished game only shows what was played.
  */
-export default function SnakesJumpEditor({ game, jumps, tiles, busy, onSave }) {
+export default function SnakesJumpEditor({ game, jumps, busy, onSave, onDraft }) {
   const editable = game.status === 'setup' || game.status === 'placement';
   const [rows, setRows] = useState(() => toRows(jumps));
 
@@ -48,6 +50,11 @@ export default function SnakesJumpEditor({ game, jumps, tiles, busy, onSave }) {
   const snakes = draft.filter((j) => drawable(j) && !isLadder(j)).length;
   const preview = useMemo(() => draft.filter(drawable), [rows]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Only what can be drawn: a row still being typed would put a snake on a
+  // square that is about to change again.
+  useEffect(() => { onDraft?.(editable && dirty ? preview : null); }, [editable, dirty, preview]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => onDraft?.(null), []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const setRow = (key, field, value) =>
     setRows((prev) => prev.map((r) => (r.key === key ? { ...r, [field]: value.replace(/[^0-9]/g, '') } : r)));
 
@@ -59,6 +66,7 @@ export default function SnakesJumpEditor({ game, jumps, tiles, busy, onSave }) {
           ? 'None yet. Start from the standard board, or add your own.'
           : `${ladders} ladder${ladders === 1 ? '' : 's'} and ${snakes} snake${snakes === 1 ? '' : 's'}.`}
         {' '}A ladder goes up, a snake goes down. Their starting squares need no task.
+        {editable && ' The board below shows them as you type.'}
         {!editable && ' Fixed now the game has started.'}
       </p>
 
@@ -149,20 +157,8 @@ export default function SnakesJumpEditor({ game, jumps, tiles, busy, onSave }) {
             </div>
           )}
           {editable && dirty && !problem && (
-            <p className="muted">Not saved yet — players and the board builder still see the old layout.</p>
+            <p className="muted">Not saved yet — the board below shows your changes, players still see the old layout.</p>
           )}
-        </div>
-
-        <div className="snakes-editor-preview">
-          <SnakesBoard
-            tiles={tiles}
-            teams={[]}
-            myTeamId={null}
-            jumps={preview}
-            shown={{}}
-            selected={null}
-            showStart={false}
-          />
         </div>
       </div>
     </section>

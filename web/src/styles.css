@@ -1843,6 +1843,12 @@ label {
   align-items: start;
 }
 .admin { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.5rem; }
+/* Configure's sub-tabs (Admin, ConfigTabs). Each pane holds several cards, so
+   it repeats the console's own spacing between them. */
+.config-pane { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.5rem; }
+.tabs.config-tabs { margin: 0; }
+.config-tabs .admin-nav-badge { margin-left: .4rem; }
+.checklist .what button.link { font: inherit; color: var(--text); text-decoration: underline; text-underline-offset: .15em; }
 
 /* Sticky: which section you are in, and which game every section is about,
    should still be on screen at the bottom of a long pane. */
@@ -2108,7 +2114,8 @@ label {
  * people onto a team used to be one open-pick-Add cycle per person, which is
  * fine for one captain and tedious for ten. The list caps its own height and
  * scrolls rather than growing the card, since a full player pool sitting
- * fully expanded in both team columns is most of the page. */
+ * fully expanded is most of the page. One list for the game now, with the
+ * team picked at the bottom (FreePlayerPicker), not one per team. */
 .team-add { margin-top: .7rem; }
 .team-add input[type="search"] { font-size: .875rem; }
 .team-add-list {
@@ -2140,6 +2147,23 @@ label {
   color: var(--label-2); font-size: .8125rem;
   cursor: pointer;
 }
+
+/* The roster's one list of players without a team (FreePlayerPicker). The
+   full width of the card, so the names flow into columns rather than one tall
+   strip. */
+.team-add.free-players { margin-top: 1.3rem; padding-top: 1rem; border-top: 1px solid var(--hairline); }
+.free-players h3 { margin: 0 0 .5rem; }
+.free-players .team-add-list {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  max-height: 18rem;
+}
+.free-players .team-add-list li { border-bottom: 1px solid var(--hairline); }
+.free-players .team-add-footer { flex-wrap: wrap; }
+.team-add-to {
+  display: inline-flex; flex-direction: row; align-items: center; gap: .45rem;
+  margin: 0; color: var(--label-2); font-size: .8125rem;
+}
+.team-add-to select { width: auto; }
 
 /* ---- accounts ---- */
 
@@ -4365,6 +4389,7 @@ button.builder-cell.jump-start { border-style: solid; opacity: .85; }
 button.builder-cell.snake-head { background: rgba(255, 69, 58, .12); }
 button.builder-cell.ladder-foot { background: rgba(217, 169, 91, .16); }
 .builder-cell .jump-start-what { font-weight: 700; color: var(--muted); }
+.builder-draft-note { margin: .2rem 0 .6rem; font-size: .85rem; font-weight: 600; color: var(--gold-dim); }
 
 .snakes-editor-rows {
   display: grid; gap: .35rem .9rem; margin: .6rem 0;
@@ -4388,10 +4413,8 @@ button.builder-cell.ladder-foot { background: rgba(217, 169, 91, .16); }
 .snakes-editor-row .kind.ladder { color: #d9a95b; }
 .snakes-editor-layout { display: grid; gap: 1rem; }
 .snakes-editor-summary { list-style: none; padding: 0; margin: .4rem 0; display: grid; gap: .4rem; }
-@media (min-width: 1100px) {
-  .snakes-editor-layout { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
-}
-.snakes-editor-preview { max-width: 520px; }
+/* No preview board beside the list any more: the board builder below draws
+   the draft (SnakesJumpEditor's onDraft), so the list has the card's width. */
 
 /* The organiser's standings: a tight table beside the board. The team name
    takes the spare width; every number column shrinks to its content. */

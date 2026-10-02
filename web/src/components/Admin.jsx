@@ -201,6 +201,12 @@ export default function Admin({ onViewAs } = {}) {
   // Which section is on screen. The console used to be one long scroll of eight
   // cards, so finding Roster meant paging past the whole board overview.
   const [pane, setPane] = useState('games');
+  // Configure's sub-tab per game id (see CONFIG_TABS), so coming back to a
+  // game opens where you were working on it.
+  const [configTabs, setConfigTabs] = useState(readConfigTabs);
+  // The Snakes and ladders card's unsaved draft, for the board builder to draw
+  // as its preview; null when nothing is changed.
+  const [jumpDraft, setJumpDraft] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
@@ -619,6 +625,18 @@ export default function Admin({ onViewAs } = {}) {
   const GAME_INDEPENDENT_PANES = ['games', 'suggestions', 'accounts'];
   const activePane = !game && !GAME_INDEPENDENT_PANES.includes(pane) ? 'games' : pane;
 
+  const configTab = (game && configTabs[game.id]) || 'game';
+  const openConfigTab = (key) => {
+    if (!game) return;
+    setConfigTabs((prev) => {
+      const next = { ...prev, [game.id]: key };
+      writeConfigTabs(next);
+      return next;
+    });
+  };
+  // What still blocks the start, counted on the sub-tab where it gets fixed.
+  const configTabBadge = (key) => blocking.filter((c) => (CHECK_TAB[c.key] ?? 'game') === key).length;
+
   const sections = [
     {
       key: 'games', label: 'Games', badge: 0, enabled: true,
@@ -626,7 +644,7 @@ export default function Admin({ onViewAs } = {}) {
     },
     {
       key: 'configure', label: 'Configure', badge: configureBadge, enabled: Boolean(game),
-      hint: game ? 'Tiles, teams, roster, Discord' : 'Pick a game first',
+      hint: game ? 'Game, board, teams, Discord' : 'Pick a game first',
     },
     {
       key: 'track', label: 'Track', badge: 0, enabled: Boolean(game),
@@ -861,6 +879,12 @@ export default function Admin({ onViewAs } = {}) {
 
       {activePane === 'configure' && game && (
         <>
+          <ConfigTabs tab={configTab} onPick={openConfigTab} badge={configTabBadge} />
+
+          {/* All four stay mounted and only the open one shows, so a half-typed
+              tile, a snakes draft or a set of ticked players survives a look at
+              another tab. */}
+          <div className="config-pane" hidden={configTab !== 'game'}>
           <section className="card">
             <h2>{game.name} — {statusLabel(game.status)}</h2>
             <p className="muted">
@@ -869,7 +893,11 @@ export default function Admin({ onViewAs } = {}) {
               {(bingo ? BINGO_STEP_HINT : snakesMode ? SNAKES_STEP_HINT : STEP_HINT)[game.status]}
             </p>
 
-            <SetupChecklist checks={checks} status={game.status} />
+            <SetupChecklist
+              checks={checks}
+              status={game.status}
+              onGo={(key) => CHECK_TAB[key] && openConfigTab(CHECK_TAB[key])}
+            />
 
             <div className="row">
               <button
@@ -1076,7 +1104,9 @@ export default function Admin({ onViewAs } = {}) {
               </div>
             )}
           </section>
+          </div>
 
+          <div className="config-pane" hidden={configTab !== 'board'}>
           {/* The whole of how a board gets built. The paste box that used to
               sit below this is gone: it existed for boards that already existed
               as spreadsheet text, and everything it could do -- including
@@ -1086,8 +1116,8 @@ export default function Admin({ onViewAs } = {}) {
             <SnakesJumpEditor
               game={game}
               jumps={jumps}
-              tiles={tiles}
               busy={busy}
+              onDraft={setJumpDraft}
               onSave={(draft) => run(
                 () => adminSetSnakes(game.id, draft),
                 (n) => `${n} snake${n === 1 ? '' : 's'} and ladder${n === 1 ? '' : 's'} saved.`,
@@ -1099,7 +1129,8 @@ export default function Admin({ onViewAs } = {}) {
           <BoardBuilder
             game={game}
             tiles={tiles}
-            jumps={jumps}
+            jumps={snakesMode && jumpDraft ? jumpDraft : jumps}
+            jumpsUnsaved={snakesMode && Boolean(jumpDraft)}
             library={library}
             libraryError={libraryError}
             busy={busy}
@@ -1326,7 +1357,9 @@ export default function Admin({ onViewAs } = {}) {
               ));
             }}
           />
+          </div>
 
+          <div className="config-pane" hidden={configTab !== 'teams'}>
           <section className="card">
             <h2>{cardLike ? 'Teams' : 'Team names'}</h2>
             <div className="columns">
@@ -1381,7 +1414,9 @@ export default function Admin({ onViewAs } = {}) {
               )
             }
           />
+          </div>
 
+          <div className="config-pane" hidden={configTab !== 'discord'}>
           {/* Setting up, not running: it belongs with Tiles and Roster rather
               than between Score and Evidence, where it sat before. Since 0042 a
               game with no webhook posts nothing, so this is now a step someone
@@ -1391,6 +1426,7 @@ export default function Admin({ onViewAs } = {}) {
             gameTeams={gameTeams}
             onChanged={() => loadGameDetail(game.id)}
           />
+          </div>
         </>
       )}
 
@@ -1537,7 +1573,60 @@ function TeamScreens({ game, teams, onViewAs }) {
   );
 }
 
-function SetupChecklist({ checks, status }) {
+/**
+ * Configure, split four ways. It was one scroll -- start buttons, the board,
+ * the whole catalogue, teams, a roster listing every free player once per
+ * team, Discord -- so reaching Discord meant paging past all of it.
+ */
+const CONFIG_TABS = [
+  { key: 'game', label: 'Game' },
+  { key: 'board', label: 'Board' },
+  { key: 'teams', label: 'Teams' },
+  { key: 'discord', label: 'Discord' },
+];
+
+// Which tab fixes each setup check (SetupChecklist keys). Fleets are placed by
+// captains, so that one stays on Game.
+const CHECK_TAB = {
+  tiles: 'board', jumps: 'board', teams: 'teams', captains: 'teams', roster: 'teams', discord: 'discord',
+};
+
+const CONFIG_TABS_KEY = 'hs-admin-config-tabs';
+function readConfigTabs() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(CONFIG_TABS_KEY) ?? '{}');
+    return saved && typeof saved === 'object' ? saved : {};
+  } catch {
+    return {};
+  }
+}
+function writeConfigTabs(tabs) {
+  try { localStorage.setItem(CONFIG_TABS_KEY, JSON.stringify(tabs)); } catch { /* private window: in-session only */ }
+}
+
+function ConfigTabs({ tab, onPick, badge }) {
+  return (
+    <div className="tabs config-tabs" role="tablist" aria-label="Configure">
+      {CONFIG_TABS.map((t) => {
+        const n = badge(t.key);
+        return (
+          <button
+            key={t.key}
+            role="tab"
+            aria-selected={tab === t.key}
+            className={tab === t.key ? 'on' : ''}
+            onClick={() => onPick(t.key)}
+          >
+            {t.label}
+            {n > 0 && <span className="admin-nav-badge" title={`${n} still to do`}>{n}</span>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function SetupChecklist({ checks, status, onGo }) {
   if (status !== 'setup' && status !== 'placement') return null;
 
   const outstanding = checks.filter((c) => c.required && !c.ok);
@@ -1549,7 +1638,11 @@ function SetupChecklist({ checks, status }) {
           <li key={c.key} className={c.ok ? 'ok' : (c.required ? 'todo' : 'optional')}>
             <span className="tick" aria-hidden="true">{c.ok ? '✓' : (c.required ? '✗' : '–')}</span>
             <span className="what">
-              {c.label}
+              {/* Each line opens the tab where it is fixed. Fleets have none:
+                  captains place them on their own screens. */}
+              {CHECK_TAB[c.key] && onGo
+                ? <button type="button" className="link" onClick={() => onGo(c.key)}>{c.label}</button>
+                : c.label}
               {!c.required && <span className="muted"> (optional)</span>}
             </span>
             <span className="detail">{c.detail}</span>
@@ -1781,9 +1874,19 @@ function TimeEditor({ label, hint, value: saved, resetKey, busy, onSave }) {
  * local to this component and keyed by team, not lifted to Roster — once a
  * batch lands the picker forgets it, same as the old single-select did.
  */
-function TeamAddPicker({ team, free, busy, onAddMany }) {
+/**
+ * Every player not on a team in this game, listed once, with the team to add
+ * the ticked ones to picked at the bottom. It used to be one copy of this list
+ * under each team -- the same 46 names twice in a two-team game, and eight
+ * times in an eight-team bingo.
+ */
+function FreePlayerPicker({ teams, free, busy, onAddMany }) {
   const [query, setQuery] = useState('');
   const [checked, setChecked] = useState(() => new Set());
+  const [teamId, setTeamId] = useState('');
+  // The chosen team, or the first one while none is chosen -- or the chosen
+  // one has just been deleted.
+  const team = teams.find((t) => t.id === teamId) ?? teams[0] ?? null;
 
   const q = query.trim().toLowerCase();
   const matches = q
@@ -1814,7 +1917,8 @@ function TeamAddPicker({ team, free, busy, onAddMany }) {
   }
 
   return (
-    <div className="team-add">
+    <div className="team-add free-players">
+      <h3>Players without a team <span className="team-count">{free.length}</span></h3>
       <input
         type="search"
         value={query}
@@ -1853,15 +1957,27 @@ function TeamAddPicker({ team, free, busy, onAddMany }) {
               />
               Select all{q && ' matching'}
             </label>
-            <button
-              disabled={busy || selected.length === 0}
-              onClick={() => {
-                onAddMany(team.id, selected.map((p) => p.id));
-                setChecked(new Set());
-              }}
-            >
-              Add {selected.length > 0 ? selected.length : ''} to {team.name}
-            </button>
+            {team ? (
+              <span className="row">
+                <label className="team-add-to">
+                  Add to
+                  <select value={team.id} onChange={(e) => setTeamId(e.target.value)} aria-label="Team to add them to">
+                    {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                </label>
+                <button
+                  disabled={busy || selected.length === 0}
+                  onClick={() => {
+                    onAddMany(team.id, selected.map((p) => p.id));
+                    setChecked(new Set());
+                  }}
+                >
+                  Add {selected.length > 0 ? `${selected.length} ` : ''}to {team.name}
+                </button>
+              </span>
+            ) : (
+              <span className="muted">Add a team first.</span>
+            )}
           </div>
         </>
       )}
@@ -1994,6 +2110,14 @@ function AddTeam({ busy, onAdd }) {
 }
 
 function Roster({ bingo, snakes = false, gameTeams, profiles, members, busy, onSet, onRemove, onAddMany }) {
+  const taken = new Set(
+    members
+      .filter((m) => gameTeams.some((g) => g.id === m.team_id))
+      .map((m) => m.profile_id)
+  );
+  // Admin accounts are run-the-event accounts, not players — keep them
+  // out of the picker so nobody drafts the organiser onto a team.
+  const free = profiles.filter((p) => !taken.has(p.id) && !p.is_admin);
   return (
     <section className="card">
       <h2>Roster</h2>
@@ -2006,14 +2130,6 @@ function Roster({ bingo, snakes = false, gameTeams, profiles, members, busy, onS
           const mine = members
             .filter((m) => m.team_id === t.id)
             .sort((a, b) => (b.role === 'captain') - (a.role === 'captain'));
-          const taken = new Set(
-            members
-              .filter((m) => gameTeams.some((g) => g.id === m.team_id))
-              .map((m) => m.profile_id)
-          );
-          // Admin accounts are run-the-event accounts, not players — keep them
-          // out of the picker so nobody drafts the organiser onto a team.
-          const free = profiles.filter((p) => !taken.has(p.id) && !p.is_admin);
           return (
             <div key={t.id}>
               <h3>{t.name} <span className="team-count">{mine.length}</span></h3>
@@ -2041,11 +2157,11 @@ function Roster({ bingo, snakes = false, gameTeams, profiles, members, busy, onS
                 })}
                 {mine.length === 0 && <li className="muted">Nobody yet.</li>}
               </ul>
-              <TeamAddPicker team={t} free={free} busy={busy} onAddMany={onAddMany} />
             </div>
           );
         })}
       </div>
+      <FreePlayerPicker teams={gameTeams} free={free} busy={busy} onAddMany={onAddMany} />
       <p className="muted" style={{ marginTop: '.8rem' }}>
         Players appear here once they have signed up on the login screen.
         {snakes

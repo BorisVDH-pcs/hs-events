@@ -2052,3 +2052,24 @@ came out of it; Boris picked four to fix now and two (5, 10) to discuss first.
 
 Not checked on a real phone, same as before. The walkthrough's finding list
 is in the conversation, not in this repo.
+
+### Then 5 and 10 from the same list
+
+- **Marker letters (5).** `teamInitials` (lib/snakes.js, with self-tests)
+  gives every team a letter nobody else has: filler words go ("Team Alpha" →
+  A), a shared letter gets a second one (Sharks/Shrimps → Sh/Sr), and the slot
+  number when even that runs out. `TeamDot` puts the same letter in the
+  team's colour beside its name in the standings, the Start row and the
+  organiser's race table, so those double as the board's legend.
+- **Configure in four sub-tabs (10): Game, Board, Teams, Discord.** All four
+  stay mounted and only the open one shows (`hidden`), so a half-typed tile, a
+  snakes draft or ticked players survive a look at another tab. The open tab
+  is remembered per game in `localStorage` (`hs-admin-config-tabs`, best
+  effort). A tab shows a red count of what still blocks the start, and every
+  checklist line except Fleets opens its tab.
+- **One board on a Snakes Board tab.** `SnakesJumpEditor` lost its preview
+  board; it reports its draft through `onDraft` and the board builder draws
+  that instead of the saved layout, with a "not saved yet" line. So the tiles a
+  new snake head would strand show up before saving.
+- **One roster list.** `FreePlayerPicker` replaces the per-team copies of the
+  free-player list: tick names, choose the team at the bottom, add.
