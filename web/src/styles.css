@@ -3044,6 +3044,16 @@ button.cell.picked:not(.hit):not(.miss) { background: rgba(242, 193, 78, .14); }
   margin-top: .8rem;
 }
 
+/* The player view of a snakes board. A grid item with auto side margins is
+ * sized to its content rather than stretched, and a board of minmax(0, 1fr)
+ * squares has almost none -- so without a width it shrank to a third of the
+ * column. It fills the column instead, but never taller than the screen, so
+ * the whole board is in view at once. */
+.builder > .snakes-board {
+  width: 100%;
+  max-width: min(100%, calc(100vh - 2rem));
+}
+
 .builder-panel {
   display: grid;
   gap: .7rem;
