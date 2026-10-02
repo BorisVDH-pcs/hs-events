@@ -8,6 +8,7 @@ import {
 import TileIcon from './TileIcon.jsx';
 import TileInfo from './TileInfo.jsx';
 import TileForm from './TileForm.jsx';
+import SnakesBoard from './snakes/SnakesBoard.jsx';
 import { statusLabel } from '../lib/status.js';
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion.js';
 import {
@@ -506,6 +507,20 @@ export default function BoardBuilder({
     );
   }
 
+  function pick(row, col, source) {
+    // Holding a tile makes a square something you fill, not something
+    // you select -- so the selection is left exactly where it was and
+    // the panel goes on describing what is in your hand.
+    if (held) { paint(row, col); return; }
+    setAt({ row, col });
+    setEditing(null);
+    // Pointer only. The keyboard path moves focus to the cell it lands
+    // on, and the browser scrolls a focused element into view -- so a
+    // reveal here would be immediately undone, and the two would fight
+    // over the scroll position on every arrow press.
+    if (source === 'pointer') revealPanel();
+  }
+
   return (
     <section className="card">
       <h2>Board builder</h2>
@@ -533,7 +548,9 @@ export default function BoardBuilder({
           </button>
           {playerView && (
             <span className="muted">
-              Artwork only — what a team sees once they lock a square in.
+              {snakes
+                ? 'The board as a team sees it, snakes and ladders included.'
+                : 'Artwork only — what a team sees once they lock a square in.'}
               {artwork.sharedSquares > 0 && (
                 <> <b>{artwork.sharedSquares}</b> squares share a picture with
                   another.</>
@@ -843,28 +860,36 @@ export default function BoardBuilder({
        * Hidden on an empty board, where it has nothing to do and would only be
        * a red button to misread. */}
       <div className={`builder${held ? ' is-holding' : ''}`}>
-        <BuilderGrid
-          size={size}
-          tiles={byPosition}
-          snakes={snakes}
-          jumpStarts={jumpStarts}
-          live={live}
-          playerView={playerView}
-          at={at}
-          onPick={(row, col, source) => {
-            // Holding a tile makes a square something you fill, not something
-            // you select -- so the selection is left exactly where it was and
-            // the panel goes on describing what is in your hand.
-            if (held) { paint(row, col); return; }
-            setAt({ row, col });
-            setEditing(null);
-            // Pointer only. The keyboard path moves focus to the cell it lands
-            // on, and the browser scrolls a focused element into view -- so a
-            // reveal here would be immediately undone, and the two would fight
-            // over the scroll position on every arrow press.
-            if (source === 'pointer') revealPanel();
-          }}
-        />
+        {/* A snakes board's player view is the player's own board, so it
+            shows exactly what a team will: the artwork along the path with
+            the snakes and ladders drawn over it. A click still picks the
+            square; the arrow keys belong to the names view. */}
+        {snakes && playerView ? (
+          <SnakesBoard
+            tiles={tiles}
+            teams={[]}
+            myTeamId={null}
+            jumps={jumps}
+            shown={{}}
+            selected={at ? toPosition(at.row, at.col) : null}
+            onSelect={(n) => {
+              const square = fromPosition(n);
+              pick(square.row, square.col, 'pointer');
+            }}
+            showStart={false}
+          />
+        ) : (
+          <BuilderGrid
+            size={size}
+            tiles={byPosition}
+            snakes={snakes}
+            jumpStarts={jumpStarts}
+            live={live}
+            playerView={playerView}
+            at={at}
+            onPick={pick}
+          />
+        )}
 
         <div className="builder-panel" ref={panelRef}>
           {/* Shown in every state of the panel, because the catalogue is what
