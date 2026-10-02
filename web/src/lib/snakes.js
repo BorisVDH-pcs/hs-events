@@ -134,7 +134,7 @@ export function ladderShape(from, to) {
   const len = Math.hypot(dx, dy) || 1;
   const ux = dx / len;
   const uy = dy / len;
-  const w = 1.35;            // half the ladder's width
+  const w = 1.0;             // half the ladder's width
   const nx = -uy * w;
   const ny = ux * w;
   const f = (x, y) => `${x.toFixed(2)} ${y.toFixed(2)}`;

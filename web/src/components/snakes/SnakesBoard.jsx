@@ -7,10 +7,17 @@ import TileIcon from '../TileIcon.jsx';
  * The 100-tile board, drawn along the snake path: tile 1 bottom-left, rows
  * turning back on themselves, 100 at the top-left.
  *
- * Two layers. The squares are a CSS grid of buttons -- press one to read its
- * task. Over them sits one SVG, the same size, that draws the ladders, the
- * snakes and the team markers and lets every click fall through to the
- * squares below.
+ * Four layers, bottom to top, all the same size:
+ *
+ *   1. the squares' colours (checkerboard, done, snake head, ladder foot) --
+ *      a grid of plain divs;
+ *   2. one SVG with the ladders and the snakes;
+ *   3. the squares themselves, a grid of buttons with no background of their
+ *      own -- the number, the artwork or name, the tick and the rings -- so a
+ *      snake runs under a tile's picture instead of across it;
+ *   4. one SVG with the team markers, which stay on top of everything.
+ *
+ * Both SVGs let every click fall through to the buttons.
  *
  * A snake's head or a ladder's foot has no task (nobody ever stands there),
  * so its square shows only its number and the colour of what it does.
@@ -47,25 +54,73 @@ export default function SnakesBoard({
   }
   const atStart = teams.filter((t) => (shown[t.id] ?? 0) < 1).sort((a, b) => a.slot - b.slot);
 
+  const squares = boardOrder().map((n) => {
+    const jumpTo = starts.get(n);
+    const tile = jumpTo ? null : byPosition.get(n);
+    const done = tile?.claim_status === 'completed';
+    return {
+      n, jumpTo, tile, done,
+      progress: !done && (tile?.evidence_count ?? 0) > 0,
+      head: jumpTo != null && jumpTo < n,
+      foot: jumpTo != null && jumpTo > n,
+      alt: (tileCell(n).row + tileCell(n).col) % 2 === 0,
+    };
+  });
+
   return (
     <div className="board snakes-board">
       <div className="snakes-stage">
-        <div className="snakes-grid">
-          {boardOrder().map((n) => {
-            const jumpTo = starts.get(n);
-            const tile = jumpTo ? null : byPosition.get(n);
-            const done = tile?.claim_status === 'completed';
-            const progress = !done && (tile?.evidence_count ?? 0) > 0;
-            const head = jumpTo != null && jumpTo < n;
-            const foot = jumpTo != null && jumpTo > n;
+        <div className="snakes-grid snakes-under" aria-hidden="true">
+          {squares.map(({ n, done, head, foot, alt }) => (
+            <div
+              key={n}
+              className={[
+                'snakes-square',
+                alt ? 'alt' : '',
+                done ? 'done' : '',
+                head ? 'head' : '',
+                foot ? 'foot' : '',
+                n === LAST_TILE ? 'finish' : '',
+              ].filter(Boolean).join(' ')}
+            />
+          ))}
+        </div>
+
+        <svg className="snakes-overlay snakes-jumps" viewBox="0 0 100 100" aria-hidden="true">
+          {ladders.map((j) => {
+            const { rails, rungs } = ladderShape(Number(j.from), Number(j.to));
+            return (
+              <g key={`l${j.from}`} className="ladder">
+                <path className="ladder-edge" d={`${rails} ${rungs}`} />
+                <path className="ladder-rung" d={rungs} />
+                <path className="ladder-rail" d={rails} />
+              </g>
+            );
+          })}
+
+          {snakes.map((j) => {
+            const d = snakePath(Number(j.from), Number(j.to));
+            const h = tileCenter(Number(j.from));
+            return (
+              <g key={`s${j.from}`} className="snake">
+                <path className="snake-edge" d={d} />
+                <path className="snake-body" d={d} />
+                <path className="snake-scales" d={d} />
+                <circle className="snake-head" cx={h.x} cy={h.y} r="1.8" />
+                <circle className="snake-eye" cx={h.x - 0.65} cy={h.y - 0.5} r="0.34" />
+                <circle className="snake-eye" cx={h.x + 0.65} cy={h.y - 0.5} r="0.34" />
+              </g>
+            );
+          })}
+        </svg>
+
+        <div className="snakes-grid snakes-top">
+          {squares.map(({ n, jumpTo, tile, done, progress, head, foot }) => {
             const cls = [
               'cell', 'snakes-cell',
-              (tileCell(n).row + tileCell(n).col) % 2 === 0 ? 'alt' : '',
               done ? 'done' : '',
               progress ? 'progress' : '',
               n === myRealTile ? 'here' : '',
-              head ? 'head' : '',
-              foot ? 'foot' : '',
               n === LAST_TILE ? 'finish' : '',
               selected === n ? 'picked' : '',
             ].filter(Boolean).join(' ');
@@ -95,33 +150,7 @@ export default function SnakesBoard({
           })}
         </div>
 
-        <svg className="snakes-overlay" viewBox="0 0 100 100" aria-hidden="true">
-          {ladders.map((j) => {
-            const { rails, rungs } = ladderShape(Number(j.from), Number(j.to));
-            return (
-              <g key={`l${j.from}`} className="ladder">
-                <path className="ladder-edge" d={`${rails} ${rungs}`} />
-                <path className="ladder-rung" d={rungs} />
-                <path className="ladder-rail" d={rails} />
-              </g>
-            );
-          })}
-
-          {snakes.map((j) => {
-            const d = snakePath(Number(j.from), Number(j.to));
-            const h = tileCenter(Number(j.from));
-            return (
-              <g key={`s${j.from}`} className="snake">
-                <path className="snake-edge" d={d} />
-                <path className="snake-body" d={d} />
-                <path className="snake-scales" d={d} />
-                <circle className="snake-head" cx={h.x} cy={h.y} r="2.3" />
-                <circle className="snake-eye" cx={h.x - 0.8} cy={h.y - 0.6} r="0.42" />
-                <circle className="snake-eye" cx={h.x + 0.8} cy={h.y - 0.6} r="0.42" />
-              </g>
-            );
-          })}
-
+        <svg className="snakes-overlay snakes-markers" viewBox="0 0 100 100" aria-hidden="true">
           {onBoard.map((t) => {
             const n = shown[t.id];
             const c = tileCenter(n);
