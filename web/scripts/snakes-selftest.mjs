@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   DEFAULT_JUMPS, boardOrder, canRoll, checkJumps, isLadder, jumpFrom, ladderShape, currentTile, movePath, resultText, rollbackSize, snakePath,
-  snakesEventText, tileCell, tileCenter,
+  snakesEventText, teamInitials, tileCell, tileCenter,
 } from '../src/lib/snakes.js';
 
 // The snake path: 1 bottom-left, 10 bottom-right, 11 above 10, 100 top-left.
@@ -128,5 +128,19 @@ assert.deepEqual(tiles({ kind: 'roll', from: 5, landed: 9, to: 32, jumps: [{ fro
   [6, 7, 8, 9, '>31', 32], 'up a ladder, then past a finished tile');
 assert.equal(snakesEventText(ev('team_moved', { kind: 'roll', from: 0, landed: 4, to: 14, dice: [4],
   jumps: [{ from: 4, to: 14 }] }), 'Red'), 'Red rolled a 4: Start → tile 14. Ladder on 4, up to 14!');
+
+// Marker letters: one per team, never the same twice.
+const initials = (names) => [...teamInitials(names.map((name, i) => ({ id: `t${i}`, name, slot: i + 1 }))).values()];
+assert.deepEqual(initials(['Team Alpha', 'Team Bravo']), ['A', 'B'], 'filler words dropped');
+assert.deepEqual(initials(['Sharks', 'Shrimps']), ['Sh', 'Sr'], 'a shared letter gets a second one');
+assert.deepEqual(initials(["Reece's Wanchors", 'SS Pale Shrimp']), ['R', 'S']);
+assert.deepEqual(initials(['Team', 'The Team']), ['Te', 'Th'], 'a name of only filler words keeps them');
+assert.deepEqual(initials(['Alpha', 'Alpha']), ['Al', 'Ap'], 'even the same name twice');
+assert.deepEqual(initials(['A', 'A']), ['1', '2'], 'nothing left to tell apart: the slot');
+assert.equal(teamInitials([{ team_id: 'x', team_name: 'Team Alpha', slot: 1 }]).get('x'), 'A', 'standings rows');
+for (const n of [2, 4, 8]) {
+  const many = initials(Array.from({ length: n }, (_, i) => `Team ${['Red', 'Rust', 'Rose', 'Ruby', 'Blue', 'Bolt', 'Bear', 'Bee'][i]}`));
+  assert.equal(new Set(many).size, n, `${n} teams, ${many}`);
+}
 
 console.log('snakes selftest passed');

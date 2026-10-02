@@ -4,8 +4,9 @@ import {
   adminSnakesPunish, adminSnakesMove, adminSnakesGiveRollback,
   adminSnakesCompleteTile, adminSnakesUncompleteTile,
 } from '../../lib/supabase.js';
-import { LAST_TILE, markerColor, tileWord } from '../../lib/snakes.js';
+import { LAST_TILE, teamInitials, tileWord } from '../../lib/snakes.js';
 import SnakesBoard from './SnakesBoard.jsx';
+import TeamDot from './TeamDot.jsx';
 
 /**
  * The organiser's view of a running race: every marker on one board, the
@@ -66,6 +67,7 @@ export default function SnakesAdminTrack({ game, tiles, jumps, busy, run, confir
     id: s.team_id, name: s.team_name, slot: s.slot, board_tile: s.board_tile ?? 0,
   }));
   const shown = Object.fromEntries(standings.map((s) => [s.team_id, s.board_tile ?? 0]));
+  const initials = teamInitials(standings);
   const here = selected ? standings.filter((s) => s.board_tile === selected) : [];
 
   return (
@@ -113,7 +115,7 @@ export default function SnakesAdminTrack({ game, tiles, jumps, busy, run, confir
                   <tr key={s.team_id}>
                     <td className="num">{s.board_tile ? s.place : '–'}</td>
                     <td className="team">
-                      <span className="dot" style={{ background: markerColor(s.slot) }} aria-hidden="true" />{' '}
+                      <TeamDot slot={s.slot} label={initials.get(s.team_id)} />{' '}
                       {s.team_name}
                     </td>
                     <td className="num">
@@ -154,6 +156,7 @@ export default function SnakesAdminTrack({ game, tiles, jumps, busy, run, confir
               <TeamControls
                 key={s.team_id}
                 s={s}
+                label={initials.get(s.team_id)}
                 running={running}
                 over={over}
                 busy={busy}
@@ -209,7 +212,7 @@ export default function SnakesAdminTrack({ game, tiles, jumps, busy, run, confir
 }
 
 function TeamControls({
-  s, running, over, busy, taskName, jumps, onComplete, onPunish, onMove, onRollback, onUncomplete,
+  s, label, running, over, busy, taskName, jumps, onComplete, onPunish, onMove, onRollback, onUncomplete,
 }) {
   const [moveTo, setMoveTo] = useState('');
   const [undoTile, setUndoTile] = useState('');
@@ -229,7 +232,7 @@ function TeamControls({
   return (
     <div className="snakes-team-controls">
       <h3>
-        <span className="dot" style={{ background: markerColor(s.slot) }} aria-hidden="true" />{' '}
+        <TeamDot slot={s.slot} label={label} />{' '}
         {s.team_name}
       </h3>
       <p className="muted">

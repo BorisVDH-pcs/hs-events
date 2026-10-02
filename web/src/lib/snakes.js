@@ -234,6 +234,58 @@ export const tileWord = (n) => (Number(n) ? `tile ${n}` : 'Start');
 const MARKERS = ['#ff6b5e', '#64b5ff', '#4cd97b', '#c58cff', '#ff9f43', '#5ee0d6', '#ff7ab8', '#d4d46a'];
 export const markerColor = (slot) => MARKERS[((slot ?? 1) - 1) % MARKERS.length];
 
+// Words that start a team's name without telling it apart: "Team Alpha" and
+// "Team Bravo" are both "T" until the "Team" goes.
+const FILLER = new Set(['team', 'the', 'a', 'an', 'of', 'and', '&', 'clan', 'squad']);
+
+/**
+ * The letter on each team's marker, one per team and never the same twice:
+ * Map(team id -> "A"). Takes teams ({ id, name, slot }) or standings rows
+ * ({ team_id, team_name, slot }).
+ *
+ * The first letter of the name once the filler words are gone. Teams that
+ * would share it get a second letter, the first one further along their name
+ * that nobody else has taken -- Sharks and Shrimps become "Sh" and "Sr". If
+ * even that runs out, the team's slot number. Decided in slot order, so the
+ * same teams always get the same letters.
+ */
+export function teamInitials(teams) {
+  const list = (teams ?? [])
+    .map((t) => ({ id: t.id ?? t.team_id, name: String(t.name ?? t.team_name ?? ''), slot: t.slot ?? 0 }))
+    .sort((a, b) => a.slot - b.slot);
+
+  const letters = (name) => {
+    const words = name.split(/[\s_\-.]+/).filter(Boolean);
+    const kept = words.filter((w) => !FILLER.has(w.toLowerCase()));
+    // Array.from, so an emoji or an accented letter counts as one character.
+    return Array.from((kept.length ? kept : words).join('')).filter((c) => /[\p{L}\p{N}]/u.test(c));
+  };
+  const firstOf = (chars) => (chars[0] ?? '?').toUpperCase();
+
+  const sharing = new Map();
+  for (const t of list) {
+    const first = firstOf(letters(t.name));
+    sharing.set(first, (sharing.get(first) ?? 0) + 1);
+  }
+
+  const out = new Map();
+  const taken = new Set();
+  const claim = (label) => (label && !taken.has(label) ? label : null);
+  list.forEach((t, i) => {
+    const chars = letters(t.name);
+    const first = firstOf(chars);
+    let label = sharing.get(first) === 1 ? claim(first) : null;
+    for (const c of chars.slice(1)) {
+      if (label) break;
+      label = claim(first + c.toLowerCase());
+    }
+    label = label ?? claim(String(t.slot || i + 1)) ?? `#${i + 1}`;
+    taken.add(label);
+    out.set(t.id, label);
+  });
+  return out;
+}
+
 /** The finished-game banner, read off the game row (the server's decision). */
 export function resultText(game, teams) {
   if (game?.status !== 'finished') return null;

@@ -1,4 +1,5 @@
-import { markerColor, LAST_TILE } from '../../lib/snakes.js';
+import { teamInitials, LAST_TILE } from '../../lib/snakes.js';
+import TeamDot from './TeamDot.jsx';
 
 /**
  * Every team, furthest along first -- the server's order (snakes_standings),
@@ -8,6 +9,7 @@ import { markerColor, LAST_TILE } from '../../lib/snakes.js';
  * way to find a marker among four others on a busy row.
  */
 export default function SnakesStandings({ standings, myTeamId, onFind }) {
+  const initials = teamInitials(standings);
   return (
     <section className="bingo-standings snakes-standings stats-panel" aria-labelledby="standings-title">
       <h2 id="standings-title">Standings</h2>
@@ -28,7 +30,7 @@ export default function SnakesStandings({ standings, myTeamId, onFind }) {
                 >
                   <span className="place">{tile ? s.place : '–'}</span>
                   <span className="team">
-                    <span className="dot" style={{ background: markerColor(s.slot) }} aria-hidden="true" />
+                    <TeamDot slot={s.slot} label={initials.get(s.team_id)} />
                     {s.team_name}
                     {mine && <span className="muted"> (you)</span>}
                   </span>

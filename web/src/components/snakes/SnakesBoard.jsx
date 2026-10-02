@@ -1,7 +1,8 @@
 import {
-  boardOrder, isLadder, ladderShape, markerColor, snakePath, tileCell, tileCenter, LAST_TILE,
+  boardOrder, isLadder, ladderShape, markerColor, snakePath, teamInitials, tileCell, tileCenter, LAST_TILE,
 } from '../../lib/snakes.js';
 import TileIcon from '../TileIcon.jsx';
+import TeamDot from './TeamDot.jsx';
 
 /**
  * The 100-tile board, drawn along the snake path: tile 1 bottom-left, rows
@@ -41,6 +42,7 @@ export default function SnakesBoard({
   const myTile = shown[myTeamId] ?? 0;
   const me = teams.find((t) => t.id === myTeamId);
   const myRealTile = me?.board_tile ?? 0;
+  const initials = teamInitials(teams);
 
   // Markers sharing a square fan out around its middle, in slot order, so
   // four teams on tile 1 are four tokens rather than one.
@@ -164,6 +166,8 @@ export default function SnakesBoard({
             const x = c.x + Math.cos(angle) * spread;
             const y = c.y + Math.sin(angle) * spread;
             const mine = t.id === myTeamId;
+            const label = initials.get(t.id) ?? '?';
+            const size = [crowded ? 'small' : '', label.length > 1 ? 'two' : ''].filter(Boolean).join(' ');
             return (
               <g
                 key={t.id}
@@ -171,7 +175,7 @@ export default function SnakesBoard({
                 style={{ transform: `translate(${x}px, ${y}px)` }}
               >
                 <circle r={crowded ? 1.9 : mine ? 2.6 : 2.2} fill={markerColor(t.slot)} />
-                <text y={crowded ? 0.65 : 0.85} textAnchor="middle" className={crowded ? 'small' : undefined}>{(t.name ?? '?').slice(0, 1).toUpperCase()}</text>
+                <text y={(crowded ? 0.65 : 0.85) - (label.length > 1 ? 0.12 : 0)} textAnchor="middle" className={size || undefined}>{label}</text>
                 <title>{t.name}{mine ? ' (you)' : ''} — tile {n}</title>
               </g>
             );
@@ -185,7 +189,7 @@ export default function SnakesBoard({
           ? <span className="muted">Everyone is on the board.</span>
           : atStart.map((t) => (
             <span key={t.id} className={`start-chip${t.id === myTeamId ? ' mine' : ''}`}>
-              <span className="dot" style={{ background: markerColor(t.slot) }} />
+              <TeamDot slot={t.slot} label={initials.get(t.id)} />
               {t.name}
             </span>
           ))}

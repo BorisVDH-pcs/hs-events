@@ -4202,6 +4202,9 @@ button.snakes-cell:hover {
   font-family: inherit;
 }
 .marker text.small { font-size: 1.8px; }
+/* Two letters ("Sh") where two teams share a first one. */
+.marker text.two { font-size: 1.85px; }
+.marker text.small.two { font-size: 1.45px; }
 
 .snakes-start {
   display: flex; flex-wrap: wrap; align-items: center;
@@ -4226,21 +4229,23 @@ button.snakes-cell:hover {
 .start-chip.mine { border-color: rgba(242, 193, 78, .6); color: var(--gold-lit); }
 .snakes-moving { margin-left: auto; }
 
-.snakes-standings .dot,
-.snakes-start .dot,
-.snakes-control-table .dot,
-.snakes-team-controls .dot {
-  display: inline-block;
-  width: .6rem; height: .6rem;
-  border-radius: 50%;
+/* A team's token beside its name (TeamDot): the board marker's colour and
+   letter, small, so the standings double as the board's legend. */
+.team-dot {
+  display: inline-grid; place-items: center;
+  min-width: 1.15rem; height: 1.15rem;
+  padding: 0 .2rem;
+  border-radius: var(--r-pill);
   margin-right: .4rem;
-  vertical-align: baseline;
+  vertical-align: -.2rem;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, .5);
+  font-size: .66rem; font-weight: 800; line-height: 1;
+  color: #111;
 }
 /* These already have a gap or a space after the dot. */
-.snakes-start .dot,
-.snakes-control-table .dot,
-.snakes-team-controls .dot { margin-right: 0; }
+.snakes-start .team-dot,
+.snakes-control-table .team-dot,
+.snakes-team-controls .team-dot { margin-right: 0; }
 .snakes-standings .standings-row {
   grid-template-areas: "place team count" "place sub sub" "place bar bar";
 }
