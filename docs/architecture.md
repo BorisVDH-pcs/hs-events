@@ -85,6 +85,27 @@ in 0020. Their columns and `score_events` rows remain only as inactive migration
 history. A database constraint fixes the old weight columns at `0,1,0`, and
 `team_scores` ignores `score_events`, so neither can affect a score.
 
+### Tile suggestions
+Players suggest tiles into `tile_submissions` (20261004120000), never into
+`tile_library` directly. Accepting a suggestion **copies** it into the
+catalogue through `admin_save_library_tile`, so there is still one definition
+of a valid catalogue entry, and sets the entry's `created_by` to the player.
+
+- **Players cannot read the catalogue.** It is the pool boards are filled
+  from, and bingo hides its card until Start so nobody works ahead. Reading
+  the catalogue would give away most of that card. Duplicates are caught by name
+  instead: `tile_name_status` answers only "taken or not" for a name the player
+  has already typed. The organiser sees near-misses at review, where the
+  catalogue is already loaded.
+- **Players delete nothing.** The table has no client grants at all. A player
+  can edit or withdraw their own suggestion while it is pending. Withdrawing
+  sets a status and keeps the row. Refused suggestions stay with their note.
+  The only thing that removes rows is `admin_delete_account`, which takes a
+  troll's suggestions with it (`on delete cascade`).
+- At most 10 pending suggestions per player.
+
+Checked by [scripts/submissions-smoke-test.sql](../scripts/submissions-smoke-test.sql).
+
 ## Game rules, and where each is enforced
 
 | Rule | Enforced by |

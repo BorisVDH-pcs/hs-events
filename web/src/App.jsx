@@ -22,6 +22,7 @@ import BoardLegend from './components/BoardLegend.jsx';
 import PetJar from './components/PetJar.jsx';
 import StatsPanel from './components/StatsPanel.jsx';
 import NoTeamWaiting from './components/NoTeamWaiting.jsx';
+import TileSuggestions from './components/TileSuggestions.jsx';
 import { useConfirm } from './components/ConfirmDialog.jsx';
 import GamePicker from './components/GamePicker.jsx';
 import BingoGame from './components/bingo/BingoGame.jsx';
@@ -61,6 +62,10 @@ export default function App() {
   const [petPreview, setPetPreview] = useState(null);
   // Lazily initialised so the stored answer is read once, not on every render.
   const [muted, setMuted] = useState(readMuted);
+  // The "Suggest a tile" screen, in place of the board. A screen of its own
+  // rather than a popup: the tile form is long, and on a phone a popup that
+  // scrolls inside a page that scrolls is two scrollbars to lose a button in.
+  const [suggesting, setSuggesting] = useState(false);
   // Above the early returns below, with the rest of the hooks — useConfirm
   // holds state of its own.
   const [confirm, confirmDialog] = useConfirm();
@@ -521,6 +526,17 @@ export default function App() {
               📖 How to Play
             </button>
           )}
+          {/* Players only: an organiser adds to the catalogue directly, and
+              reviews these in the console's Suggestions pane. */}
+          {!isAdmin && (
+            <button
+              className="link"
+              aria-pressed={suggesting}
+              onClick={() => setSuggesting((on) => !on)}
+            >
+              {suggesting ? '← Back to the game' : '💡 Suggest a tile'}
+            </button>
+          )}
           <button className="link" onClick={() => supabase.auth.signOut()}>Sign out</button>
         </div>
       </header>
@@ -554,7 +570,14 @@ export default function App() {
           anyone else. */}
       <FireEffect shot={shot} muted={muted} />
 
-      {playerScreen && <>
+      {!isAdmin && suggesting && <TileSuggestions onClose={() => setSuggesting(false)} />}
+
+      {/* Hidden, not unmounted, while suggesting: the game hooks above keep
+          running either way, and the board should be exactly where it was —
+          same tab, same open tile — when the player comes back to it. Only a
+          real player can be suggesting; an organiser viewing a team has no
+          button for it, so `suggesting` never hides their view. */}
+      {playerScreen && <div hidden={!isAdmin && suggesting} className="game-body">
       {loading && <p>Loading game…</p>}
       {error && <p className="error">{error}</p>}
       {notice && <p className="error">{notice}</p>}
@@ -863,7 +886,7 @@ export default function App() {
           </div>
         </div>
       )}
-      </>}
+      </div>}
 
       {/* Last in the tree and fixed-position, so it sits over whichever view is
           on screen — the admin console included. */}

@@ -12,6 +12,7 @@ import {
   adminSaveBoardPreset, adminApplyBoardPreset, adminDeleteBoardPreset,
   adminNewGame, adminAddTeam, adminDeleteTeam, adminSetEndTime, adminEndGame,
   listBoardJumps, adminSetSnakes, snakesStandings, adminSnakesEndGame,
+  adminListTileSubmissions, adminAcceptTileSubmission, adminRefuseTileSubmission,
 } from '../lib/supabase.js';
 import { LAST_TILE, isLadder } from '../lib/snakes.js';
 import SnakesJumpEditor from './snakes/SnakesJumpEditor.jsx';
@@ -24,6 +25,7 @@ import EvidenceReview from './EvidenceReview.jsx';
 import PetJarReview from './PetJarReview.jsx';
 import DiscordWebhooks from './DiscordWebhooks.jsx';
 import PasswordResetDialog from './PasswordResetDialog.jsx';
+import TileSuggestionReview from './TileSuggestionReview.jsx';
 import { useConfirm } from './ConfirmDialog.jsx';
 import { statusLabel } from '../lib/status.js';
 
@@ -176,6 +178,11 @@ export default function Admin({ onViewAs } = {}) {
   // it belongs to no game, and the builder is the only thing that reads it.
   const [library, setLibrary] = useState([]);
   const [libraryError, setLibraryError] = useState(null);
+  // Tiles players have suggested for the catalogue. Like the catalogue, it
+  // belongs to no game, and it is loaded on mount so the nav badge can say how
+  // many are waiting before anyone opens the pane.
+  const [suggestions, setSuggestions] = useState([]);
+  const [suggestionsError, setSuggestionsError] = useState(null);
   const [shipCells, setShipCells] = useState([]);
   const [webhooks, setWebhooks] = useState([]);
   // Per-game counts for the Games list badges, keyed by game id. Fails soft:
@@ -311,6 +318,18 @@ export default function Admin({ onViewAs } = {}) {
     }
   }, []);
 
+  // Fails soft, for the same reason as the catalogue: a console whose database
+  // has not had the migration yet must still draw, and says so in the pane.
+  const loadSuggestions = useCallback(async () => {
+    try {
+      setSuggestions((await adminListTileSubmissions()) ?? []);
+      setSuggestionsError(null);
+    } catch (err) {
+      setSuggestions([]);
+      setSuggestionsError(err.message);
+    }
+  }, []);
+
   const loadPasswordResets = useCallback(async () => {
     try {
       setPasswordResets((await adminListPasswordResets()) ?? []);
@@ -332,6 +351,19 @@ export default function Admin({ onViewAs } = {}) {
   useEffect(() => { loadGames(); }, [loadGames]);
   useEffect(() => { loadGameDetail(gameId); }, [gameId, loadGameDetail]);
   useEffect(() => { loadLibrary(); }, [loadLibrary]);
+  useEffect(() => { loadSuggestions(); }, [loadSuggestions]);
+
+  // Suggestions write no game_event, so nothing pushes them here. Re-reading
+  // when the tab comes back is how a new one reaches the badge.
+  useEffect(() => {
+    const recheck = () => { if (!document.hidden) loadSuggestions(); };
+    window.addEventListener('focus', recheck);
+    document.addEventListener('visibilitychange', recheck);
+    return () => {
+      window.removeEventListener('focus', recheck);
+      document.removeEventListener('visibilitychange', recheck);
+    };
+  }, [loadSuggestions]);
 
   // Team renames can originate from a captain's screen. They emit an event so
   // the organiser's labels update without a manual refresh.
@@ -400,6 +432,7 @@ export default function Admin({ onViewAs } = {}) {
         // query, not a second opinion.
         want.has('tiles') && !want.has('detail') ? loadTiles(gameId) : null,
         want.has('library') ? loadLibrary() : null,
+        want.has('suggestions') ? loadSuggestions() : null,
       ].filter(Boolean));
       if (okMessage) setNotice(typeof okMessage === 'function' ? okMessage(result) : okMessage);
       return result;
@@ -583,7 +616,7 @@ export default function Admin({ onViewAs } = {}) {
   // deleting the open game cannot leave the console pointing at a blank pane.
   // Accounts is the third exception, alongside Games itself: resetting a
   // password has nothing to do with which game is open.
-  const GAME_INDEPENDENT_PANES = ['games', 'accounts'];
+  const GAME_INDEPENDENT_PANES = ['games', 'suggestions', 'accounts'];
   const activePane = !game && !GAME_INDEPENDENT_PANES.includes(pane) ? 'games' : pane;
 
   const sections = [
@@ -598,6 +631,11 @@ export default function Admin({ onViewAs } = {}) {
     {
       key: 'track', label: 'Track', badge: 0, enabled: Boolean(game),
       hint: game ? 'Boards and evidence' : 'Pick a game first',
+    },
+    {
+      key: 'suggestions', label: 'Suggestions',
+      badge: suggestions.filter((s) => s.status === 'pending').length, enabled: true,
+      hint: 'Tiles players want in the catalogue',
     },
     {
       key: 'accounts', label: 'Accounts', badge: 0, enabled: true,
@@ -767,6 +805,30 @@ export default function Admin({ onViewAs } = {}) {
         </ul>
       </section>
       </>}
+
+      {activePane === 'suggestions' && (
+        <TileSuggestionReview
+          rows={suggestions}
+          error={suggestionsError}
+          library={library}
+          busy={busy}
+          confirm={confirm}
+          onAccept={async (id, tile, note) => ({
+            ok: worked(await run(
+              () => adminAcceptTileSubmission(id, tile, note),
+              `"${tile.name}" is in the catalogue now.`,
+              { refresh: ['suggestions', 'library'] }
+            )),
+          })}
+          onRefuse={async (id, reason) => ({
+            ok: worked(await run(
+              () => adminRefuseTileSubmission(id, reason),
+              'Suggestion refused.',
+              { refresh: ['suggestions'] }
+            )),
+          })}
+        />
+      )}
 
       {activePane === 'accounts' && (
         <Accounts

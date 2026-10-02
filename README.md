@@ -78,6 +78,13 @@ Discord. **Track** shows the live boards and the evidence log. The setup
 checklist changes per mode: Battleships needs two teams, captains and placed
 fleets, while Bingo needs a full card and at least one player on every team.
 
+**Suggestions** is where tiles proposed by players arrive. Any signed-in player
+can press *Suggest a tile* in the header, fill in the same tile form the board
+builder uses, and follow what happens to it. The organiser accepts a suggestion
+(after editing it, if needed) into the tile catalogue, or refuses it with a
+note the player can read. Players never see the catalogue itself and cannot
+delete anything; see [docs/architecture.md](docs/architecture.md#tile-suggestions).
+
 ## Stack
 
 | Layer | Choice |
