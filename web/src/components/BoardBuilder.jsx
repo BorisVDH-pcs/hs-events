@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { GRID, colLetter, coordLabel, toPosition, fromPosition } from '../lib/board.js';
 import { cardCells } from '../lib/bingo.js';
-import { boardOrder, tileCell, LAST_TILE } from '../lib/snakes.js';
+import { boardOrder, isLadder, jumpProblem, tileCell, LAST_TILE } from '../lib/snakes.js';
 import {
   newDraft, draftFromRow, payloadFromDraft, payloadFromRow, ruleSummary, nameKey,
 } from '../lib/tileDraft.js';
@@ -37,11 +37,17 @@ import { millionsLabel, millionsToTenths } from '../lib/millions.js';
  * The catalogue is deliberately not scoped to a game. A tile is a task; which
  * board it lands on this time belongs to the square, not to the task.
  */
+const NO_JUMPS = [];
+
+const jumpWords = (j) => (isLadder(j)
+  ? `🪜 Ladder from tile ${j.from} up to ${j.to}`
+  : `🐍 Snake from tile ${j.from} down to ${j.to}`);
+
 export default function BoardBuilder({
   game, tiles, library, libraryError, busy,
   onSetTile, onClearTile, onSwapTiles, onSaveLibraryTile, onDeleteLibraryTile,
   onAutofillBoard, onShuffleBoard, onReshuffleBoard, onClearBoard,
-  onSaveBoard, onLoadBoard, onDeleteBoard, jumps = [], jumpsUnsaved = false,
+  onSaveBoard, onLoadBoard, onDeleteBoard, jumps = [], jumpEdit = null, onSaveJumps,
 }) {
   // Saved boards. Held here rather than in the console's own slices because
   // nothing outside this panel reads them, and re-fetching a list of names
@@ -113,6 +119,87 @@ export default function BoardBuilder({
     [tiles]
   );
   const current = at ? byPosition.get(toPosition(at.row, at.col)) : null;
+
+  // Snakes and ladders, dragged on the player view before the game starts.
+  // `jumpEdit` is Admin's draft (useJumpDraft), shared with the Snakes and
+  // ladders card's list, so a change here is a change there and the same Save
+  // sends both. Nothing reaches the players until that Save.
+  //
+  //   jumpPicked -- the row key of the one tapped, for its Remove button
+  //   jumpDrag   -- { key, end: 'from' | 'to', n }: an end on its way to n
+  //   adding     -- { from: null | n }: + Add, waiting for its two squares
+  //   jumpNote   -- why the last drop or tap was refused
+  const canEditJumps = snakes && playerView && Boolean(jumpEdit?.editable);
+  const [jumpPicked, setJumpPicked] = useState(null);
+  const [jumpDrag, setJumpDrag] = useState(null);
+  const [adding, setAdding] = useState(null);
+  const [jumpNote, setJumpNote] = useState(null);
+  useEffect(() => {
+    if (canEditJumps) return;
+    setJumpPicked(null); setJumpDrag(null); setAdding(null); setJumpNote(null);
+  }, [canEditJumps, game.id]);
+
+  const editJumps = jumpEdit?.preview ?? NO_JUMPS;
+  const pickedJump = editJumps.find((j) => j.key === jumpPicked) ?? null;
+  const draggedFrom = jumpDrag ? editJumps.find((j) => j.key === jumpDrag.key) : null;
+  const dragged = draggedFrom ? { ...draggedFrom, [jumpDrag.end]: jumpDrag.n } : null;
+  // Judged on its own, not with the rest of the list: a row half typed in
+  // the card above must not make every drag on the board look refused.
+  const dragProblem = dragged
+    ? jumpProblem(editJumps.filter((j) => j.key !== dragged.key), dragged)
+    : null;
+  // While an end is dragged to a square it may go to, the board draws it
+  // there; on a square it may not, it stays where it last could go.
+  const boardJumps = dragged && !dragProblem
+    ? editJumps.map((j) => (j.key === dragged.key ? dragged : j))
+    : jumps;
+  const jumpGrips = canEditJumps ? {
+    picked: jumpPicked,
+    // Choosing squares for a new one: the grips let taps through to them.
+    adding: Boolean(adding),
+    drag: jumpDrag && { ...jumpDrag, ok: !dragProblem },
+    onDrag: (d) => {
+      setJumpNote(null); setAdding(null); setJumpPicked(d.key); setJumpDrag(d);
+    },
+    // Worked out again from the square it was let go on, not from this
+    // render's `dragged`, which a fast release can beat.
+    onDrop: (d) => {
+      setJumpDrag(null);
+      const was = editJumps.find((j) => j.key === d.key);
+      if (!was || was[d.end] === d.n) return;
+      const moved = { ...was, [d.end]: d.n };
+      const problem = jumpProblem(editJumps.filter((j) => j.key !== d.key), moved);
+      if (problem) setJumpNote(problem);
+      else jumpEdit.setRow(d.key, d.end, d.n);
+    },
+    onTap: (key) => {
+      setAdding(null); setJumpNote(null);
+      setJumpPicked((k) => (k === key ? null : key));
+    },
+    onCancel: () => setJumpDrag(null),
+  } : null;
+
+  // + Add: the first square tapped is where it starts, the second where it
+  // ends -- higher up makes a ladder, lower down a snake.
+  function addAt(n) {
+    setJumpNote(null);
+    if (adding.from == null) {
+      const problem = n === LAST_TILE
+        ? 'Nothing can start on tile 100: the game ends there.'
+        : editJumps.some((j) => j.from === n)
+          ? `A snake or ladder already starts on tile ${n}.`
+          : null;
+      if (problem) setJumpNote(problem);
+      else setAdding({ from: n });
+      return;
+    }
+    // The start tapped again: pick a different one.
+    if (n === adding.from) { setAdding({ from: null }); return; }
+    const problem = jumpProblem(editJumps, { from: adding.from, to: n });
+    if (problem) { setJumpNote(problem); return; }
+    setJumpPicked(jumpEdit.addRow(adding.from, n));
+    setAdding(null);
+  }
 
   /**
    * Where each task already sits on this board, by name.
@@ -625,20 +712,14 @@ export default function BoardBuilder({
           </>
         )}
       </p>
-      {/* `jumps` is the Snakes and ladders card's draft while it has unsaved
-          changes (Admin, onDraft), so this board is their preview. Said, so a
-          snake that is only typed is not taken for one that is saved. */}
-      {snakes && jumpsUnsaved && (
-        <p className="builder-draft-note">
-          Showing the snakes and ladders as typed above — not saved yet.
-        </p>
-      )}
-
-      {tiles.length > 0 && (
+      {(tiles.length > 0 || (snakes && jumpEdit?.editable)) && (
         <p className="builder-view-toggle">
           <button className="ghost" onClick={() => setPlayerView((v) => !v)}>
             {playerView ? 'Back to names' : 'See it as a player does'}
           </button>
+          {!playerView && snakes && jumpEdit?.editable && (
+            <span className="muted">There you can drag the snakes and ladders.</span>
+          )}
           {playerView && (
             <span className="muted">
               {snakes
@@ -962,6 +1043,65 @@ export default function BoardBuilder({
         </p>
       )}
 
+      {/* `jumps` is the draft while it has unsaved changes, so this board is
+          their preview. Said right above it, with the Save, so a snake that
+          is only dragged or typed is not taken for one that is saved. */}
+      {snakes && jumpEdit?.dirty && (
+        <div className="builder-draft-note">
+          <span>Snakes and ladders changed — not saved yet. Players still see the old layout.</span>
+          {jumpEdit.problem && <span className="error">{jumpEdit.problem}</span>}
+          <span className="row">
+            <button className="ghost" disabled={busy} onClick={jumpEdit.undo}>Undo changes</button>
+            <button
+              disabled={busy || Boolean(jumpEdit.problem)}
+              onClick={() => onSaveJumps?.(jumpEdit.draft)}
+            >
+              Save snakes and ladders
+            </button>
+          </span>
+        </div>
+      )}
+
+      {canEditJumps && (
+        <div className="jump-bar" aria-live="polite">
+          {jumpDrag ? (
+            dragProblem
+              ? <span className="error">{dragProblem}</span>
+              : <span>{dragged && jumpWords(dragged)}</span>
+          ) : adding ? (
+            <>
+              <span>
+                {adding.from == null
+                  ? 'Tap the square it starts on.'
+                  : `Starts on tile ${adding.from}. Now tap where it ends: higher up for a ladder, lower down for a snake.`}
+              </span>
+              <button className="ghost" onClick={() => { setAdding(null); setJumpNote(null); }}>Cancel</button>
+            </>
+          ) : pickedJump ? (
+            <>
+              <span>{jumpWords(pickedJump)}. Drag either end to move it.</span>
+              <button
+                className="ghost danger"
+                onClick={() => { jumpEdit.removeRow(pickedJump.key); setJumpPicked(null); }}
+              >
+                Remove
+              </button>
+              <button className="ghost" onClick={() => setJumpPicked(null)}>Done</button>
+            </>
+          ) : (
+            <>
+              <span className="muted">
+                Drag the round end of a snake or ladder to move it. Tap one to remove it.
+              </span>
+              <button className="ghost" onClick={() => { setJumpNote(null); setAdding({ from: null }); }}>
+                + Add a snake or ladder
+              </button>
+            </>
+          )}
+          {jumpNote && !jumpDrag && <span className="error">{jumpNote}</span>}
+        </div>
+      )}
+
       {/* The way back to an empty board, and the only control down here.
        *
        * Below the board rather than in the strip above it, and alone. Every
@@ -1006,14 +1146,17 @@ export default function BoardBuilder({
             tiles={tiles}
             teams={[]}
             myTeamId={null}
-            jumps={jumps}
+            jumps={boardJumps}
             shown={{}}
-            selected={at ? toPosition(at.row, at.col) : null}
+            selected={adding?.from ?? (at ? toPosition(at.row, at.col) : null)}
             onSelect={(n) => {
+              if (adding) { addAt(n); return; }
+              setJumpPicked(null);
               const square = fromPosition(n);
               pick(square.row, square.col, 'pointer');
             }}
             showStart={false}
+            edit={jumpGrips}
           />
         ) : (
           <BuilderGrid

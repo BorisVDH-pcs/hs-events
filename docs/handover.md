@@ -2073,3 +2073,26 @@ is in the conversation, not in this repo.
   new snake head would strand show up before saving.
 - **One roster list.** `FreePlayerPicker` replaces the per-team copies of the
   free-player list: tick names, choose the team at the bottom, add.
+
+### Dragging snakes and ladders
+
+Before the game starts, the board builder's "See it as a player does" view
+puts a round grip on both ends of every snake and ladder (`JumpHandles`,
+drawn only when `SnakesBoard` gets `edit`, which only the builder passes).
+
+- **Drag an end** to another square: the snake or ladder follows while the
+  square is allowed (green), and stays put on a square that is not (red, with
+  the reason above the board). Direction decides the kind, so a ladder's top
+  dragged below its foot becomes a snake.
+- **Tap a grip** to pick it: Remove / Done. **+ Add a snake or ladder**: tap
+  where it starts, then where it ends.
+- **One draft, two editors.** `useJumpDraft` (in Admin) holds the rows; the
+  Snakes and ladders card's list (now folded under "Edit as a list") and the
+  board both change them. Save / Undo sit in the card and again right above
+  the board. Nothing reaches players before Save; no database change.
+- **Rules.** A single change is judged with `jumpProblem` (lib/snakes.js, with
+  self-tests): same rules as `checkJumps`/`admin_set_snakes`, but only for the
+  one being moved, so a half-typed row in the list does not block every drag.
+  `tileAt` maps a point on the board back to its tile.
+- The squares under a grip can still be picked by pressing beside it, or in
+  the names view.

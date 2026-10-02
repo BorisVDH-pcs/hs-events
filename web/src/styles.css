@@ -4389,7 +4389,49 @@ button.builder-cell.jump-start { border-style: solid; opacity: .85; }
 button.builder-cell.snake-head { background: rgba(255, 69, 58, .12); }
 button.builder-cell.ladder-foot { background: rgba(217, 169, 91, .16); }
 .builder-cell .jump-start-what { font-weight: 700; color: var(--muted); }
-.builder-draft-note { margin: .2rem 0 .6rem; font-size: .85rem; font-weight: 600; color: var(--gold-dim); }
+.builder-draft-note {
+  display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .8rem;
+  margin: .2rem 0 .6rem; font-size: .85rem; font-weight: 600; color: var(--gold-dim);
+}
+.builder-draft-note .row { align-items: center; }
+.builder-draft-note .error { margin: 0; }
+
+/* The board builder's snakes-and-ladders strip: what is picked or being
+   dragged, and the one or two things you can do about it. */
+.jump-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .8rem;
+  min-height: 2.4rem; margin: 0 0 .6rem; font-size: .9rem;
+}
+.jump-bar .error { margin: 0; flex-basis: 100%; }
+.jump-bar button { padding: .3rem .7rem; }
+
+/* The grips on each end (JumpHandles). The SVG lets everything through to
+   the squares; only the grips catch a press. The invisible `hit` circle is
+   the finger-sized target, the visible `grip` stays small enough not to hide
+   the tile. A start is a little bigger than an end, so a ladder's foot and a
+   snake's head read as the end that does something. */
+.jump-handles { z-index: 4; }
+.jump-handle { pointer-events: all; cursor: grab; touch-action: none; }
+.jump-handles.passive .jump-handle { pointer-events: none; opacity: .5; }
+.jump-handle .hit { fill: transparent; }
+.jump-handle .grip {
+  stroke: rgba(0, 0, 0, .7); stroke-width: .5;
+  transition: r .12s ease;
+}
+.jump-handle.ladder .grip { fill: #d9a95b; }
+.jump-handle.snake .grip { fill: #4cd97b; }
+.jump-handle.end .grip { fill-opacity: .75; }
+.jump-handle:hover .grip, .jump-handle.picked .grip { stroke: var(--text); stroke-width: .7; }
+.jump-handle.moving { cursor: grabbing; }
+.jump-handle.moving .grip { stroke: var(--text); stroke-width: .8; }
+.jump-handle.bad .grip { fill: #ff453a; fill-opacity: 1; }
+body.dragging-jump,
+body.dragging-jump * { cursor: grabbing !important; user-select: none; }
+.snakes-square.drop-ok { background: rgba(76, 217, 123, .28); }
+.snakes-square.drop-bad { background: rgba(255, 69, 58, .32); }
+@media (prefers-reduced-motion: reduce) {
+  .jump-handle .grip { transition: none; }
+}
 
 .snakes-editor-rows {
   display: grid; gap: .35rem .9rem; margin: .6rem 0;
@@ -4411,10 +4453,12 @@ button.builder-cell.ladder-foot { background: rgba(217, 169, 91, .16); }
 .snakes-editor-row .kind { min-width: 6.5rem; font-weight: 600; }
 .snakes-editor-row .kind.snake { color: #ff7b72; }
 .snakes-editor-row .kind.ladder { color: #d9a95b; }
-.snakes-editor-layout { display: grid; gap: 1rem; }
 .snakes-editor-summary { list-style: none; padding: 0; margin: .4rem 0; display: grid; gap: .4rem; }
-/* No preview board beside the list any more: the board builder below draws
-   the draft (SnakesJumpEditor's onDraft), so the list has the card's width. */
+/* No preview board beside the list: the board builder below draws the draft
+   (useJumpDraft, shared with Admin), and is where the ends are dragged. The
+   list is folded away for the odd exact edit. */
+.snakes-editor-list { margin: .5rem 0; }
+.snakes-editor-list summary { cursor: pointer; font-weight: 600; color: var(--label-2); }
 
 /* The organiser's standings: a tight table beside the board. The team name
    takes the spare width; every number column shrinks to its content. */

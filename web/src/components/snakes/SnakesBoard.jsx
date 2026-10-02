@@ -3,6 +3,7 @@ import {
 } from '../../lib/snakes.js';
 import TileIcon from '../TileIcon.jsx';
 import TeamDot from './TeamDot.jsx';
+import JumpHandles from './JumpHandles.jsx';
 
 /**
  * The 100-tile board, drawn along the snake path: tile 1 bottom-left, rows
@@ -30,10 +31,14 @@ import TeamDot from './TeamDot.jsx';
  * Squares are coloured for the team looking at the board: green once done,
  * the gold ring on the one it stands on. Other teams' progress is on the
  * standings, not here, the same way bingo keeps your card your own.
+ *
+ * `edit` is the board builder's alone: grips on every snake and ladder to drag
+ * (JumpHandles), and the square an end is dragged over coloured for whether
+ * it may go there. A player's board never gets it.
  */
 export default function SnakesBoard({
   tiles, teams, myTeamId, jumps, shown, sliding = {}, selected, onSelect, revealed = true,
-  showStart = true,
+  showStart = true, edit = null,
 }) {
   const byPosition = new Map(tiles.map((t) => [t.position, t]));
   const starts = new Map(jumps.map((j) => [Number(j.from), Number(j.to)]));
@@ -43,6 +48,7 @@ export default function SnakesBoard({
   const me = teams.find((t) => t.id === myTeamId);
   const myRealTile = me?.board_tile ?? 0;
   const initials = teamInitials(teams);
+  const target = edit?.drag ? edit.drag.n : null;
 
   // Markers sharing a square fan out around its middle, in slot order, so
   // four teams on tile 1 are four tokens rather than one.
@@ -83,6 +89,7 @@ export default function SnakesBoard({
                 head ? 'head' : '',
                 foot ? 'foot' : '',
                 n === LAST_TILE ? 'finish' : '',
+                n === target ? (edit.drag.ok ? 'drop-ok' : 'drop-bad') : '',
               ].filter(Boolean).join(' ')}
             />
           ))}
@@ -92,7 +99,7 @@ export default function SnakesBoard({
           {ladders.map((j) => {
             const { rails, rungs } = ladderShape(Number(j.from), Number(j.to));
             return (
-              <g key={`l${j.from}`} className="ladder">
+              <g key={`l${j.key ?? j.from}`} className="ladder">
                 <path className="ladder-edge" d={`${rails} ${rungs}`} />
                 <path className="ladder-rung" d={rungs} />
                 <path className="ladder-rail" d={rails} />
@@ -104,7 +111,7 @@ export default function SnakesBoard({
             const d = snakePath(Number(j.from), Number(j.to));
             const h = tileCenter(Number(j.from));
             return (
-              <g key={`s${j.from}`} className="snake">
+              <g key={`s${j.key ?? j.from}`} className="snake">
                 <path className="snake-edge" d={d} />
                 <path className="snake-body" d={d} />
                 <path className="snake-scales" d={d} />
@@ -181,6 +188,8 @@ export default function SnakesBoard({
             );
           })}
         </svg>
+
+        {edit && <JumpHandles jumps={jumps} edit={edit} />}
       </div>
 
       {showStart && <div className="snakes-start" aria-label="Teams at Start">

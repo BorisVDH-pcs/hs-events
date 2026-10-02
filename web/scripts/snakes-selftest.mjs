@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {
-  DEFAULT_JUMPS, boardOrder, canRoll, checkJumps, isLadder, jumpFrom, ladderShape, currentTile, movePath, resultText, rollbackSize, snakePath,
-  snakesEventText, teamInitials, tileCell, tileCenter,
+  DEFAULT_JUMPS, boardOrder, canRoll, checkJumps, isLadder, jumpFrom, jumpProblem, ladderShape, currentTile, movePath, resultText, rollbackSize, snakePath,
+  snakesEventText, teamInitials, tileAt, tileCell, tileCenter,
 } from '../src/lib/snakes.js';
 
 // The snake path: 1 bottom-left, 10 bottom-right, 11 above 10, 100 top-left.
@@ -142,5 +142,26 @@ for (const n of [2, 4, 8]) {
   const many = initials(Array.from({ length: n }, (_, i) => `Team ${['Red', 'Rust', 'Rose', 'Ruby', 'Blue', 'Bolt', 'Bear', 'Bee'][i]}`));
   assert.equal(new Set(many).size, n, `${n} teams, ${many}`);
 }
+
+// Dragging an end: the point under the pointer back to its tile, everywhere
+// on the board, and the nearest edge square for a point just off it.
+for (let n = 1; n <= 100; n++) {
+  const c = tileCenter(n);
+  assert.equal(tileAt(c.x, c.y), n, `centre of ${n}`);
+  assert.equal(tileAt(c.x + 4.9, c.y - 4.9), n, `corner of ${n}`);
+}
+assert.equal(tileAt(-3, 103), 1, 'off the bottom-left');
+assert.equal(tileAt(120, -5), 91, 'off the top-right');
+
+// One dragged or added snake or ladder, judged on its own.
+const others = [{ from: 4, to: 14 }, { from: 17, to: 7 }];
+assert.equal(jumpProblem(others, { from: 30, to: 50 }), null, 'a new ladder');
+assert.equal(jumpProblem(others, { from: 14, to: 2 }), null, 'a chain is allowed');
+assert.match(jumpProblem(others, { from: 4, to: 40 }), /already starts on tile 4/);
+assert.match(jumpProblem(others, { from: 30, to: 30 }), /go somewhere/);
+assert.match(jumpProblem(others, { from: 100, to: 50 }), /starts on tile 1 to 99/);
+assert.match(jumpProblem(others, { from: 7, to: 17 }), /circle/, '17 -> 7 -> 17');
+assert.match(jumpProblem(others, { from: 14, to: 4 }), /circle/, '4 -> 14 -> 4');
+assert.equal(jumpProblem(DEFAULT_JUMPS.slice(1), DEFAULT_JUMPS[0]), null, 'the standard board, one at a time');
 
 console.log('snakes selftest passed');

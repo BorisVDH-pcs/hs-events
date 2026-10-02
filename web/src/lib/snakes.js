@@ -46,6 +46,20 @@ export function tileCenter(n) {
 }
 
 /**
+ * The tile under a point of the same 0-100 square -- tileCenter the other way
+ * round, for dragging a snake's or ladder's end. A point off the board counts
+ * as the nearest square on its edge.
+ */
+export function tileAt(x, y) {
+  const clamp = (v) => Math.min(BOARD_SIZE, Math.max(1, Math.floor(v / 10) + 1));
+  const row = clamp(y);
+  const col = clamp(x);
+  const fromBottom = BOARD_SIZE - row;
+  const along = fromBottom % 2 === 0 ? col - 1 : BOARD_SIZE - col;
+  return fromBottom * BOARD_SIZE + along + 1;
+}
+
+/**
  * An SVG path for a snake from its head to its tail: a gentle S along the
  * line between them, so a snake never reads as a ruler line. Deterministic
  * (the same head and tail always draw the same snake), and which way it
@@ -118,6 +132,30 @@ export function checkJumps(jumps) {
       if (t === from || hops > LAST_TILE) return `The snakes and ladders from tile ${from} go round in a circle.`;
       t = starts.get(t);
     }
+  }
+  return null;
+}
+
+/**
+ * What is wrong with one snake or ladder `j` among the `others`, in words, or
+ * null -- checkJumps for a single change, so dragging one end or adding one
+ * judges only that change, not a half-typed row elsewhere in the list. Any
+ * loop it closes runs through its own start, so following on from its end
+ * is enough to find one.
+ */
+export function jumpProblem(others, j) {
+  const from = Number(j.from);
+  const to = Number(j.to);
+  if (from < 1 || from > 99) return `A snake or ladder starts on tile 1 to 99 (not ${from}).`;
+  if (to < 1 || to > LAST_TILE) return `A snake or ladder ends on tile 1 to 100 (not ${to}).`;
+  if (to === from) return 'It has to go somewhere: pick another square.';
+  const starts = new Map(others.map((o) => [Number(o.from), Number(o.to)]));
+  if (starts.has(from)) return `Another snake or ladder already starts on tile ${from}.`;
+  starts.set(from, to);
+  let t = to;
+  for (let hops = 0; starts.has(t); hops++) {
+    if (t === from || hops > LAST_TILE) return `That would send a team round in a circle back to tile ${from}.`;
+    t = starts.get(t);
   }
   return null;
 }

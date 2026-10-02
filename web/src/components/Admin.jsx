@@ -16,6 +16,7 @@ import {
 } from '../lib/supabase.js';
 import { LAST_TILE, isLadder } from '../lib/snakes.js';
 import SnakesJumpEditor from './snakes/SnakesJumpEditor.jsx';
+import useJumpDraft from './snakes/useJumpDraft.js';
 import SnakesAdminTrack from './snakes/SnakesAdminTrack.jsx';
 import BoardBuilder from './BoardBuilder.jsx';
 import AdminOverview from './AdminOverview.jsx';
@@ -204,9 +205,6 @@ export default function Admin({ onViewAs } = {}) {
   // Configure's sub-tab per game id (see CONFIG_TABS), so coming back to a
   // game opens where you were working on it.
   const [configTabs, setConfigTabs] = useState(readConfigTabs);
-  // The Snakes and ladders card's unsaved draft, for the board builder to draw
-  // as its preview; null when nothing is changed.
-  const [jumpDraft, setJumpDraft] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
@@ -222,6 +220,9 @@ export default function Admin({ onViewAs } = {}) {
   const game = games.find((g) => g.id === gameId) ?? null;
   const gameTeams = teams.filter((t) => t.game_id === gameId);
   const jumps = jumpsByGame[gameId] ?? NO_JUMPS;
+  // The unsaved snakes and ladders, shared by the Snakes and ladders card
+  // (typed as a list) and the board builder (dragged on the board).
+  const jumpEdit = useJumpDraft(isSnakesGame(game) ? game : null, jumps);
 
   const loadGames = useCallback(async () => {
     const [{ data: g }, { data: t }, { data: p }, { data: m }] = await Promise.all([
@@ -468,6 +469,11 @@ export default function Admin({ onViewAs } = {}) {
   const rosterCount = members.filter((m) => gameTeams.some((t) => t.id === m.team_id)).length;
   const bingo = isBingoGame(game);
   const snakesMode = isSnakesGame(game);
+  const saveJumps = (draft) => run(
+    () => adminSetSnakes(game.id, draft),
+    (n) => `${n} snake${n === 1 ? '' : 's'} and ladder${n === 1 ? '' : 's'} saved.`,
+    { refresh: ['games'] }
+  );
   // Bingo and snakes share everything about teams and starting: any number of
   // teams, no captains or fleets to wait on, preparation optional.
   const cardLike = bingo || snakesMode;
@@ -1114,23 +1120,19 @@ export default function Admin({ onViewAs } = {}) {
               now does one square at a time, against a catalogue it can search. */}
           {snakesMode && (
             <SnakesJumpEditor
-              game={game}
               jumps={jumps}
               busy={busy}
-              onDraft={setJumpDraft}
-              onSave={(draft) => run(
-                () => adminSetSnakes(game.id, draft),
-                (n) => `${n} snake${n === 1 ? '' : 's'} and ladder${n === 1 ? '' : 's'} saved.`,
-                { refresh: ['games'] }
-              )}
+              edit={jumpEdit}
+              onSave={saveJumps}
             />
           )}
 
           <BoardBuilder
             game={game}
             tiles={tiles}
-            jumps={snakesMode && jumpDraft ? jumpDraft : jumps}
-            jumpsUnsaved={snakesMode && Boolean(jumpDraft)}
+            jumps={snakesMode ? jumpEdit.shown : jumps}
+            jumpEdit={snakesMode ? jumpEdit : null}
+            onSaveJumps={saveJumps}
             library={library}
             libraryError={libraryError}
             busy={busy}
