@@ -827,6 +827,23 @@ button.cell.pet-target:active { transform: scale(.93); transition-duration: .09s
   .board-layout .feed-col .stats-panel { margin-bottom: 1.1rem; }
   .board-layout .slot { min-height: 0; }
 }
+/* Snakes and Ladders splits the side column (SnakesGame). On a wide screen a
+   square pressed to read stands in for the turn panel, which stays mounted
+   underneath so screenshots staged on it are not lost. In the single stack the
+   column dissolves into its pieces: the turn panel above the board, the square
+   being read and "How it works" below it, then the feed. */
+@media not all and (max-width: 1100px) {
+  .snakes-side.browsing .snakes-turn-slot { display: none; }
+}
+@media (max-width: 1100px) {
+  .board-layout .snakes-side { display: contents; }
+  .snakes-side .snakes-turn-slot { order: 0; }
+  .snakes-side .snakes-browse-slot,
+  .snakes-side .snakes-how-slot { order: 2; }
+}
+.snakes-side .snakes-turn-slot,
+.snakes-side .snakes-browse-slot,
+.snakes-side .snakes-how-slot { min-width: 0; }
 
 /* Capped rather than full-bleed. Across 1100px the cells reach ~105px and the
    64px tile art is being upscaled; at this width they land near 72px, which is
@@ -1353,6 +1370,13 @@ button.cell.pet-target:active { transform: scale(.93); transition-duration: .09s
 .feed li.mine span { color: var(--text); }
 .feed li.theirs span { color: var(--label-2); }
 .feed .tag { flex: none; font-size: .75rem; font-weight: 600; color: var(--label-3); }
+/* The day heading between lines; see dayLabel in EventFeed. */
+.feed li.feed-day {
+  padding: .8rem 0 .3rem;
+  font-size: .75rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--gold-dim);
+}
+.feed li.feed-day:first-child { padding-top: .1rem; }
 
 
 /* ---- controls ----

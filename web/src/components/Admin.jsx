@@ -1420,7 +1420,7 @@ export default function Admin({ onViewAs } = {}) {
               There is nothing to approve — attaching the required number is what
               completes a tile. Revoking one can take a tile back off a team’s count.
             </p>
-            <EvidenceReview gameId={game.id} />
+            <EvidenceReview gameId={game.id} mode={game.mode} />
           </section>
         </>
       )}
@@ -1443,7 +1443,7 @@ export default function Admin({ onViewAs } = {}) {
               There is nothing to approve — attaching what the tile asks for is
               what completes it. Revoking one can take a tile back off a team.
             </p>
-            <EvidenceReview gameId={game.id} />
+            <EvidenceReview gameId={game.id} mode={game.mode} />
           </section>
         </>
       )}
@@ -1468,7 +1468,7 @@ export default function Admin({ onViewAs } = {}) {
               There is nothing to approve — attaching the required number is what
               lets a team fire. This is for settling a dispute, or catching one.
             </p>
-            <EvidenceReview gameId={game.id} />
+            <EvidenceReview gameId={game.id} mode={game.mode} />
           </section>
 
           <section className="card">

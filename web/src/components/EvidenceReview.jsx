@@ -165,7 +165,17 @@ function consequences(p) {
   return out;
 }
 
-export default function EvidenceReview({ gameId }) {
+/**
+ * How a square is named: a coordinate on a lettered grid, a number in Snakes
+ * and Ladders, where tiles run 1-100 and nobody says "B2" for tile 12.
+ */
+function squareLabel(position, mode) {
+  if (mode === 'snakes') return `Tile ${position}`;
+  const { row, col } = fromPosition(position);
+  return coordLabel(row, col);
+}
+
+export default function EvidenceReview({ gameId, mode }) {
   const [rows, setRows] = useState([]);
   const [urls, setUrls] = useState({});
   const [error, setError] = useState(null);
@@ -227,10 +237,9 @@ export default function EvidenceReview({ gameId }) {
       if (!q) return true;
       // The coordinate is searched as well as the name, because a dispute
       // arrives as "what did they send for H7", not as a tile's wording.
-      const { row, col } = fromPosition(r.tile_position);
-      return `${r.tile_name ?? ''} ${coordLabel(row, col)}`.toLowerCase().includes(q);
+      return `${r.tile_name ?? ''} ${squareLabel(r.tile_position, mode)}`.toLowerCase().includes(q);
     });
-  }, [rows, team, player, query]);
+  }, [rows, team, player, query, mode]);
 
   // A filter narrowing the list under a page you had scrolled to would leave
   // you on an empty page 4 of 1.
@@ -296,12 +305,11 @@ export default function EvidenceReview({ gameId }) {
     setBusy(r.id);
     try {
       const p = await adminRevokeEvidence(r.id, true);
-      const { row, col } = fromPosition(r.tile_position);
       const filed = submissionLabel(r);
 
       const ok = await confirm(
         <>
-          <strong>{r.tile_name}</strong> {coordLabel(row, col)} — {r.team_name},
+          <strong>{r.tile_name}</strong> {squareLabel(r.tile_position, mode)} — {r.team_name},
           {' '}submitted by {r.uploaded_by_name}
           {filed ? <> and filed as <strong>{filed}</strong></> : null}.
           {consequences(p).map((line) => (
@@ -324,7 +332,7 @@ export default function EvidenceReview({ gameId }) {
     } finally {
       setBusy(null);
     }
-  }, [confirm]);
+  }, [confirm, mode]);
 
   if (error) return <p className="error">{error}</p>;
   if (loading) return <p className="muted">Loading evidence…</p>;
@@ -342,11 +350,11 @@ export default function EvidenceReview({ gameId }) {
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Tile name or square"
+          placeholder={mode === 'snakes' ? 'Tile name or number' : 'Tile name or square'}
           aria-label="Filter by tile"
         />
         <select value={team} onChange={(e) => setTeam(e.target.value)} aria-label="Filter by team">
-          <option value="">Both teams</option>
+          <option value="">{teams.length === 2 ? 'Both teams' : 'All teams'}</option>
           {teams.map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
         <select value={player} onChange={(e) => setPlayer(e.target.value)} aria-label="Filter by player">
@@ -374,7 +382,6 @@ export default function EvidenceReview({ gameId }) {
         <>
           <ul className="evidence-review">
             {shown.map((r) => {
-              const { row, col } = fromPosition(r.tile_position);
               const filed = submissionLabel(r);
               return (
                 <li key={r.id}>
@@ -389,7 +396,7 @@ export default function EvidenceReview({ gameId }) {
                   </a>
                   <div className="meta">
                     <strong>{r.tile_name}</strong>
-                    <span className="coord">{coordLabel(row, col)}</span>
+                    <span className="coord">{squareLabel(r.tile_position, mode)}</span>
                     {/* The drop it was filed as, beside the picture of the
                         drop it actually shows. A mis-pick is only visible as
                         the two disagreeing, so this is the whole reason the

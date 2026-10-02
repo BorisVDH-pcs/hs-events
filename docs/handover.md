@@ -2023,3 +2023,32 @@ Rehearsed on live and rolled back: 26 passed, 0 failed.
 
 **Undoing it:** `git revert` the commit (the website), and
 `scripts/rollback-admin-swap-tiles.sql` (drops the function).
+
+## Session log — 2026-10-02, a UX walkthrough and four fixes from it
+
+Walked the live site as the admin, using "View as team" (read only) on S&L,
+Test Bingo and Battleships V4, at desktop and narrow widths. Fifteen findings
+came out of it; Boris picked four to fix now and two (5, 10) to discuss first.
+
+- **Raw codes in the feed (1).** `pet_jar_submitted` and `pet_jar_spent` had
+  no case in `EventFeed`, so the feed printed the enum label. Both are worded
+  now, the way the Discord relay words them. The `default` branch no longer
+  prints a bare enum either — but the fix for a new type is still a case.
+- **No dates in the feed (2).** Lines carry only a time, which reads as
+  nonsense across a multi-day game. A heading goes in wherever the day changes
+  (`Today`, `Yesterday`, then the browser's short date); hovering a time shows
+  the full date. Formats still follow the browser's locale (finding 3, not
+  picked).
+- **The S&L task was below the board (4).** Below 1100px the layout is one
+  stack, and the turn panel came after all 100 squares. The side column now
+  dissolves there (`.snakes-side { display: contents }`): turn panel above the
+  board, a square pressed to read under it (scrolled into view), then "How it
+  works" and the feed. Above 1100px nothing changes, except that the turn panel
+  stays mounted (hidden) while a square is read, so staged screenshots survive.
+- **Battleships coordinates in a Snakes evidence list (11).** `EvidenceReview`
+  takes the game's `mode` and says `Tile 12` instead of `B2` in Snakes; search
+  matches the number. The team filter says "All teams" when there are more
+  than two.
+
+Not checked on a real phone, same as before. The walkthrough's finding list
+is in the conversation, not in this repo.

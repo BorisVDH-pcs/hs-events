@@ -39,6 +39,18 @@ export default function SnakesGame({
   const myTeam = teams.find((t) => t.id === myTeamId) ?? null;
   const lastMove = events.find((e) => e.type === 'team_moved' && e.team_id === myTeamId) ?? null;
   const onSelect = (n) => setSelected((s) => (s === n ? null : n));
+  const browsing = selected != null && selected !== myTeam?.board_tile;
+
+  // In the single-column layout the square's panel opens under the board,
+  // which on a tablet can be most of a screen below the square pressed. Bring
+  // it into view -- only as far as needed, so a press near the bottom of the
+  // board scrolls a little and one near the top a bit more.
+  const browseRef = useRef(null);
+  useEffect(() => {
+    if (!browsing || !browseRef.current) return;
+    if (!window.matchMedia?.('(max-width: 1100px)').matches) return;
+    browseRef.current.scrollIntoView({ block: 'nearest', behavior: reduced ? 'auto' : 'smooth' });
+  }, [browsing, selected, reduced]);
 
   const board = (revealed) => (
     <SnakesBoard
@@ -80,7 +92,6 @@ export default function SnakesGame({
   }
 
   const result = resultText(game, teams);
-  const browsing = selected != null && selected !== myTeam?.board_tile;
 
   return (
     <>
@@ -105,17 +116,14 @@ export default function SnakesGame({
             {board(true)}
           </div>
 
-          <div className="side-col">
-            {browsing ? (
-              <SnakesTilePanel
-                position={selected}
-                tile={tiles.find((t) => t.position === selected) ?? null}
-                jumps={jumps}
-                teams={teams}
-                myTeamId={myTeamId}
-                onClose={() => setSelected(null)}
-              />
-            ) : (
+          {/* On a wide screen this is the right-hand column, and a square
+              pressed to read takes the turn panel's place. Below 1100px the
+              column dissolves (styles.css, .snakes-side): the turn panel goes
+              above the board, so a player arriving from Discord sees their
+              task before 100 squares, and a square pressed to read opens just
+              under the board, next to where it was pressed. */}
+          <div className={`side-col snakes-side${browsing ? ' browsing' : ''}`}>
+            <div className="snakes-turn-slot">
               <SnakesTurnPanel
                 game={game}
                 team={myTeam}
@@ -124,8 +132,20 @@ export default function SnakesGame({
                 lastMove={lastMove}
                 onRefresh={onRefresh}
               />
+            </div>
+            {browsing && (
+              <div className="snakes-browse-slot" ref={browseRef}>
+                <SnakesTilePanel
+                  position={selected}
+                  tile={tiles.find((t) => t.position === selected) ?? null}
+                  jumps={jumps}
+                  teams={teams}
+                  myTeamId={myTeamId}
+                  onClose={() => setSelected(null)}
+                />
+              </div>
             )}
-            {!isFinished && <HowItWorks />}
+            {!isFinished && <div className="snakes-how-slot"><HowItWorks /></div>}
           </div>
         </div>
       </section>

@@ -134,6 +134,18 @@ export default function EventFeed({ events, teams, myTeamId }) {
           + `${p.tile_name ?? 'a tile'}${what} — now ${revokedProgressText(p)}.`
           + (undone ? ` ${undone}` : '');
       }
+      case 'pet_jar_submitted': {
+        // Team-private, worded as the Discord relay words it.
+        const p = e.payload ?? {};
+        return `${p.submitted_by_name ?? who} submitted a pet/jar — ${p.pet_jar_count} pet jar`
+          + ` preview${p.pet_jar_count === 1 ? '' : 's'} now.`;
+      }
+      case 'pet_jar_spent': {
+        // Team-private, so it may name the tile the preview revealed.
+        const p = e.payload ?? {};
+        return `A pet jar preview was spent on ${p.tile_name ?? 'a tile'}${at ? ` at ${at}` : ''}`
+          + ` — ${p.pet_jar_count} left.`;
+      }
       case 'pet_jar_revoked': {
         // Team-private, so it may name the previewed tile it took back.
         const p = e.payload ?? {};
@@ -152,23 +164,54 @@ export default function EventFeed({ events, teams, myTeamId }) {
         }
         return 'An active tile is available now. Lock in another target.';
       default:
-        return e.type;
+        // A type nobody has worded yet. Readable beats a raw enum label; the
+        // fix is a case above.
+        return `${who}: ${String(e.type).replaceAll('_', ' ')}.`;
     }
+  }
+
+  // A game runs over days and each line only carries a time, so a heading goes
+  // in wherever the day changes: "Today", "Yesterday", then "Fri 2 Oct".
+  const now = new Date();
+  const rows = [];
+  let lastDay = null;
+  for (const e of events) {
+    const when = new Date(e.created_at);
+    const day = when.toDateString();
+    if (day !== lastDay) {
+      // The key carries the event too: a day can head the list twice if the
+      // events ever arrive out of order, and React needs the keys unique.
+      rows.push(<li key={`day-${e.id}`} className="feed-day">{dayLabel(when, now)}</li>);
+      lastDay = day;
+    }
+    rows.push(
+      <li key={e.id} className={e.team_id === myTeamId ? 'mine' : 'theirs'}>
+        <time dateTime={e.created_at} title={when.toLocaleString()}>{when.toLocaleTimeString()}</time>
+        {audienceTag(e) && <span className="tag">{audienceTag(e)}</span>}
+        <span>{describe(e)}</span>
+      </li>,
+    );
   }
 
   return (
     <section className="feed" id="event-feed-section">
       <h2>Activity</h2>
       <ul>
-        {events.map((e) => (
-          <li key={e.id} className={e.team_id === myTeamId ? 'mine' : 'theirs'}>
-            <time>{new Date(e.created_at).toLocaleTimeString()}</time>
-            {audienceTag(e) && <span className="tag">{audienceTag(e)}</span>}
-            <span>{describe(e)}</span>
-          </li>
-        ))}
+        {rows}
         {events.length === 0 && <li className="muted">Nothing has happened yet.</li>}
       </ul>
     </section>
   );
+}
+
+function dayLabel(when, now) {
+  const midnight = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  // Rounded, because a day across a clock change is 23 or 25 hours long.
+  const daysAgo = Math.round((midnight(now) - midnight(when)) / 86400000);
+  if (daysAgo === 0) return 'Today';
+  if (daysAgo === 1) return 'Yesterday';
+  return when.toLocaleDateString(undefined, {
+    weekday: 'short', day: 'numeric', month: 'short',
+    ...(when.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}),
+  });
 }
