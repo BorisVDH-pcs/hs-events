@@ -1450,7 +1450,8 @@ function TeamScreens({ game, teams, onViewAs }) {
       <h2>Team screens</h2>
       <p className="muted">
         Open the game exactly as a team sees it, without signing in as one of
-        its players. Read only: nothing you press there changes the game.
+        its players. It opens read only; to press the team&rsquo;s buttons for
+        them, choose &ldquo;Act for&rdquo; on that screen.
       </p>
       <div className="row">
         {sorted.map((t) => (

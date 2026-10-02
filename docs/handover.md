@@ -1914,3 +1914,64 @@ calling the helpers directly. On 2026-10-02 it reported 594 key checks across
   back exactly as it was (copied from live) and drops the three new
   functions. Copy it into `supabase/migrations/` with a later timestamp and
   push, or paste it into the SQL editor and then add the file anyway.
+
+## Session log — 2026-10-02, "Act for team"
+
+On a team's screen (Track → Team screens → View as …), the bar along the bottom
+now has **Act for <team>**. After a confirmation, the bar turns red and the
+team's buttons really work: roll, claim, fire, open a tile, upload evidence,
+spend a preview. **Stop acting** goes back to read only. Leaving the screen
+also ends it, and every visit starts read only again. Boris asked for this and
+accepted the risk on 2026-10-02: an organiser login can now play for any team,
+so a stolen one could too.
+
+**How it works.** While acting, `lib/supabase.js` adds an `x-act-as-team:
+<team id>` header to every database request (`/rest/v1/` only; sign-in,
+storage and Realtime never carry it). PostgREST passes request headers to
+Postgres as `request.headers`. `acting_as_team()` reads the header and
+returns the team id only if the caller `is_admin()`; for anybody else it
+returns null, whatever they send. The database migration is
+`20261003150000_admin_act_as_team.sql`:
+- `my_team_in_game(game)` returns the acting team if it belongs to that game,
+  and otherwise behaves exactly as before. That covers claim_tile,
+  bingo_open_tile, the three snakes calls, spend_pet_jar and submit_pet_jar.
+- `fire_tile` and `add_evidence` check membership themselves. That one check
+  became `acting_for_team(claim's team)`. The swap is done on the live
+  definition by regex, and it refuses unless the old check appears exactly
+  once.
+- The evidence and pet-jar upload policies allow `is_admin()` into any team
+  folder.
+- Records are honest: everything done this way carries the organiser's own
+  profile (claimed_by, fired_by, uploaded_by, the Discord lines).
+- `acting_for_team` must never return null. Callers write
+  `if not acting_for_team(..) then raise`, and `not null` lets the caller
+  through. The first rehearsal caught exactly that; it is now wrapped in
+  `coalesce(.., false)`, and the check script tests it.
+
+**Checking it:** `scripts/act-as-team-check.sql` (paste, Run; the ERROR text
+is the report). It tests:
+- for every player and every team, a forged header changes nothing
+  (814 cases);
+- an organiser gets the named team, and only in its own game;
+- no header, a malformed one or an unknown team gives an organiser no team;
+- `acting_for_team`, both ways;
+- that both functions carry the swapped check;
+- a real roll in the Snakes game: refused without the header, reaches the
+  team's turn with it, and a player forging the header still rolls for their
+  own team;
+- uploads, both ways;
+- that the helpers cannot be called from the site.
+
+The rehearsal on live, rolled back, gave 885 passed and 0 failed. **Change
+`my_team_in_game`, `fire_tile`, `add_evidence` or the upload policies → run
+it.**
+
+**Undoing it:**
+- Quickest, website only: set `ACTING_ENABLED = false` in
+  `web/src/lib/viewOnly.js` and push. The button disappears and team screens
+  are read only again.
+- Database: `scripts/rollback-admin-act-as-team.sql`. It was rehearsed on live
+  inside the same rolled-back transaction, and fire_tile, add_evidence, the
+  `my_team_in_game` source and grants, and both policies came back identical
+  to before. Paste it into the SQL editor. To retire the feature for good, add
+  its body as a later migration.

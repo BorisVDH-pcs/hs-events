@@ -476,6 +476,11 @@ h3 {
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-md);
 }
+/* Acting for the team: the presses are real now, so the bar turns red. */
+.view-as-banner.acting {
+  border: 2px solid var(--hit-lit);
+  background: linear-gradient(rgba(255, 69, 58, .14), rgba(255, 69, 58, .14)), var(--panel-solid);
+}
 .view-as-text { margin: 0; }
 .view-as-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
 .team-screens .row { flex-wrap: wrap; }

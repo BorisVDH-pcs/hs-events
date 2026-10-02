@@ -30,7 +30,7 @@ import { listMyGames, readGamePick, writeGamePick } from './lib/games.js';
 import { readMuted, writeMuted } from './lib/sound.js';
 import { REVEAL_DELAY_MS, SHOT_RESULT_DURATION_MS } from './lib/fireEffect.js';
 import { tileProgressText } from './lib/tileProgress.js';
-import { setViewOnly } from './lib/viewOnly.js';
+import { ACTING_ENABLED, setViewOnly } from './lib/viewOnly.js';
 
 export default function App() {
   const [session, setSession] = useState(null);
@@ -44,8 +44,9 @@ export default function App() {
   const [shotResult, setShotResult] = useState(null);
   const [busyTileId, setBusyTileId] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
-  // "View as team": the console's way into a team's player screen, read only.
-  // { gameId, teamId, teamName, role } while one is open, otherwise null.
+  // "View as team": the console's way into a team's player screen, read only
+  // unless the organiser chooses to act for the team.
+  // { gameId, teamId, teamName, role, acting } while one is open, otherwise null.
   const [viewAs, setViewAs] = useState(null);
   // Which board is on screen. The two used to sit side by side, which cost
   // each of them half the page and left the cells too small to read the tile
@@ -231,7 +232,9 @@ export default function App() {
 
   // Set while rendering rather than in an effect, so the guard is up before
   // the first click on the screen it protects can land (lib/viewOnly.js).
-  setViewOnly(viewing ? viewAs.teamName : null);
+  // Acting lifts it, and names the team on every request, for that team only.
+  const acting = viewing && ACTING_ENABLED && viewAs.acting === true;
+  setViewOnly(viewing ? viewAs.teamName : null, acting ? viewAs.teamId : null);
 
   const game = useGame(boardGameId, session, viewing ? viewAs : null);
 
@@ -382,10 +385,21 @@ export default function App() {
   // Into a team's screen from the console, and back out. The same per-board
   // state as a game switch is dropped, for the same reasons: none of it
   // belongs to the board being moved to.
+  // Always in read only: acting is chosen on the team's screen, every time.
   function enterView(next) {
     resetBoardState();
-    setViewAs(next);
+    setViewAs({ ...next, acting: false });
     window.scrollTo({ top: 0 });
+  }
+
+  async function startActing() {
+    if (!(await confirm(
+      `Everything you press on ${viewAs.teamName}’s screen will really happen for that team: ` +
+        'rolls, claims, shots, uploads and previews. It is recorded and announced under your ' +
+        'own name, and it cannot be undone from here.',
+      { title: `Act for ${viewAs.teamName}?`, confirmLabel: 'Act for this team', danger: true }
+    ))) return;
+    setViewAs((v) => (v ? { ...v, acting: true } : v));
   }
 
   function exitView() {
@@ -814,11 +828,21 @@ export default function App() {
       )}
       {/* Last, so it can ride along the bottom of the window (styles.css). */}
       {viewing && (
-        <div className="view-as-banner" role="status">
+        <div className={`view-as-banner${acting ? ' acting' : ''}`} role="status">
           <p className="view-as-text">
-            <span aria-hidden="true">👁 </span>
-            Viewing <b>{viewAs.teamName}</b>’s screen as {viewAs.role === 'captain' ? 'their captain' : 'a player'}.
-            {' '}Read only: nothing you press here changes the game.
+            {acting ? (
+              <>
+                <span aria-hidden="true">⚠ </span>
+                Acting for <b>{viewAs.teamName}</b> as {viewAs.role === 'captain' ? 'their captain' : 'a player'}.
+                {' '}Everything you press here really happens, under your name.
+              </>
+            ) : (
+              <>
+                <span aria-hidden="true">👁 </span>
+                Viewing <b>{viewAs.teamName}</b>’s screen as {viewAs.role === 'captain' ? 'their captain' : 'a player'}.
+                {' '}Read only: nothing you press here changes the game.
+              </>
+            )}
             {live === 'offline' && <span className="live-warning"> ⚠ Reconnecting</span>}
           </p>
           <div className="view-as-actions">
@@ -828,6 +852,13 @@ export default function App() {
             >
               {viewAs.role === 'captain' ? 'See it as a player' : 'See it as the captain'}
             </button>
+            {ACTING_ENABLED && (acting ? (
+              <button className="ghost" onClick={() => setViewAs((v) => ({ ...v, acting: false }))}>
+                Stop acting
+              </button>
+            ) : (
+              <button className="danger" onClick={startActing}>Act for {viewAs.teamName}</button>
+            ))}
             <button className="primary" onClick={exitView}>Back to the console</button>
           </div>
         </div>

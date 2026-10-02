@@ -6,7 +6,7 @@
 // write goes through a `security definer` RPC. See docs/architecture.md.
 
 import { createClient } from '@supabase/supabase-js';
-import { assertWritable } from './viewOnly.js';
+import { actingTeam, assertWritable } from './viewOnly.js';
 
 const URL = import.meta.env.VITE_SUPABASE_URL;
 const ANON = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -20,14 +20,27 @@ if (!isSupabaseConfigured) {
   );
 }
 
+// While an organiser acts for a team (lib/viewOnly.js), every database request
+// names that team in `x-act-as-team`; the server reads it for organisers only.
+// Database requests only (/rest/v1/): sign-in, storage and Realtime never get
+// it, and nothing is added at all the rest of the time.
+function actingFetch(input, init) {
+  const team = actingTeam();
+  const url = typeof input === 'string' ? input : input?.url ?? String(input);
+  if (!team || !url.includes('/rest/v1/')) return fetch(input, init);
+  const headers = new Headers(init?.headers);
+  headers.set('x-act-as-team', team);
+  return fetch(input, { ...init, headers });
+}
+
 export const supabase = isSupabaseConfigured
-  ? createClient(URL, ANON)
+  ? createClient(URL, ANON, { global: { fetch: actingFetch } })
   : null;
 
 // ---- Game API ------------------------------------------------------------
 // These four are the entire write surface (see supabase/migrations/0002_rpc.sql).
 // Each player action starts with assertWritable(): it throws while an organiser
-// is viewing a team's screen (lib/viewOnly.js).
+// is viewing a team's screen, unless they are acting for it (lib/viewOnly.js).
 
 export async function placeFleet(teamId, ships) {
   assertWritable();
