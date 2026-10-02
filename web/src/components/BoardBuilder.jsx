@@ -98,6 +98,10 @@ export default function BoardBuilder({
   const locked = !live && game.status !== 'setup' && game.status !== 'placement';
   // 10 for battleships; a bingo card can be anything from 3 to 10.
   const size = game.grid_size ?? GRID;
+  // Only the saved boards this game can load: admin_apply_board_preset refuses
+  // a board of another size, so offering one is offering an error.
+  const fitting = presets.filter((p) => p.grid_size === size);
+  const otherSizes = presets.length - fitting.length;
 
   // Snakes and Ladders: the same hundred squares, numbered along the snake
   // path (the position IS the tile number) -- and a snake's head or a ladder's
@@ -790,7 +794,7 @@ export default function BoardBuilder({
             <h4>Saved boards</h4>
 
             <div className="row">
-              {presets.length > 0 && (
+              {fitting.length > 0 && (
                 <>
                   <select
                     value={presetId}
@@ -798,7 +802,7 @@ export default function BoardBuilder({
                     aria-label="Saved board"
                   >
                     <option value="">Choose a saved board…</option>
-                    {presets.map((preset) => (
+                    {fitting.map((preset) => (
                       <option key={preset.id} value={preset.id}>
                         {preset.name} — {preset.squares} square{preset.squares === 1 ? '' : 's'}
                         {preset.grid_size !== GRID ? ` (${preset.grid_size}×${preset.grid_size})` : ''}
@@ -863,9 +867,15 @@ export default function BoardBuilder({
               )}
             </div>
 
-            {presets.length === 0 && tiles.length === 0 && (
+            {fitting.length === 0 && tiles.length === 0 && (
               <p className="muted">
-                No saved boards yet. Build one and it can be kept here.
+                No saved boards {otherSizes > 0 ? `for a ${size}×${size} board ` : ''}yet.
+                {' '}Build one and it can be kept here.
+              </p>
+            )}
+            {otherSizes > 0 && (fitting.length > 0 || tiles.length > 0) && (
+              <p className="muted">
+                {otherSizes} saved board{otherSizes === 1 ? ' is' : 's are'} for another size and not listed.
               </p>
             )}
           </div>

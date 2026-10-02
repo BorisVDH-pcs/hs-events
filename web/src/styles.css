@@ -483,6 +483,28 @@ h3 {
 }
 .view-as-text { margin: 0; }
 .view-as-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.view-as-secondary { display: contents; }
+.view-as-short, .view-as-more { display: none; }
+/* A phone: one line -- the short wording, More and Back -- and the other
+   buttons only once More is pressed, on a row of their own above. */
+@media (max-width: 600px) {
+  .view-as-banner { flex-wrap: nowrap; gap: .5rem; padding: .45rem .6rem; bottom: .5rem; }
+  .view-as-long { display: none; }
+  .view-as-short { display: inline; }
+  .view-as-text {
+    flex: 1; min-width: 0; font-size: .85rem;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .view-as-actions { flex-wrap: nowrap; flex: none; gap: .35rem; }
+  .view-as-actions button { padding: .35rem .6rem; font-size: .85rem; }
+  .view-as-more { display: inline-flex; }
+  .view-as-secondary { display: none; }
+  .view-as-banner.more-open { flex-wrap: wrap; }
+  .view-as-banner.more-open .view-as-secondary {
+    display: flex; flex-wrap: wrap; gap: .35rem; order: -1; flex-basis: 100%;
+  }
+  .view-as-banner.more-open .view-as-actions { flex-wrap: wrap; justify-content: flex-end; flex: 1 1 auto; }
+}
 .team-screens .row { flex-wrap: wrap; }
 .muted { color: var(--label-2); font-size: .875rem; }
 

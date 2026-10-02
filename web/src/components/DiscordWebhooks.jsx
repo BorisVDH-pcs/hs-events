@@ -132,9 +132,12 @@ function WebhookRow({ title, note, row, onSave, onDelete }) {
       return;
     }
     setBusy(true); setError(null); setSaved(false);
+    // admin_set_webhook posts a "Webhook connected" line when the channel
+    // starts pointing somewhere new: a new URL, or switched back on.
+    const hello = enabledNow && (url.trim() !== savedUrl || !savedEnabled);
     try {
       await onSave(url.trim(), enabledNow);
-      setSaved(true);
+      setSaved(hello ? 'hello' : true);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -210,7 +213,13 @@ function WebhookRow({ title, note, row, onSave, onDelete }) {
           </button>
         )}
         {changed && !busy && <span className="webhook-dirty">Unsaved changes</span>}
-        {saved && !changed && <span className="webhook-saved">Saved</span>}
+        {saved && !changed && (
+          <span className="webhook-saved">
+            {saved === 'hello'
+              ? 'Saved — a "Webhook connected" message should now be in that Discord channel.'
+              : 'Saved'}
+          </span>
+        )}
       </div>
 
       {error && <p className="error">{error}</p>}

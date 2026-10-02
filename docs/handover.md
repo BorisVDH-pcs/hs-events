@@ -2096,3 +2096,23 @@ drawn only when `SnakesBoard` gets `edit`, which only the builder passes).
   `tileAt` maps a point on the board back to its tile.
 - The squares under a grip can still be picked by pressing beside it, or in
   the names view.
+
+### Second UX round: B, 14, 15 and C
+
+- **B. Unread count in the tab title.** `useUnseenEvents` counts feed lines
+  that arrive while the tab is hidden: "(2) Game — High Society Events". Back
+  to 0 when the tab is looked at. Players only, not an organiser viewing a team.
+- **14. The View-as bar on a phone** (below 600px) is one line: short wording,
+  More, Back. "See it as the captain" and "Act for…" sit behind More.
+- **15. Saved boards are filtered by size.** Only boards this game can load are
+  listed (the server refuses the rest anyway); a muted line says how many are
+  for another size.
+- **C. "Webhook connected" message.** `admin_set_webhook`
+  (20261005120000) posts one line to the channel when a webhook gets a new URL
+  or is switched back on. Re-saving the same URL sends nothing. Undo:
+  `scripts/rollback-webhook-connected-message.sql`.
+
+Answered but not built: 6 (rollback button weight), 7 (how rollbacks are
+earned — the original repo's guide had it), 8 (waiting screen: players cannot
+read their teammates yet, needs a server change; Bingo has no rules text),
+12 (evidence grouping), 13 (tab bar overlap).

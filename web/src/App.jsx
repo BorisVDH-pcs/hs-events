@@ -32,6 +32,7 @@ import { readMuted, writeMuted } from './lib/sound.js';
 import { REVEAL_DELAY_MS, SHOT_RESULT_DURATION_MS } from './lib/fireEffect.js';
 import { tileProgressText } from './lib/tileProgress.js';
 import { ACTING_ENABLED, setViewOnly } from './lib/viewOnly.js';
+import useUnseenEvents from './hooks/useUnseenEvents.js';
 
 export default function App() {
   const [session, setSession] = useState(null);
@@ -49,6 +50,8 @@ export default function App() {
   // unless the organiser chooses to act for the team.
   // { gameId, teamId, teamName, role, acting } while one is open, otherwise null.
   const [viewAs, setViewAs] = useState(null);
+  // The View-as bar's secondary buttons, folded behind "More" on a phone.
+  const [viewMore, setViewMore] = useState(false);
   // Which board is on screen. The two used to sit side by side, which cost
   // each of them half the page and left the cells too small to read the tile
   // art in. One at a time, full width.
@@ -277,7 +280,16 @@ export default function App() {
   // The tab names the game a player is in, or just the platform. Organisers
   // move between games in the console, so theirs stays on the platform name.
   const titleGame = session && !isAdmin ? game.game?.name ?? null : null;
-  useEffect(() => { document.title = pageTitle(titleGame); }, [titleGame]);
+  // And how much happened while the tab was in the background: "(2) Game".
+  // A player's own feed only -- not an organiser looking in on a team.
+  const unseen = useUnseenEvents(
+    playerScreen && !viewing ? game.events : null,
+    !game.loading && Boolean(game.game)
+  );
+  useEffect(() => {
+    const count = unseen > 99 ? '99+' : unseen;
+    document.title = `${unseen ? `(${count}) ` : ''}${pageTitle(titleGame)}`;
+  }, [titleGame, unseen]);
 
   // Being added to a team writes no game_event, so the Realtime subscription
   // never fires for it. Poll while waiting so the page lets them in by itself
@@ -850,39 +862,67 @@ export default function App() {
         </footer>
       )}
       {/* Last, so it can ride along the bottom of the window (styles.css). */}
+      {/* On a phone it is one line -- who, read only or acting, More, Back --
+          with the other buttons behind More, so it does not cover a third of
+          the screen it is there to show (styles.css, .view-as-banner). */}
       {viewing && (
-        <div className={`view-as-banner${acting ? ' acting' : ''}`} role="status">
+        <div
+          className={`view-as-banner${acting ? ' acting' : ''}${viewMore ? ' more-open' : ''}`}
+          role="status"
+        >
           <p className="view-as-text">
             {acting ? (
               <>
                 <span aria-hidden="true">⚠ </span>
-                Acting for <b>{viewAs.teamName}</b> as {viewAs.role === 'captain' ? 'their captain' : 'a player'}.
-                {' '}Everything you press here really happens, under your name.
+                <span className="view-as-long">
+                  Acting for <b>{viewAs.teamName}</b> as {viewAs.role === 'captain' ? 'their captain' : 'a player'}.
+                  {' '}Everything you press here really happens, under your name.
+                </span>
+                <span className="view-as-short">
+                  Acting for <b>{viewAs.teamName}</b> — presses are real
+                </span>
               </>
             ) : (
               <>
                 <span aria-hidden="true">👁 </span>
-                Viewing <b>{viewAs.teamName}</b>’s screen as {viewAs.role === 'captain' ? 'their captain' : 'a player'}.
-                {' '}Read only: nothing you press here changes the game.
+                <span className="view-as-long">
+                  Viewing <b>{viewAs.teamName}</b>’s screen as {viewAs.role === 'captain' ? 'their captain' : 'a player'}.
+                  {' '}Read only: nothing you press here changes the game.
+                </span>
+                <span className="view-as-short">
+                  <b>{viewAs.teamName}</b> as {viewAs.role === 'captain' ? 'captain' : 'player'} · read only
+                </span>
               </>
             )}
             {live === 'offline' && <span className="live-warning"> ⚠ Reconnecting</span>}
           </p>
           <div className="view-as-actions">
-            <button
-              className="ghost"
-              onClick={() => setViewAs((v) => ({ ...v, role: v.role === 'captain' ? 'member' : 'captain' }))}
-            >
-              {viewAs.role === 'captain' ? 'See it as a player' : 'See it as the captain'}
-            </button>
-            {ACTING_ENABLED && (acting ? (
-              <button className="ghost" onClick={() => setViewAs((v) => ({ ...v, acting: false }))}>
-                Stop acting
+            <div className="view-as-secondary">
+              <button
+                className="ghost"
+                onClick={() => setViewAs((v) => ({ ...v, role: v.role === 'captain' ? 'member' : 'captain' }))}
+              >
+                {viewAs.role === 'captain' ? 'See it as a player' : 'See it as the captain'}
               </button>
-            ) : (
-              <button className="danger" onClick={startActing}>Act for {viewAs.teamName}</button>
-            ))}
-            <button className="primary" onClick={exitView}>Back to the console</button>
+              {ACTING_ENABLED && (acting ? (
+                <button className="ghost" onClick={() => setViewAs((v) => ({ ...v, acting: false }))}>
+                  Stop acting
+                </button>
+              ) : (
+                <button className="danger" onClick={startActing}>Act for {viewAs.teamName}</button>
+              ))}
+            </div>
+            <button
+              className="ghost view-as-more"
+              aria-expanded={viewMore}
+              onClick={() => setViewMore((open) => !open)}
+            >
+              {viewMore ? 'Less' : 'More'}
+            </button>
+            <button className="primary" onClick={() => { setViewMore(false); exitView(); }}>
+              <span className="view-as-long">Back to the console</span>
+              <span className="view-as-short">Back</span>
+            </button>
           </div>
         </div>
       )}
