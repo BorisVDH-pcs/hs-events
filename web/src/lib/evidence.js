@@ -133,6 +133,46 @@ async function looksBlank(blob) {
  */
 export async function uploadEvidence({ gameId, teamId, claimId, file, optionId = null, amount = null }) {
   // First: the file reaches storage and the imgbb mirror before any RPC runs.
+  const { path, publicUrl } = await storeImage({ gameId, teamId, claimId, file });
+
+  const { data, error } = await supabase.rpc('add_evidence', {
+    p_claim_id: claimId,
+    p_storage_path: path,
+    p_public_url: publicUrl,
+    // Which drop this screenshot shows, on a tile whose drops are worth
+    // different amounts (0046). Null on an unweighted tile, where every
+    // screenshot is worth one point; add_evidence refuses the mismatch either
+    // way, so this is never the only thing deciding the score.
+    p_option_id: optionId,
+    // What the drop was worth, on a tile scored by a typed value rather than a
+    // drop list (0049). Null everywhere else, and add_evidence refuses a tile
+    // that gets one it did not ask for -- or none when it did.
+    p_amount: amount,
+  });
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+/**
+ * Snakes: hand in a pet screenshot for one rollback instead of the tile
+ * (20261005130000). Same folder as the tile's proof, so the bucket's insert
+ * policy and the path check work unchanged -- but snakes_trade_pet keeps it out
+ * of tile_evidence, so it never counts towards the tile. Once per team per
+ * tile; the server refuses a second one. Answers { rollbacks_available }.
+ */
+export async function tradePet({ gameId, teamId, claimId, file }) {
+  const { path, publicUrl } = await storeImage({ gameId, teamId, claimId, file });
+  const { data, error } = await supabase.rpc('snakes_trade_pet', {
+    p_claim_id: claimId,
+    p_storage_path: path,
+    p_public_url: publicUrl,
+  });
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+/** Shrink, store under the claim's folder and mirror one image; answers its path. */
+async function storeImage({ gameId, teamId, claimId, file }) {
   assertWritable();
   if (!file.type.startsWith('image/')) {
     throw new Error(`${file.name || 'That file'} is not an image.`);
@@ -152,23 +192,7 @@ export async function uploadEvidence({ gameId, teamId, claimId, file, optionId =
   // Best-effort: a public mirror for the Discord message to embed. Never
   // blocks the submission — see lib/imgbb.js.
   const publicUrl = await uploadToImgbb(blob);
-
-  const { data, error } = await supabase.rpc('add_evidence', {
-    p_claim_id: claimId,
-    p_storage_path: path,
-    p_public_url: publicUrl,
-    // Which drop this screenshot shows, on a tile whose drops are worth
-    // different amounts (0046). Null on an unweighted tile, where every
-    // screenshot is worth one point; add_evidence refuses the mismatch either
-    // way, so this is never the only thing deciding the score.
-    p_option_id: optionId,
-    // What the drop was worth, on a tile scored by a typed value rather than a
-    // drop list (0049). Null everywhere else, and add_evidence refuses a tile
-    // that gets one it did not ask for -- or none when it did.
-    p_amount: amount,
-  });
-  if (error) throw new Error(error.message);
-  return data;
+  return { path, publicUrl };
 }
 
 /**

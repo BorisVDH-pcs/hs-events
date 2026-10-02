@@ -532,8 +532,8 @@ export default function App() {
             {muted ? '🔇' : '🔊'}
             <span className="sound-toggle-label">{muted ? 'Sound off' : 'Sound on'}</span>
           </button>
-          {/* The guide teaches battleships; the other modes explain themselves on the board. */}
-          {playerScreen && !isBingo && !isSnakes && (
+          {/* Battleships and Snakes have a guide; bingo has no written rules yet. */}
+          {playerScreen && !isBingo && (
             <button className="link" onClick={() => guideRef.current?.openWelcome()}>
               📖 How to Play
             </button>
@@ -553,9 +553,12 @@ export default function App() {
         </div>
       </header>
 
-      {playerScreen && !isBingo && !isSnakes && (
+      {playerScreen && !isBingo && (
         <Guide
           ref={guideRef}
+          // Re-mounted per mode, so a game switch never shows the other's steps.
+          key={isSnakes ? 'snakes' : 'battleships'}
+          mode={isSnakes ? 'snakes' : 'battleships'}
           // Not over an organiser looking in: How to Play is one press away.
           autoShow={!viewing && !loading && Boolean(game.game) && !waitingScreen}
           onTabNeed={setBoardTab}

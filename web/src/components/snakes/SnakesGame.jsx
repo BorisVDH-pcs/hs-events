@@ -35,9 +35,11 @@ export default function SnakesGame({
   const { shown, sliding } = useMarkerWalk(teams, events, reduced);
 
   const isPreparation = game.status === 'setup' || game.status === 'placement';
-  const isFinished = game.status === 'finished';
   const myTeam = teams.find((t) => t.id === myTeamId) ?? null;
   const lastMove = events.find((e) => e.type === 'team_moved' && e.team_id === myTeamId) ?? null;
+  const petClaims = new Set(events
+    .filter((e) => e.type === 'rollback_gained' && e.team_id === myTeamId && e.payload?.reason === 'pet')
+    .map((e) => e.payload.claim_id));
   const onSelect = (n) => setSelected((s) => (s === n ? null : n));
   const browsing = selected != null && selected !== myTeam?.board_tile;
 
@@ -85,7 +87,7 @@ export default function SnakesGame({
             organiser starts the game.
           </p>
         </section>
-        <section className="boards snakes-prep">{board(false)}</section>
+        <section className="boards snakes-prep" id="snakes-board-section">{board(false)}</section>
         <EventFeed events={events} teams={teams} myTeamId={myTeamId} />
       </>
     );
@@ -100,11 +102,13 @@ export default function SnakesGame({
       <section className="boards">
         <div className="board-layout">
           <div className="feed-col">
-            <SnakesStandings standings={standings} myTeamId={myTeamId} onFind={setSelected} />
+            <div id="snakes-standings-section">
+              <SnakesStandings standings={standings} myTeamId={myTeamId} onFind={setSelected} />
+            </div>
             <EventFeed events={events} teams={teams} myTeamId={myTeamId} />
           </div>
 
-          <div className="board-col">
+          <div className="board-col" id="snakes-board-section">
             <div className="tabs board-tabs snakes-tabs">
               <button className="on" aria-current="true">
                 Board{myTeam ? ` · ${myTeam.board_tile ? `tile ${myTeam.board_tile}` : 'at Start'}` : ''}
@@ -130,6 +134,7 @@ export default function SnakesGame({
                 tiles={tiles}
                 evidence={evidence}
                 lastMove={lastMove}
+                petClaims={petClaims}
                 onRefresh={onRefresh}
               />
             </div>
@@ -145,7 +150,6 @@ export default function SnakesGame({
                 />
               </div>
             )}
-            {!isFinished && <div className="snakes-how-slot"><HowItWorks /></div>}
           </div>
         </div>
       </section>
@@ -222,25 +226,6 @@ function SnakesTilePanel({ position, tile, jumps, teams, myTeamId, onClose }) {
         You can read any tile. Screenshots go on the tile your team is standing on.
       </p>
     </section>
-  );
-}
-
-function HowItWorks() {
-  return (
-    <details className="bingo-tile-panel snakes-how">
-      <summary>How it works</summary>
-      <ul>
-        <li>Roll the die and move that many tiles. Anyone on the team can roll.</li>
-        <li>Complete the tile you land on before you roll again.</li>
-        <li>Land at the foot of a ladder and you climb to its top.</li>
-        <li>Land on a snake&rsquo;s head and you slide down to its tail.</li>
-        <li>Ladders and snakes only work when you land on them — passing over does nothing.</li>
-        <li>Tiles your team has already completed are skipped.</li>
-        <li>Overshoot 100 and you bounce back by the extra.</li>
-        <li>A rollback moves you back a few tiles, to get off a tile you would rather not do.</li>
-        <li>The first team to complete tile 100 wins.</li>
-      </ul>
-    </details>
   );
 }
 

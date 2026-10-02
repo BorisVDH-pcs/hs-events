@@ -26,6 +26,10 @@ export async function uploadEvidence() {
   throw new Error('Uploads are not available in the evidence harness.');
 }
 
+export async function tradePet() {
+  throw new Error('Uploads are not available in the evidence harness.');
+}
+
 export function extFor() {
   return 'webp';
 }

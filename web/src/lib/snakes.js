@@ -380,6 +380,9 @@ export function snakesEventText(e, who) {
       if (p.reason === 'auto') {
         return `${who} earned a rollback for finishing tile ${p.tile} — ${p.rollbacks_available} available.`;
       }
+      if (p.reason === 'pet') {
+        return `${who} traded a pet for a rollback on tile ${p.tile} — ${p.rollbacks_available} available.`;
+      }
       return n < 0
         ? `An organiser took ${-n} rollback${n === -1 ? '' : 's'} from ${who} — ${p.rollbacks_available} left.`
         : `An organiser gave ${who} ${n} rollback${n === 1 ? '' : 's'} — ${p.rollbacks_available} available.`;

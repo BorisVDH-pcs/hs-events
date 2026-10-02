@@ -853,19 +853,17 @@ button.cell.pet-target:active { transform: scale(.93); transition-duration: .09s
    square pressed to read stands in for the turn panel, which stays mounted
    underneath so screenshots staged on it are not lost. In the single stack the
    column dissolves into its pieces: the turn panel above the board, the square
-   being read and "How it works" below it, then the feed. */
+   being read below it, then the feed. */
 @media not all and (max-width: 1100px) {
   .snakes-side.browsing .snakes-turn-slot { display: none; }
 }
 @media (max-width: 1100px) {
   .board-layout .snakes-side { display: contents; }
   .snakes-side .snakes-turn-slot { order: 0; }
-  .snakes-side .snakes-browse-slot,
-  .snakes-side .snakes-how-slot { order: 2; }
+  .snakes-side .snakes-browse-slot { order: 2; }
 }
 .snakes-side .snakes-turn-slot,
-.snakes-side .snakes-browse-slot,
-.snakes-side .snakes-how-slot { min-width: 0; }
+.snakes-side .snakes-browse-slot { min-width: 0; }
 
 /* Capped rather than full-bleed. Across 1100px the cells reach ~105px and the
    64px tile art is being upscaled; at this width they land near 72px, which is
@@ -1306,6 +1304,20 @@ button.cell.pet-target:active { transform: scale(.93); transition-duration: .09s
   cursor: pointer;
 }
 .evidence-drop .link:hover { color: var(--gold-lit); }
+
+/* The prominent version (snakes): a full-width gold button is the target, and
+   the dashed frame around it still takes a dropped file. */
+.evidence-drop.prominent {
+  display: grid; gap: .4rem;
+  padding: .55rem;
+  cursor: default;
+}
+.evidence-drop.prominent:active { transform: none; }
+.evidence-upload-btn {
+  width: 100%;
+  font-size: 1rem;
+  padding-block: .7rem;
+}
 .evidence .error { font-size: .78rem; margin: 0; }
 
 /* The organiser's review: bigger thumbnails than the player's card, because
@@ -1342,6 +1354,47 @@ button.cell.pet-target:active { transform: scale(.93); transition-duration: .09s
   font-size: .78rem; font-weight: 600; color: var(--gold-dim);
 }
 .evidence-review .evidence-revoke { flex: 0 0 auto; align-self: center; }
+
+/* Grouped per team per tile: a head row with a strip of thumbnails that opens
+   into the list above, one row per screenshot. */
+.evidence-groups { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
+.evidence-groups > li {
+  border: 1px solid var(--hairline); border-radius: var(--r-lg);
+  background: var(--fill-3);
+}
+.evidence-groups > li.open { border-color: var(--line-lit); }
+.evidence-group-head {
+  display: flex; gap: .8rem; align-items: center;
+  width: 100%; padding: .55rem;
+  background: none; color: inherit; text-align: left; font-weight: 400;
+  border-radius: var(--r-lg);
+}
+.evidence-group-head:hover:not(:disabled) { background: var(--fill-2); filter: none; }
+.evidence-group-head:active:not(:disabled) { transform: none; }
+.evidence-group-head .meta { display: grid; gap: .15rem; min-width: 0; flex: 1 1 auto; }
+.evidence-group-head .meta strong { font-weight: 600; letter-spacing: -.008em; }
+.evidence-group-head .meta .muted { font-size: .78rem; }
+.evidence-group-head .coord {
+  color: var(--gold); font-size: .8125rem; font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.evidence-strip { display: flex; gap: .25rem; flex: 0 0 auto; align-items: center; }
+.evidence-strip img,
+.evidence-strip .evidence-pending {
+  width: 52px; height: 52px; object-fit: cover; display: block;
+  border-radius: var(--r-sm, 6px); border: 1px solid var(--hairline);
+}
+.evidence-strip-more { font-size: .78rem; font-weight: 600; color: var(--label-2); padding-left: .15rem; }
+.evidence-group-toggle { flex: 0 0 auto; color: var(--label-2); font-size: .9rem; }
+.evidence-groups .evidence-review { padding: 0 .55rem .55rem; }
+.evidence-groups .evidence-review li { background: var(--fill-2); }
+.evidence-review li.evidence-pet .evidence-filed { color: var(--gold-lit); }
+/* A phone: two thumbnails, not four, so the tile name keeps its width. */
+@media (max-width: 520px) {
+  .evidence-strip .evidence-strip-cell:nth-child(n + 3) { display: none; }
+  .evidence-strip img,
+  .evidence-strip .evidence-pending { width: 44px; height: 44px; }
+}
 
 /* ---- feed ---- */
 
@@ -1963,6 +2016,16 @@ label {
   /* Three abbreviated rows side by side have no room for a second line. */
   .admin-nav-hint { display: none; }
   .admin-nav-game { padding-bottom: .5rem; }
+}
+/* A phone: five tabs on one row left each about 65px, and "Configure" or
+   "Suggestions" ran into the tab beside it. Two rows of three instead. */
+@media (max-width: 520px) {
+  .admin-nav ul {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .admin-nav-item { min-width: 0; }
+  .admin-nav-label { max-width: 100%; overflow: hidden; }
 }
 /* The grouped surface every panel in the app is made of: a translucent grey
    that blurs the page behind it, a hairline edge, and a soft shadow that says
@@ -4344,7 +4407,32 @@ button.snakes-cell:hover {
   border-top: 1px solid var(--hairline);
 }
 .snakes-current h3 { margin: 0; font-size: 1rem; }
+
+/* The rollback and the pet trade: the way out of a tile, kept quieter than
+   the gold "Upload proof" above it, which is what the team is there to do. */
+.snakes-rollback { gap: .35rem; }
 .snakes-rollback button { justify-self: start; }
+.snakes-rollback-btn { font-size: .8125rem; padding: .4rem .75rem; }
+.snakes-rollback-none,
+.snakes-rollback-how { margin: 0; font-size: .78rem; color: var(--label-2); }
+button.link.snakes-pet-open {
+  background: none; border: none; padding: 0;
+  font-size: .8125rem; font-weight: 600; color: var(--gold);
+}
+button.link.snakes-pet-open:hover { color: var(--gold-lit); filter: none; }
+.snakes-pet {
+  display: grid; gap: .5rem;
+  margin-top: .25rem;
+  padding: .6rem .7rem;
+  border-radius: var(--r-md);
+  background: var(--fill-3);
+  font-size: .8125rem;
+}
+.snakes-pet p { margin: 0; }
+.snakes-pet .row { flex-wrap: wrap; align-items: center; gap: .5rem; }
+.snakes-pet button.link {
+  background: none; border: none; padding: 0; color: var(--label-2); font-weight: 500;
+}
 
 .snakes-head-note,
 .snakes-finish-note {
@@ -4370,13 +4458,6 @@ button.snakes-cell:hover {
   background: var(--fill-3);
 }
 .snakes-finish-note { background: rgba(242, 193, 78, .14); color: var(--gold-lit); }
-
-.snakes-how summary { cursor: pointer; font-weight: 600; }
-.snakes-how ul {
-  margin: .5rem 0 0; padding-left: 1.1rem;
-  display: grid; gap: .3rem;
-  font-size: .85rem; color: var(--label-2);
-}
 
 .snakes-prep { margin: 1.25rem 0; }
 .snakes-tabs button:not(.on) { font-weight: 500; }

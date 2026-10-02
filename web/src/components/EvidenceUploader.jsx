@@ -89,9 +89,14 @@ const VERBS = {
  * submitted against yet has no claim row. `ensureClaimId` makes one on the
  * first submit (bingo_open_tile) and resolves to its id -- the upload path is
  * built from it, so it has to exist before the file goes up.
+ *
+ * `prominent` swaps the quiet dashed drop zone for a full-width gold "Upload
+ * proof" button with the drop and paste hint under it. Snakes uses it: there
+ * the upload is the one thing the team is there to do, and the small dashed
+ * box lost out to the rollback button beside it.
  */
 const EvidenceUploader = forwardRef(function EvidenceUploader({
-  claimId, ensureClaimId, gameId, teamId, tile, onUploaded, mode = 'battleships',
+  claimId, ensureClaimId, gameId, teamId, tile, onUploaded, mode = 'battleships', prominent = false,
 }, ref) {
   const verbs = VERBS[mode] ?? VERBS.battleships;
   const [staged, setStaged] = useState([]);
@@ -380,7 +385,7 @@ const EvidenceUploader = forwardRef(function EvidenceUploader({
         </div>
       ) : (
         <div
-          className={`evidence-drop${dragging ? ' over' : ''}`}
+          className={`evidence-drop${prominent ? ' prominent' : ''}${dragging ? ' over' : ''}`}
           onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
           onDragLeave={() => setDragging(false)}
           onDrop={(e) => {
@@ -389,14 +394,29 @@ const EvidenceUploader = forwardRef(function EvidenceUploader({
             stage(e.dataTransfer.files);
           }}
         >
-          Drop a screenshot, paste, or{' '}
-          <button
-            type="button"
-            className="link"
-            onClick={() => { inputRef.current?.click(); }}
-          >
-            choose a file
-          </button>
+          {prominent ? (
+            <>
+              <button
+                type="button"
+                className="evidence-upload-btn"
+                onClick={() => { inputRef.current?.click(); }}
+              >
+                📸 Upload proof
+              </button>
+              <span>or drop or paste a screenshot here</span>
+            </>
+          ) : (
+            <>
+              Drop a screenshot, paste, or{' '}
+              <button
+                type="button"
+                className="link"
+                onClick={() => { inputRef.current?.click(); }}
+              >
+                choose a file
+              </button>
+            </>
+          )}
           <input
             ref={inputRef}
             type="file"

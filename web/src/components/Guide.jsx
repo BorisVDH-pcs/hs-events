@@ -140,6 +140,113 @@ const TOUR_STEPS = [
 ];
 
 /**
+ * Snakes and Ladders. The same tour and reference, pointed at the snakes
+ * screen (SnakesGame, SnakesTurnPanel). Steps marked LIVE point at the turn
+ * panel and the standings, which only exist once the game has started; before
+ * that the screen is the board and the feed, so those are all a waiting team
+ * gets shown.
+ */
+const LIVE = ['active', 'finished'];
+const SNAKES_STEPS = [
+  {
+    targetId: 'app-header',
+    title: '🐍 Snakes and Ladders',
+    body: 'Every team races along the same <strong>100-tile path</strong>. Each tile is an '
+      + 'OSRS task: roll the die, complete the tile you land on, roll again.<br><br>'
+      + 'There is <strong>no turn order</strong> between teams. Your team rolls as soon as '
+      + 'its tile is done, and <strong>anyone on the team</strong> can roll or upload proof.',
+  },
+  {
+    targetId: 'snakes-board-section',
+    title: '🗺️ The Board',
+    body: 'Tiles 1 to 100 wind up the board, with every team\'s marker on it.<br><br>'
+      + 'Land at the <strong>foot of a ladder</strong> 🪜 and you climb to its top. Land on '
+      + 'a <strong>snake\'s head</strong> 🐍 and you slide down to its tail. They only work '
+      + 'when you <strong>land</strong> on them; passing over does nothing.<br><br>'
+      + 'Once the game runs, press any tile to read its task. Tiles your team has '
+      + 'completed turn green.',
+  },
+  {
+    targetId: 'snakes-turn-section',
+    phase: LIVE,
+    title: '🎲 Rolling the Die',
+    body: 'Press <strong>Roll the die</strong> to move 1–6 tiles. You can roll from Start, '
+      + 'or once the tile you stand on is <strong>complete</strong>.<br><br>'
+      + 'Tiles your team already completed are <strong>skipped</strong>, so you always land '
+      + 'on new work. Overshoot 100 and you <strong>bounce back</strong> by the extra.<br><br>'
+      + 'Every roll shows here under the die, whoever on the team made it.',
+  },
+  {
+    targetId: 'snakes-task-section',
+    phase: LIVE,
+    title: '📸 Completing a Tile',
+    body: 'Your current tile and its task. Press the <strong>?</strong> next to the name '
+      + 'for the full details.<br><br>'
+      + 'Press <strong>Upload proof</strong>, drop a screenshot on it, or just '
+      + '<strong>paste</strong> (Ctrl+V). Some tiles need more than one screenshot; the '
+      + 'counter shows how far you are.<br><br>'
+      + 'The screenshot that meets the requirement <strong>completes the tile</strong>. '
+      + 'There is no separate button. Then you roll again.',
+  },
+  {
+    targetId: 'snakes-rollback-section',
+    phase: LIVE,
+    title: '⏪ Rollbacks',
+    body: 'Stuck on a tile you would rather not do? Press <strong>Use a rollback</strong> '
+      + 'to move your team back and land on another tile.<br><br>'
+      + 'The first rollback goes back <strong>1–3 tiles</strong>, the second '
+      + '<strong>one die</strong>, and after that <strong>the higher of two dice</strong>. '
+      + 'Completed tiles are skipped on the way, and snakes still bite.',
+  },
+  {
+    targetId: 'snakes-rollback-section',
+    phase: LIVE,
+    title: '🐾 Earning Rollbacks',
+    body: 'Two ways to get one:<br><br>'
+      + '<strong>Pass tile 40.</strong> The first tile your team completes at 40 or '
+      + 'higher earns a free rollback, once per game.<br><br>'
+      + '<strong>Trade a pet.</strong> Got a pet while working on a tile? Press '
+      + '<strong>Got a pet? Trade it for a rollback</strong> and upload the screenshot. '
+      + 'Your team gets <strong>+1 rollback</strong>, but the tile is <strong>not</strong> '
+      + 'completed. A pet counts for the tile <em>or</em> a rollback, never both. One '
+      + 'trade per tile, and not on tile 100.',
+  },
+  {
+    targetId: 'snakes-standings-section',
+    phase: LIVE,
+    title: '🏁 Standings',
+    body: 'Every team, furthest along first, with the tile it is on.<br><br>'
+      + 'Press a team to find its tile on the board.',
+  },
+  {
+    targetId: 'event-feed-section',
+    title: '📰 Activity Feed',
+    body: 'A live log of the race: every roll, ladder, snake, completed tile and '
+      + 'rollback, for every team.<br><br>'
+      + 'Your own team\'s uploads show here too, for your team only.',
+  },
+  {
+    targetId: 'app-header',
+    title: '🏆 Winning',
+    body: 'The first team to <strong>complete tile 100</strong> wins. Landing on it is not '
+      + 'enough: the task has to be done.<br><br>'
+      + 'If the organiser ends the game before anyone finishes, the team furthest along '
+      + 'wins.<br><br>'
+      + 'That is everything. Open the <strong>Quick Reference</strong> any time you need a '
+      + 'reminder.',
+  },
+];
+
+const MODES = {
+  battleships: { steps: TOUR_STEPS, subtitle: 'Battleships · Complete Guide', seenKey: SEEN_KEY },
+  snakes: {
+    steps: SNAKES_STEPS,
+    subtitle: 'Snakes and Ladders · Complete Guide',
+    seenKey: `${SEEN_KEY}:snakes`,
+  },
+};
+
+/**
  * The steps this game actually has, with its own numbers in them.
  *
  * Filtering hits the Quick Reference as well as the tour, deliberately. The
@@ -148,17 +255,18 @@ const TOUR_STEPS = [
  * a phase you are past cannot do. A section that can only fail is worse
  * company than one that is not there.
  */
-function buildSteps({ maxActive, status }) {
-  return TOUR_STEPS
-    .filter((s) => !s.phase || s.phase === status)
+function buildSteps({ mode, maxActive, status }) {
+  return (MODES[mode] ?? MODES.battleships).steps
+    .filter((s) => !s.phase || [].concat(s.phase).includes(status))
     .map((s) => ({ ...s, body: s.body.replaceAll('{maxActive}', String(maxActive)) }));
 }
 
-const Guide = forwardRef(function Guide({ autoShow, onTabNeed, maxActive = 3, status }, ref) {
+const Guide = forwardRef(function Guide({ autoShow, onTabNeed, maxActive = 3, status, mode = 'battleships' }, ref) {
   const steps = useMemo(
-    () => buildSteps({ maxActive, status }),
-    [maxActive, status]
+    () => buildSteps({ mode, maxActive, status }),
+    [mode, maxActive, status]
   );
+  const { subtitle, seenKey } = MODES[mode] ?? MODES.battleships;
   // 'closed' | 'welcome' | 'tour' | 'reference' | 'qa' | 'spotlight'
   const [phase, setPhase] = useState('closed');
   const [step, setStep] = useState(0);
@@ -179,15 +287,16 @@ const Guide = forwardRef(function Guide({ autoShow, onTabNeed, maxActive = 3, st
   useEffect(() => {
     if (!autoShow || autoShown.current) return;
     autoShown.current = true;
-    if (!localStorage.getItem(SEEN_KEY)) {
+    // Per mode: having seen the battleships guide says nothing about snakes.
+    if (!safeGet(seenKey)) {
       // Record the automatic welcome immediately. Previously this happened
       // only after completing every tour step, so dismissing the guide made it
       // reopen after every refresh.
-      localStorage.setItem(SEEN_KEY, '1');
+      safeSet(seenKey);
       setIsFirstWelcome(true);
       setPhase('welcome');
     }
-  }, [autoShow]);
+  }, [autoShow, seenKey]);
 
   useEffect(() => () => clearTimeout(spotlightTimer.current), []);
 
@@ -223,7 +332,7 @@ const Guide = forwardRef(function Guide({ autoShow, onTabNeed, maxActive = 3, st
       window.removeEventListener('resize', place);
       window.removeEventListener('scroll', place, true);
     };
-  }, [phase, step, onTabNeed]);
+  }, [phase, step, steps, onTabNeed]);
 
   function clearSpotlightRing() {
     const ring = document.getElementById('guide-spotlight-ring');
@@ -243,7 +352,7 @@ const Guide = forwardRef(function Guide({ autoShow, onTabNeed, maxActive = 3, st
   function next() {
     setStep((s) => Math.min(s + 1, steps.length));
     if (step + 1 >= steps.length) {
-      localStorage.setItem(SEEN_KEY, '1');
+      safeSet(seenKey);
       clearSpotlightRing();
     }
   }
@@ -359,7 +468,7 @@ const Guide = forwardRef(function Guide({ autoShow, onTabNeed, maxActive = 3, st
             <button className="guide-close-btn" onClick={() => setPhase('closed')}>✕</button>
             <div className="guide-header">
               <div className="guide-title">📖 How to Play</div>
-              <div className="guide-subtitle">Battleships · Complete Guide</div>
+              <div className="guide-subtitle">{subtitle}</div>
             </div>
 
             <nav className="guide-nav">
@@ -427,5 +536,14 @@ const Guide = forwardRef(function Guide({ autoShow, onTabNeed, maxActive = 3, st
     </>
   );
 });
+
+// Storage can throw (a private window, blocked site data). The guide then just
+// shows itself again next time, which is the harmless failure.
+function safeGet(key) {
+  try { return localStorage.getItem(key); } catch { return null; }
+}
+function safeSet(key) {
+  try { localStorage.setItem(key, '1'); } catch { /* see safeGet */ }
+}
 
 export default Guide;

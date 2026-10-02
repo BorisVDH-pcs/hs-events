@@ -2112,7 +2112,31 @@ drawn only when `SnakesBoard` gets `edit`, which only the builder passes).
   or is switched back on. Re-saving the same URL sends nothing. Undo:
   `scripts/rollback-webhook-connected-message.sql`.
 
-Answered but not built: 6 (rollback button weight), 7 (how rollbacks are
-earned — the original repo's guide had it), 8 (waiting screen: players cannot
-read their teammates yet, needs a server change; Bingo has no rules text),
-12 (evidence grouping), 13 (tab bar overlap).
+Answered here, built in the next round: 6, 7, 8 (snakes guide only;
+teammates on the waiting screen not built), 12 and 13.
+
+### Third UX round: 6, 7, 8, 12 and 13
+
+- **6. The upload stands out.** The snakes turn panel passes `prominent` to
+  EvidenceUploader: a full-width gold "📸 Upload proof" with "or drop or paste
+  a screenshot here" under it. The rollback is a small grey "Stuck on this
+  tile? ⏪ Use a rollback (N left)" below, with how to earn one under it.
+- **7. Pet trade** (20261005130000). `snakes_trade_pet(claim, path, url)`:
+  the screenshot goes to the claim's evidence folder, but is recorded in
+  `snakes_pet_trades` (unique per claim), not `tile_evidence`, so it never
+  counts towards the tile. +1 rollback, `rollback_gained` with reason `pet`
+  (feed and Discord). Refused on tile 100, on a completed tile, off the tile
+  the team stands on, and a second time on the same claim. Organisers see the
+  trades on the Evidence screen (`admin_list_pet_trades`); a wrong one is
+  undone by taking the rollback back on the race table. Undo:
+  `scripts/rollback-snakes-pet-trade.sql`.
+- **8. Snakes How to Play.** Guide.jsx takes `mode`; snakes has its own steps
+  (board, rolling, completing a tile, rollbacks, earning rollbacks, standings,
+  feed, winning), its own "seen" key, and the same tour / Quick Reference /
+  Q&A. Steps on the turn panel only show once the game runs. "How it works"
+  is gone. Bingo still has no guide.
+- **12. Evidence grouped by team and tile.** One row per claim with a strip of
+  thumbnails, the count and the latest time; press to open the screenshots,
+  each with its own Revoke as before. One group left after filtering opens by
+  itself. 15 groups a page; a closed group signs only its strip.
+- **13. Admin tab bar on a phone** (below 520px): two rows of three.

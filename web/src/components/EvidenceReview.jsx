@@ -51,8 +51,14 @@ import { useConfirm } from './ConfirmDialog.jsx';
  * happen rather than a second guess at it.
  */
 
-/** Rows per page. Enough to scan, few enough to sign and paint at once. */
-const PAGE = 30;
+/**
+ * Groups per page -- one team's work on one tile each. Enough to scan, few
+ * enough to sign and paint at once: a closed group signs only its strip.
+ */
+const PAGE = 15;
+
+/** Thumbnails on a closed group's strip. */
+const STRIP = 4;
 
 /**
  * When a page's URLs are old enough to be worth replacing.
@@ -175,6 +181,38 @@ function squareLabel(position, mode) {
   return coordLabel(row, col);
 }
 
+/**
+ * A pet traded for a rollback (snakes, 20261005130000), shaped like an
+ * evidence row so it groups and signs with the rest. It is not tile evidence
+ * -- it never counted towards the tile -- so it has no status and no Revoke:
+ * the rollback it bought is taken back on the race table instead.
+ */
+function petRow(p) {
+  return {
+    id: `pet-${p.id}`,
+    pet: true,
+    claim_id: p.claim_id,
+    storage_path: p.storage_path,
+    public_url: p.public_url,
+    uploaded_by_name: p.traded_by_name ?? 'unknown',
+    created_at: p.created_at,
+    team_id: p.team_id,
+    team_name: p.team_name,
+    tile_position: p.tile_position,
+    tile_name: p.tile_name,
+    status: null,
+  };
+}
+
+const newestFirst = (a, b) => new Date(b.created_at) - new Date(a.created_at);
+
+function statusText(status) {
+  if (status === 'fired') return ' · fired';
+  if (status === 'completed') return ' · completed';
+  if (status === 'active') return ' · not yet finished';
+  return '';
+}
+
 export default function EvidenceReview({ gameId, mode }) {
   const [rows, setRows] = useState([]);
   const [urls, setUrls] = useState({});
@@ -185,6 +223,8 @@ export default function EvidenceReview({ gameId, mode }) {
   const [player, setPlayer] = useState('');
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(0);
+  // Which team-and-tile groups are open, by key.
+  const [open, setOpen] = useState(() => new Set());
 
   // Bumped after a successful revoke, to refetch the list. The row is gone and
   // the claim beside it may have changed status, so nothing local can be
@@ -207,18 +247,24 @@ export default function EvidenceReview({ gameId, mode }) {
     if (!gameId) { setRows([]); return undefined; }
     let cancelled = false;
     setLoading(true);
-    supabase
-      .rpc('admin_list_evidence', { p_game_id: gameId })
-      .then(({ data, error: err }) => {
+    Promise.all([
+      supabase.rpc('admin_list_evidence', { p_game_id: gameId }),
+      mode === 'snakes'
+        ? supabase.rpc('admin_list_pet_trades', { p_game_id: gameId })
+        : Promise.resolve({ data: [] }),
+    ])
+      .then(([ev, pets]) => {
         if (cancelled) return;
-        if (err) { setError(err.message); return; }
-        setRows(data ?? []);
+        if (ev.error) { setError(ev.error.message); return; }
+        // A pet list that fails to load costs the pets, not the screen.
+        const petRows = pets.error ? [] : (pets.data ?? []).map(petRow);
+        setRows([...(ev.data ?? []), ...petRows].sort(newestFirst));
         setError(null);
       })
       .catch((e) => { if (!cancelled) setError(e.message); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [gameId, tick]);
+  }, [gameId, mode, tick]);
 
   const teams = useMemo(
     () => [...new Set(rows.map((r) => r.team_name).filter(Boolean))].sort(),
@@ -241,16 +287,54 @@ export default function EvidenceReview({ gameId, mode }) {
     });
   }, [rows, team, player, query, mode]);
 
+  /**
+   * One group per team per tile, newest activity first. A tile that needs ten
+   * screenshots used to be ten rows, and a dispute is about the tile, so the
+   * list was several times longer than the number of things to look at. A
+   * group opens into its screenshots, each with its own Revoke as before.
+   */
+  const groups = useMemo(() => {
+    const byKey = new Map();
+    for (const r of filtered) {
+      const key = r.claim_id ?? `${r.team_id}:${r.tile_position}`;
+      let g = byKey.get(key);
+      if (!g) {
+        g = {
+          key, team_name: r.team_name, tile_name: r.tile_name, tile_position: r.tile_position,
+          status: null, items: [], pets: 0,
+        };
+        byKey.set(key, g);
+      }
+      g.items.push(r);
+      if (r.pet) g.pets += 1;
+      else if (r.status) g.status = r.status;
+    }
+    // `filtered` is newest first already, so each group's first item is its
+    // latest, and the groups come out in the order of their latest.
+    return [...byKey.values()];
+  }, [filtered]);
+
   // A filter narrowing the list under a page you had scrolled to would leave
   // you on an empty page 4 of 1.
   useEffect(() => { setPage(0); }, [team, player, query]);
 
-  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE));
-  const shown = filtered.slice(page * PAGE, page * PAGE + PAGE);
+  const pageCount = Math.max(1, Math.ceil(groups.length / PAGE));
+  const shown = groups.slice(page * PAGE, page * PAGE + PAGE);
+  // One group left after filtering is the one being looked for: open it.
+  const isOpen = (g) => groups.length === 1 || open.has(g.key);
+  const toggle = (key) => setOpen((s) => {
+    const next = new Set(s);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    return next;
+  });
 
-  // The identity of what is on screen, as a plain string so the effect below
-  // re-runs on a genuine change of page rather than on every render.
-  const pageKey = shown.map((r) => r.storage_path).join('\n');
+  // The identity of what is on screen -- a closed group's strip, an open
+  // group's every screenshot -- as a plain string so the effect below re-runs
+  // on a genuine change rather than on every render.
+  const pageKey = shown
+    .flatMap((g) => (isOpen(g) ? g.items : g.items.slice(0, STRIP)))
+    .map((r) => r.storage_path)
+    .join('\n');
 
   const sign = useCallback(async (paths) => {
     if (!paths.length) { setUrls({}); return; }
@@ -339,6 +423,56 @@ export default function EvidenceReview({ gameId, mode }) {
   if (!rows.length) return <p className="muted">No evidence submitted yet.</p>;
 
   const filtering = Boolean(team || player || query.trim());
+  const groupWord = `${groups.length} team tile${groups.length === 1 ? '' : 's'}`;
+
+  const thumb = (r, alt) => (urls[r.storage_path]
+    ? <img src={urls[r.storage_path]} alt={alt} loading="lazy" />
+    : <span className="evidence-pending" />);
+
+  const item = (r) => {
+    if (r.pet) {
+      return (
+        <li key={r.id} className="evidence-pet">
+          <a href={urls[r.storage_path]} target="_blank" rel="noreferrer">
+            {thumb(r, `Pet traded by ${r.uploaded_by_name} on ${r.tile_name}`)}
+          </a>
+          <div className="meta">
+            <span className="evidence-filed">🐾 Pet traded for a rollback</span>
+            <span className="muted">{r.uploaded_by_name} · {new Date(r.created_at).toLocaleString()}</span>
+            <span className="muted">
+              Never counts towards the tile. To undo it, take the rollback back on the race table.
+            </span>
+          </div>
+        </li>
+      );
+    }
+    const filed = submissionLabel(r);
+    return (
+      <li key={r.id}>
+        <a href={urls[r.storage_path]} target="_blank" rel="noreferrer">
+          {thumb(r, `Submitted by ${r.uploaded_by_name} for ${r.tile_name}`)}
+        </a>
+        <div className="meta">
+          {/* The drop it was filed as, beside the picture of the drop it
+              actually shows. A mis-pick is only visible as the two
+              disagreeing, so this is the whole reason the screen can settle
+              one. */}
+          {filed && <span className="evidence-filed">{filed}</span>}
+          <span className="muted">
+            {r.uploaded_by_name} · {new Date(r.created_at).toLocaleString()}
+          </span>
+        </div>
+        <button
+          className="ghost danger evidence-revoke"
+          disabled={busy !== null}
+          onClick={() => revoke(r)}
+          aria-label={`Revoke ${r.uploaded_by_name}'s submission for ${r.tile_name}`}
+        >
+          {busy === r.id ? 'Checking…' : 'Revoke'}
+        </button>
+      </li>
+    );
+  };
 
   return (
     <>
@@ -371,53 +505,49 @@ export default function EvidenceReview({ gameId, mode }) {
         )}
         <span className="muted">
           {filtering
-            ? `${filtered.length} of ${rows.length}`
-            : `${rows.length} submitted`}
+            ? `${filtered.length} of ${rows.length} · ${groupWord}`
+            : `${rows.length} submitted · ${groupWord}`}
         </span>
       </div>
 
-      {filtered.length === 0 ? (
+      {groups.length === 0 ? (
         <p className="muted">Nothing matches that.</p>
       ) : (
         <>
-          <ul className="evidence-review">
-            {shown.map((r) => {
-              const filed = submissionLabel(r);
+          <ul className="evidence-groups">
+            {shown.map((g) => {
+              const expanded = isOpen(g);
+              const shots = g.items.length - g.pets;
               return (
-                <li key={r.id}>
-                  <a href={urls[r.storage_path]} target="_blank" rel="noreferrer">
-                    {urls[r.storage_path]
-                      ? <img
-                          src={urls[r.storage_path]}
-                          alt={`Submitted by ${r.uploaded_by_name} for ${r.tile_name}`}
-                          loading="lazy"
-                        />
-                      : <span className="evidence-pending" />}
-                  </a>
-                  <div className="meta">
-                    <strong>{r.tile_name}</strong>
-                    <span className="coord">{squareLabel(r.tile_position, mode)}</span>
-                    {/* The drop it was filed as, beside the picture of the
-                        drop it actually shows. A mis-pick is only visible as
-                        the two disagreeing, so this is the whole reason the
-                        screen can settle one. */}
-                    {filed && <span className="evidence-filed">{filed}</span>}
-                    <span className="muted">
-                      {r.team_name} · {r.uploaded_by_name} ·{' '}
-                      {new Date(r.created_at).toLocaleString()}
-                      {r.status === 'fired'
-                        ? ' · fired'
-                        : r.status === 'completed' ? ' · completed' : ' · not yet finished'}
-                    </span>
-                  </div>
+                <li key={g.key} className={expanded ? 'open' : undefined}>
                   <button
-                    className="ghost danger evidence-revoke"
-                    disabled={busy !== null}
-                    onClick={() => revoke(r)}
-                    aria-label={`Revoke ${r.uploaded_by_name}'s submission for ${r.tile_name}`}
+                    type="button"
+                    className="evidence-group-head"
+                    aria-expanded={expanded}
+                    onClick={() => toggle(g.key)}
                   >
-                    {busy === r.id ? 'Checking…' : 'Revoke'}
+                    <span className="evidence-strip" aria-hidden="true">
+                      {g.items.slice(0, STRIP).map((r) => (
+                        <span key={r.id} className="evidence-strip-cell">{thumb(r, '')}</span>
+                      ))}
+                      {g.items.length > STRIP && (
+                        <span className="evidence-strip-more">+{g.items.length - STRIP}</span>
+                      )}
+                    </span>
+                    <span className="meta">
+                      <strong>{g.tile_name}</strong>
+                      <span className="coord">{squareLabel(g.tile_position, mode)}</span>
+                      <span className="muted">
+                        {g.team_name}
+                        {shots > 0 && ` · ${shots} screenshot${shots === 1 ? '' : 's'}`}
+                        {g.pets > 0 && ` · 🐾 pet traded`}
+                        {' · latest '}{new Date(g.items[0].created_at).toLocaleString()}
+                        {statusText(g.status)}
+                      </span>
+                    </span>
+                    <span className="evidence-group-toggle" aria-hidden="true">{expanded ? '▾' : '▸'}</span>
                   </button>
+                  {expanded && <ul className="evidence-review">{g.items.map(item)}</ul>}
                 </li>
               );
             })}
