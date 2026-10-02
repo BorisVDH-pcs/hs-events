@@ -17,7 +17,7 @@ import IconPicker from './IconPicker.jsx';
 export default function TileForm({
   draft, onChange, at = 'This tile',
   busy = false, saveLabel = 'Save', onSave, onCancel, extraActions = null,
-  extraErrors = [],
+  extraErrors = [], extraFields = null,
 }) {
   const set = (patch) => onChange({ ...draft, ...patch });
   // `extraErrors` is for what only the caller can know — a catalogue name
@@ -285,6 +285,11 @@ export default function TileForm({
           </>
         )}
       </div>
+
+      {/* What only the caller asks for — a player's note to the organisers on a
+          suggestion, say. Above the errors and the save, so it reads as part
+          of the tile rather than an afterthought below the button. */}
+      {extraFields}
 
       {errors.length > 0 && (
         <ul className="error">
