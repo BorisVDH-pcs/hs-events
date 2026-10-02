@@ -15,7 +15,7 @@
 // viewed. assertWritable() then lets everything through, and lib/supabase.js
 // names the team on every database request in an `x-act-as-team` header. The
 // server honours it for organisers only (acting_as_team() in
-// 20261003150000_admin_act_as_team.sql) and plays the action as that team.
+// 20261004130000_admin_act_as_team.sql) and plays the action as that team.
 //
 // Module state rather than React context: the guards live in plain functions
 // (lib/supabase.js, lib/evidence.js, lib/petJar.js) that components call

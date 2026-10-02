@@ -1,4 +1,4 @@
--- Undo 20261003150000_admin_act_as_team.sql: organisers can no longer act
+-- Undo 20261004130000_admin_act_as_team.sql: organisers can no longer act
 -- for a team. "View as team" (read only) keeps working.
 --
 -- Run in the Supabase SQL editor. All or nothing. Afterwards the site's

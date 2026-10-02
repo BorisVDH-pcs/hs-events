@@ -2,7 +2,7 @@
 --
 -- Paste the whole file into the Supabase SQL editor and press Run. Run it after
 -- any change to acting_as_team, acting_for_team, my_team_in_game, fire_tile,
--- add_evidence or the two upload policies (20261003150000_admin_act_as_team).
+-- add_evidence or the two upload policies (20261004130000_admin_act_as_team).
 --
 -- What it proves:
 --   * Players are untouched. For every member, in every game, my_team_in_game

@@ -1931,7 +1931,7 @@ storage and Realtime never carry it). PostgREST passes request headers to
 Postgres as `request.headers`. `acting_as_team()` reads the header and
 returns the team id only if the caller `is_admin()`; for anybody else it
 returns null, whatever they send. The database migration is
-`20261003150000_admin_act_as_team.sql`:
+`20261004130000_admin_act_as_team.sql`:
 - `my_team_in_game(game)` returns the acting team if it belongs to that game,
   and otherwise behaves exactly as before. That covers claim_tile,
   bingo_open_tile, the three snakes calls, spend_pet_jar and submit_pet_jar.
