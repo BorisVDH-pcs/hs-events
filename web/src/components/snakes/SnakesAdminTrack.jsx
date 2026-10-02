@@ -100,27 +100,36 @@ export default function SnakesAdminTrack({ game, tiles, jumps, busy, run, confir
           <div className="table-scroll">
             <table className="snakes-control-table">
               <thead>
-                <tr><th>#</th><th>Team</th><th>Tile</th><th>Done</th><th>Rollbacks</th></tr>
+                <tr>
+                  <th className="num">#</th>
+                  <th>Team</th>
+                  <th className="num">Tile</th>
+                  <th className="num">Done</th>
+                  <th className="num" title="Rollbacks available (used)">Rollbacks</th>
+                </tr>
               </thead>
               <tbody>
                 {standings.map((s) => (
                   <tr key={s.team_id}>
-                    <td>{s.board_tile ? s.place : '–'}</td>
-                    <td>
+                    <td className="num">{s.board_tile ? s.place : '–'}</td>
+                    <td className="team">
                       <span className="dot" style={{ background: markerColor(s.slot) }} aria-hidden="true" />{' '}
                       {s.team_name}
                     </td>
-                    <td>
+                    <td className="num">
                       <button
-                        className="ghost" disabled={!s.board_tile}
+                        className="link" disabled={!s.board_tile}
                         onClick={() => setSelected(s.board_tile)}
                         title={s.board_tile ? 'Show on the board' : undefined}
                       >
-                        {s.board_tile ? `Tile ${s.board_tile}` : 'Start'}
+                        {s.board_tile ? s.board_tile : 'Start'}
                       </button>
                     </td>
-                    <td>{s.tiles_completed ?? 0}</td>
-                    <td>{s.rollbacks_available ?? 0}{s.rollbacks_used ? ` (${s.rollbacks_used} used)` : ''}</td>
+                    <td className="num">{s.tiles_completed ?? 0}</td>
+                    <td className="num">
+                      {s.rollbacks_available ?? 0}
+                      {s.rollbacks_used ? <span className="muted"> ({s.rollbacks_used} used)</span> : null}
+                    </td>
                   </tr>
                 ))}
                 {standings.length === 0 && !loadError && (

@@ -4112,7 +4112,9 @@ button.snakes-cell:hover {
 .snakes-moving { margin-left: auto; }
 
 .snakes-standings .dot,
-.snakes-start .dot {
+.snakes-start .dot,
+.snakes-control-table .dot,
+.snakes-team-controls .dot {
   display: inline-block;
   width: .6rem; height: .6rem;
   border-radius: 50%;
@@ -4120,7 +4122,10 @@ button.snakes-cell:hover {
   vertical-align: baseline;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, .5);
 }
-.snakes-start .dot { margin-right: 0; }
+/* These already have a gap or a space after the dot. */
+.snakes-start .dot,
+.snakes-control-table .dot,
+.snakes-team-controls .dot { margin-right: 0; }
 .snakes-standings .standings-row {
   grid-template-areas: "place team count" "place sub sub" "place bar bar";
 }
@@ -4268,15 +4273,27 @@ button.builder-cell.ladder-foot { background: rgba(217, 169, 91, .16); }
 }
 .snakes-editor-preview { max-width: 520px; }
 
-.snakes-control-table { width: 100%; border-collapse: collapse; }
+/* The organiser's standings: a tight table beside the board. The team name
+   takes the spare width; every number column shrinks to its content. */
+.snakes-control-table { width: 100%; border-collapse: collapse; font-size: .875rem; }
 .snakes-control-table th, .snakes-control-table td {
-  padding: .45rem .4rem; border-bottom: 1px solid var(--line, rgba(255,255,255,.08));
+  padding: .32rem .5rem; border-bottom: 1px solid var(--line, rgba(255,255,255,.08));
   text-align: left; vertical-align: middle;
 }
+.snakes-control-table th { font-size: .75rem; font-weight: 600; color: var(--label-3); }
+.snakes-control-table .num {
+  width: 1%; white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums;
+}
+.snakes-control-table .team { overflow-wrap: anywhere; }
 .snakes-control-table td .row { gap: .35rem; flex-wrap: wrap; }
 .snakes-control-table input { width: 4.5rem; }
+/* The board at the size a player sees it (.board caps it at 780px); the
+   standings get what is left. */
 .snakes-track-layout { display: grid; gap: 1rem; }
 @media (min-width: 1100px) {
-  .snakes-track-layout { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); align-items: start; }
+  .snakes-track-layout {
+    grid-template-columns: minmax(0, 780px) minmax(15rem, 1fr);
+    align-items: start;
+  }
 }
 .table-scroll { overflow-x: auto; }
