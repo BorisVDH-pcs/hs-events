@@ -1852,3 +1852,65 @@ walked into it anyway by renaming the first batch and forgetting the second when
 the work continued past where I'd expected it to end. The lesson is not "remember
 harder" — it is to read the history back and rename **immediately after each
 apply**, not once at the end of the session.
+
+## Session log — 2026-10-02, "View as team"
+
+An organiser can now open any team's player screen, read only, without
+signing in as one of its players: **Track → Team screens → View as …**. A bar
+along the bottom of the window says whose screen it is, switches between the
+player's and the captain's view, and leads back to the console, which stays
+mounted underneath and comes back exactly where it was left.
+
+**It is the players' own screen, not a copy.** `App.jsx` renders the same
+player block it always has, fed by `useGame(gameId, session, viewAs)`. With a
+team named, that hook calls `admin_board_for_team(game, team, role)` in place of
+`board_for_me`, and the answer is the same object with that team as the only
+membership.
+
+**The database half (`20261003140000_admin_view_as_team.sql`):**
+
+- `tiles_for_me`'s body moved into `tiles_for_team(game, team)`. `tiles_for_me`
+  is now one line, `tiles_for_team(p_game_id, my_team_in_game(p_game_id))`.
+  The most-rewritten function in the schema is now written once for both views.
+  Rehearsed on live before pushing, rolled back: all 50 player boards (the 46
+  players plus 4 stand-ins on the empty Bingo/Snakes teams), with those games
+  both as they were and as if running, were identical before and after.
+  They were identical again after the rollback script.
+- `evidence_for_team(game, team)` is a single-team copy of `my_evidence`, which
+  is left as it was (it scopes by `my_team_ids()`; see 0024).
+- `admin_board_for_team` mirrors `board_for_me` key by key. `board_for_me` is
+  untouched: it is `security invoker` and leans on RLS, which an organiser's
+  rights would widen. So the organiser version writes the member's filters out
+  (own ship cells, own private events). Both helpers have no grants; only
+  their callers reach them.
+- **Trap the check caught:** `ship_status` counts hits through `tiles`, which
+  RLS hides from every player. So on a player's screen `myFleet` always says
+  0 hits and not sunk (`MyFleet.jsx` works sinkings out itself). Read with an
+  owner's rights, the view tells the truth instead. `admin_board_for_team`
+  therefore builds the fleet the way a player gets it, zeros included.
+
+**Read only — `web/src/lib/viewOnly.js`.** Every player action calls
+`assertWritable()` first: placeFleet, claimTile, fireTile, spendPetJar,
+openBingoTile, the three snakes calls, renameTeam, and both uploads. While a
+team is being viewed it throws, and nothing is sent. Most of these the server
+would refuse anyway, because they take the team from `auth.uid()` and an
+organiser is on no team. But `place_fleet` and `rename_team` take a team id and
+let organisers through, and an upload reaches storage and the imgbb mirror
+before any RPC runs. `settleBingo` is deliberately not guarded: every open page
+calls it at the buzzer, and it is harmless.
+
+**Checking it:** `scripts/view-as-team-check.sql` (paste, Run; the ERROR text
+is the report). For every member of every team, it compares `board_for_me` as
+that member with `admin_board_for_team` as an organiser. It also checks the
+refusals: a player, a signed-out visitor, a team under the wrong game, and
+calling the helpers directly. On 2026-10-02 it reported 594 key checks across
+54 member boards, 0 failed. **Change `board_for_me`, `tiles_for_me` or
+`my_evidence` → run it.**
+
+**Undoing it:**
+- The website: `git revert` the commit. On its own that removes the button,
+  and the database functions do nothing until called.
+- The database: `scripts/rollback-admin-view-as-team.sql` puts `tiles_for_me`
+  back exactly as it was (copied from live) and drops the three new
+  functions. Copy it into `supabase/migrations/` with a later timestamp and
+  push, or paste it into the SQL editor and then add the file anyway.

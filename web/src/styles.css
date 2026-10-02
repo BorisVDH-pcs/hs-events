@@ -457,6 +457,28 @@ h3 {
   border-left: 2px solid var(--hit);
   padding-left: .7rem;
 }
+
+/* "View as team": an organiser looking at a team's screen. Outlined in gold
+   rather than filled -- .banner's fill is the result of a match, and this
+   must never be mistaken for one. Stuck to the bottom of the window, not the
+   top, so it stays in view on a long board without sitting under the sticky
+   header, and so the way back is always one press away. */
+.view-as-banner {
+  position: sticky;
+  bottom: .75rem;
+  z-index: 20;
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: .6rem 1rem;
+  margin: 1rem 0;
+  padding: .65rem .9rem;
+  background: var(--panel-solid);
+  border: 1px solid var(--gold);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-md);
+}
+.view-as-text { margin: 0; }
+.view-as-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.team-screens .row { flex-wrap: wrap; }
 .muted { color: var(--label-2); font-size: .875rem; }
 
 .columns { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }

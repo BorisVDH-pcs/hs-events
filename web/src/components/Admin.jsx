@@ -168,7 +168,7 @@ function dealShortfall(r) {
       : '');
 }
 
-export default function Admin() {
+export default function Admin({ onViewAs } = {}) {
   const [games, setGames] = useState([]);
   const [teams, setTeams] = useState([]);
   const [profiles, setProfiles] = useState([]);
@@ -1390,6 +1390,10 @@ export default function Admin() {
       {/* Watching a game that is already set up. Both of these fetch on mount,
           so keeping them in their own pane also means a game you only came in to
           configure no longer loads every board and every screenshot first. */}
+      {activePane === 'track' && game && (
+        <TeamScreens game={game} teams={gameTeams} onViewAs={onViewAs} />
+      )}
+
       {activePane === 'track' && game && bingo && (
         <>
           <section className="card">
@@ -1489,6 +1493,42 @@ export default function Admin() {
  * Rows in `setup` and `placement` only. Once a game is running the list has
  * served its purpose and would just be six ticks taking up the top of the page.
  */
+/**
+ * The way into each team's own screen, read only (App.jsx, lib/viewOnly.js).
+ *
+ * Not a reconstruction: it is the players' screen itself -- board, buttons,
+ * waiting room and all -- fed by admin_board_for_team, which answers exactly
+ * what board_for_me answers a member of that team. So what is wrong there is
+ * wrong for them, and what looks right does.
+ *
+ * At the top of Track for every mode and status: before the start it shows
+ * the waiting room a team is looking at, which is worth checking too.
+ */
+function TeamScreens({ game, teams, onViewAs }) {
+  if (!onViewAs || teams.length === 0) return null;
+  const sorted = [...teams].sort((a, b) => a.name.localeCompare(b.name));
+  return (
+    <section className="card team-screens">
+      <h2>Team screens</h2>
+      <p className="muted">
+        Open the game exactly as a team sees it, without signing in as one of
+        its players. Read only: nothing you press there changes the game.
+      </p>
+      <div className="row">
+        {sorted.map((t) => (
+          <button
+            key={t.id}
+            className="ghost"
+            onClick={() => onViewAs({ gameId: game.id, teamId: t.id, teamName: t.name, role: 'member' })}
+          >
+            👁 View as {t.name}
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function SetupChecklist({ checks, status }) {
   if (status !== 'setup' && status !== 'placement') return null;
 

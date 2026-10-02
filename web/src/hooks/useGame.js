@@ -44,7 +44,7 @@ const BLANK = {
  * (claim, shot, sinking, win) writes an event, so one subscription covers the
  * whole game. That replaces the Apps Script's 120-second polling loop.
  */
-export function useGame(gameId, session) {
+export function useGame(gameId, session, viewAs = null) {
   const [state, setState] = useState(BLANK);
   // Whether the board on screen is still hearing about the game.
   //
@@ -70,6 +70,15 @@ export function useGame(gameId, session) {
   shownId.current = gameId;
 
   const uid = session?.user?.id ?? null;
+  // "View as team": an organiser reading one team's board. Plain values, not
+  // the object, for the same reason `uid` is -- `load` must not be rebuilt by
+  // a caller handing over a fresh object with the same contents.
+  const viewTeamId = viewAs?.teamId ?? null;
+  const viewRole = viewAs?.role ?? 'member';
+  // The team on screen, for the same reason as shownId: a reply for the team
+  // just left must not paint over the one now being viewed.
+  const shownTeam = useRef(viewTeamId);
+  shownTeam.current = viewTeamId;
 
   const load = useCallback(async () => {
     if (!supabase || !gameId || !uid) return;
@@ -84,7 +93,15 @@ export function useGame(gameId, session) {
       // they were separate requests -- the function cannot widen what a player
       // sees. tiles_for_me, team_scores and my_evidence are called inside it as
       // the `security definer` functions they already were.
-      const { data, error } = await supabase.rpc('board_for_me', { p_game_id: gameId });
+      //
+      // admin_board_for_team answers the same object for a team an organiser
+      // names, with that team as the only membership -- so everything below
+      // reads it exactly as it reads a player's own board.
+      const { data, error } = viewTeamId
+        ? await supabase.rpc('admin_board_for_team', {
+          p_game_id: gameId, p_team_id: viewTeamId, p_role: viewRole,
+        })
+        : await supabase.rpc('board_for_me', { p_game_id: gameId });
       if (error) throw new Error(error.message);
       const board = data ?? {};
 
@@ -95,7 +112,7 @@ export function useGame(gameId, session) {
       // Captains may place their own fleet — place_fleet() has always allowed it.
       const myRole = memberships.find((m) => m.team_id === myTeamId)?.role ?? null;
 
-      if (seq !== loadSeq.current || gameId !== shownId.current) return;
+      if (seq !== loadSeq.current || gameId !== shownId.current || viewTeamId !== shownTeam.current) return;
       setState({
         loading: false,
         error: null,
@@ -114,13 +131,13 @@ export function useGame(gameId, session) {
         jumps: board.jumps ?? [],
       });
     } catch (err) {
-      if (seq !== loadSeq.current || gameId !== shownId.current) return;
+      if (seq !== loadSeq.current || gameId !== shownId.current || viewTeamId !== shownTeam.current) return;
       setState((s) => ({ ...s, loading: false, error: err.message }));
     }
     // Keyed on the user id rather than the session object. The board needs only
     // who the player is -- the server reads auth.uid() for itself now -- and a
     // plain string cannot churn the way a re-emitted session object can.
-  }, [gameId, uid]);
+  }, [gameId, uid, viewTeamId, viewRole]);
 
   // Clear the board the moment the game changes, ahead of the refetch.
   //
@@ -132,11 +149,14 @@ export function useGame(gameId, session) {
   //
   // Keyed on gameId alone, so `refresh` after a claim still updates in place
   // rather than flashing the board empty on every action.
+  //
+  // Switching which team is being viewed is the same kind of move: another
+  // team's board, and a click in the gap would act on the one just left.
   const firstLoad = useRef(true);
   useEffect(() => {
     if (firstLoad.current) { firstLoad.current = false; return; }
     setState(BLANK);
-  }, [gameId]);
+  }, [gameId, viewTeamId]);
 
   useEffect(() => {
     load();

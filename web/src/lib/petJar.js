@@ -10,6 +10,7 @@
 import { supabase } from './supabase.js';
 import { downscale, extFor } from './evidence.js';
 import { uploadToImgbb } from './imgbb.js';
+import { assertWritable } from './viewOnly.js';
 
 export const BUCKET = 'pet-jar';
 
@@ -30,6 +31,8 @@ export async function petJarSignedUrls(paths, expiresIn = 3600) {
 
 /** Upload one pet/jar screenshot and credit the team's pet jar counter. */
 export async function uploadPetJar({ gameId, teamId, file }) {
+  // First: the file reaches storage and the imgbb mirror before any RPC runs.
+  assertWritable();
   if (!file.type.startsWith('image/')) {
     throw new Error(`${file.name || 'That file'} is not an image.`);
   }

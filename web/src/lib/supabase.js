@@ -6,6 +6,7 @@
 // write goes through a `security definer` RPC. See docs/architecture.md.
 
 import { createClient } from '@supabase/supabase-js';
+import { assertWritable } from './viewOnly.js';
 
 const URL = import.meta.env.VITE_SUPABASE_URL;
 const ANON = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -25,8 +26,11 @@ export const supabase = isSupabaseConfigured
 
 // ---- Game API ------------------------------------------------------------
 // These four are the entire write surface (see supabase/migrations/0002_rpc.sql).
+// Each player action starts with assertWritable(): it throws while an organiser
+// is viewing a team's screen (lib/viewOnly.js).
 
 export async function placeFleet(teamId, ships) {
+  assertWritable();
   const { error } = await supabase.rpc('place_fleet', {
     p_team_id: teamId,
     p_ships: ships,
@@ -40,6 +44,7 @@ export async function startGame(gameId) {
 }
 
 export async function claimTile(tileId) {
+  assertWritable();
   const { data, error } = await supabase.rpc('claim_tile', { p_tile_id: tileId });
   if (error) throw new Error(error.message);
   return data;
@@ -47,6 +52,7 @@ export async function claimTile(tileId) {
 
 /** Returns 'hit' or 'miss' immediately — no polling, unlike the Sheets version. */
 export async function fireTile(claimId) {
+  assertWritable();
   const { data, error } = await supabase.rpc('fire_tile', { p_claim_id: claimId });
   if (error) throw new Error(error.message);
   return data;
@@ -59,6 +65,7 @@ export async function fireTile(claimId) {
  * already claimed by this team, or already previewed (0039).
  */
 export async function spendPetJar(tileId) {
+  assertWritable();
   const { data, error } = await supabase.rpc('spend_pet_jar', { p_tile_id: tileId });
   if (error) throw new Error(error.message);
   return data;
@@ -72,6 +79,7 @@ export async function spendPetJar(tileId) {
  * upload path needs its id before the file goes up.
  */
 export async function openBingoTile(tileId) {
+  assertWritable();
   const { data, error } = await supabase.rpc('bingo_open_tile', { p_tile_id: tileId });
   if (error) throw new Error(error.message);
   return data;
@@ -96,6 +104,7 @@ export async function settleBingo(gameId) {
  * `team_moved` event carries.
  */
 export async function snakesRoll(gameId) {
+  assertWritable();
   const { data, error } = await supabase.rpc('snakes_roll', { p_game_id: gameId });
   if (error) throw new Error(error.message);
   return data;
@@ -103,6 +112,7 @@ export async function snakesRoll(gameId) {
 
 /** Spend one of my team's rollbacks. Answers with the move, like snakesRoll. */
 export async function snakesSpendRollback(gameId) {
+  assertWritable();
   const { data, error } = await supabase.rpc('snakes_spend_rollback', { p_game_id: gameId });
   if (error) throw new Error(error.message);
   return data;
@@ -113,6 +123,7 @@ export async function snakesSpendRollback(gameId) {
  * use -- the upload path needs it before the file goes up, as in bingo.
  */
 export async function snakesOpenTile(gameId) {
+  assertWritable();
   const { data, error } = await supabase.rpc('snakes_open_tile', { p_game_id: gameId });
   if (error) throw new Error(error.message);
   return data;
@@ -129,8 +140,10 @@ async function rpc(name, args) {
 }
 
 /** Admins may rename either team; captains may rename only their own team. */
-export const renameTeam = (teamId, name) =>
-  rpc('rename_team', { p_team_id: teamId, p_name: name });
+export const renameTeam = (teamId, name) => {
+  assertWritable();
+  return rpc('rename_team', { p_team_id: teamId, p_name: name });
+};
 
 export const adminCreateGame = (name, teamA, teamB, gridSize = 10, maxActive = 3) =>
   rpc('admin_create_game', {
