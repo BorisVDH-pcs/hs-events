@@ -77,13 +77,15 @@ Decisions worth knowing before changing it:
    hints in `Admin.jsx`.
 5. Add an entry to `MODES` in the New game form.
 
-## Status of this branch
+## Status
 
 - Front-end: built, self-tests passing, and checked visually in the harness
-  (`/preview-bingo.html`).
-- **Migrations: written, not yet run against a database.** No free local Postgres
-  is available, and production is the live project, so nothing has executed the
-  SQL. It is additive, but the first real run should be watched.
+  (`/preview-bingo.html`, `/preview-snakes.html`).
+- **Migrations: applied to the live project** (High Society Events), bingo and
+  Snakes and Ladders both.
+- **Smoke tests: both pass against the live project** (run 2026-10-02):
+  `scripts/bingo-smoke-test.sql` 48/48 and `scripts/snakes-smoke-test.sql`
+  88/88. Both roll everything back, so nothing they create is kept.
 
 ## Later
 
