@@ -482,22 +482,22 @@ export default function Admin({ onViewAs } = {}) {
       ok: tiles.length === needTiles,
       detail: `${tiles.length} of ${needTiles}`,
       fix: tiles.length === 0
-        ? 'Build the card below.'
-        : `${needTiles - tiles.length} still empty — fill them in the board builder below.`,
+        ? 'Build the card on the Board tab.'
+        : `${needTiles - tiles.length} still empty — fill them in on the Board tab.`,
     },
     {
       key: 'teams', label: 'Teams', required: true,
       ok: gameTeams.length > 0,
       detail: `${gameTeams.length}`,
-      fix: 'Add at least one team in Teams below.',
+      fix: 'Add at least one team on the Teams tab.',
     },
     {
       key: 'roster', label: 'Players', required: true,
       ok: gameTeams.length > 0 && teamsWithoutPlayers.length === 0,
       detail: `${rosterCount} assigned`,
       fix: teamsWithoutPlayers.length
-        ? `${teamsWithoutPlayers.map((t) => t.name).join(', ')} — add players in Roster below.`
-        : 'Add players in Roster below.',
+        ? `${teamsWithoutPlayers.map((t) => t.name).join(', ')} — add players on the Teams tab.`
+        : 'Add players on the Teams tab.',
     },
     {
       key: 'discord', label: 'Discord', required: false,
@@ -520,15 +520,15 @@ export default function Admin({ onViewAs } = {}) {
       detail: jumps.length
         ? `${ladderCount} ladder${ladderCount === 1 ? '' : 's'}, ${jumps.length - ladderCount} snake${jumps.length - ladderCount === 1 ? '' : 's'}`
         : 'none',
-      fix: 'Place them in Snakes and ladders below, before filling the board — their squares need no task.',
+      fix: 'Place them on the Board tab, before filling the board — their squares need no task.',
     },
     {
       key: 'tiles', label: 'Tiles', required: true,
       ok: snakesFilled === snakesNeed,
       detail: `${snakesFilled} of ${snakesNeed}`,
       fix: snakesFilled === 0
-        ? 'Build the board below.'
-        : `${snakesNeed - snakesFilled} still empty — fill them in the board builder below.`,
+        ? 'Build the board on the Board tab.'
+        : `${snakesNeed - snakesFilled} still empty — fill them in on the Board tab.`,
     },
     ...cardChecks.filter((c) => c.key !== 'tiles'),
   ] : null;
@@ -541,8 +541,8 @@ export default function Admin({ onViewAs } = {}) {
       ok: tiles.length === needTiles,
       detail: `${tiles.length} of ${needTiles}`,
       fix: tiles.length === 0
-        ? 'Build the board below.'
-        : `${needTiles - tiles.length} still empty — fill them in the board builder below.`,
+        ? 'Build the board on the Board tab.'
+        : `${needTiles - tiles.length} still empty — fill them in on the Board tab.`,
     },
     {
       key: 'teams', label: 'Teams', required: true,
@@ -557,7 +557,7 @@ export default function Admin({ onViewAs } = {}) {
       // The one that used to fail silently: no captain means no player can
       // place that team's fleet, and nothing anywhere said so.
       fix: teamsWithoutCaptain.length
-        ? `${teamsWithoutCaptain.map((t) => t.name).join(' and ')} — set a captain in Roster below, `
+        ? `${teamsWithoutCaptain.map((t) => t.name).join(' and ')} — set a captain on the Teams tab, `
           + 'or nobody on that team can place its fleet.'
         : '',
     },
@@ -570,7 +570,7 @@ export default function Admin({ onViewAs } = {}) {
       fix: `Both teams need at least one player — ${
         gameTeams.filter((t) => !members.some((m) => m.team_id === t.id)).map((t) => t.name).join(' and ')
         || 'add them'
-      } in Roster below.`,
+      } on the Teams tab.`,
     },
     {
       key: 'fleets', label: 'Fleets placed', required: true,
