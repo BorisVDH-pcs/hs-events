@@ -2133,7 +2133,9 @@ teammates on the waiting screen not built), 12 and 13.
 - **8. Snakes How to Play.** Guide.jsx takes `mode`; snakes has its own steps
   (board, rolling, completing a tile, rollbacks, earning rollbacks, standings,
   feed, winning), its own "seen" key, and the same tour / Quick Reference /
-  Q&A. Steps on the turn panel only show once the game runs. "How it works"
+  Q&A. Steps on the turn panel only show once the game runs, except on the
+  countdown screen (`waiting`): there every step shows, with "on screen once
+  the game starts" instead of a highlight. "How it works"
   is gone. Bingo still has no guide.
 - **12. Evidence grouped by team and tile.** One row per claim with a strip of
   thumbnails, the count and the latest time; press to open the screenshots,
