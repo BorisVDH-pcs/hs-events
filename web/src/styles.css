@@ -1392,6 +1392,8 @@ button.cell.pet-target:active { transform: scale(.93); transition-duration: .09s
 /* A phone: two thumbnails, not four, so the tile name keeps its width. */
 @media (max-width: 520px) {
   .evidence-strip .evidence-strip-cell:nth-child(n + 3) { display: none; }
+  /* "+1" would undercount once two are hidden; the row says how many. */
+  .evidence-strip-more { display: none; }
   .evidence-strip img,
   .evidence-strip .evidence-pending { width: 44px; height: 44px; }
 }
