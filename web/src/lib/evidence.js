@@ -11,6 +11,7 @@
 
 import { supabase } from './supabase.js';
 import { uploadToImgbb } from './imgbb.js';
+import { assertWritable } from './viewOnly.js';
 
 export const BUCKET = 'evidence';
 
@@ -131,6 +132,8 @@ async function looksBlank(blob) {
  * tampered path buys nothing.
  */
 export async function uploadEvidence({ gameId, teamId, claimId, file, optionId = null, amount = null }) {
+  // First: the file reaches storage and the imgbb mirror before any RPC runs.
+  assertWritable();
   if (!file.type.startsWith('image/')) {
     throw new Error(`${file.name || 'That file'} is not an image.`);
   }

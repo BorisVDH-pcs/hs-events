@@ -30,6 +30,7 @@ import { listMyGames, readGamePick, writeGamePick } from './lib/games.js';
 import { readMuted, writeMuted } from './lib/sound.js';
 import { REVEAL_DELAY_MS, SHOT_RESULT_DURATION_MS } from './lib/fireEffect.js';
 import { tileProgressText } from './lib/tileProgress.js';
+import { setViewOnly } from './lib/viewOnly.js';
 
 export default function App() {
   const [session, setSession] = useState(null);
@@ -43,6 +44,9 @@ export default function App() {
   const [shotResult, setShotResult] = useState(null);
   const [busyTileId, setBusyTileId] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  // "View as team": the console's way into a team's player screen, read only.
+  // { gameId, teamId, teamName, role } while one is open, otherwise null.
+  const [viewAs, setViewAs] = useState(null);
   // Which board is on screen. The two used to sit side by side, which cost
   // each of them half the page and left the cells too small to read the tile
   // art in. One at a time, full width.
@@ -183,7 +187,7 @@ export default function App() {
   useEffect(() => {
     // Signed out, or swapped for another player on a shared phone: drop the
     // previous roster rather than briefly offering it to whoever is next.
-    if (!uid) { setMyGames([]); setGameId(null); return; }
+    if (!uid) { setMyGames([]); setGameId(null); setViewAs(null); return; }
     loadGames();
   }, [uid, loadGames]);
 
@@ -215,26 +219,40 @@ export default function App() {
       .then(({ data }) => setIsAdmin(Boolean(data?.is_admin)));
   }, [session]);
 
-  const game = useGame(gameId, session);
+  // Only ever for an organiser -- the server refuses admin_board_for_team to
+  // anyone else -- and checked here too, so a value left over from an
+  // organiser's session can never put a player's screen into it.
+  const viewing = isAdmin && Boolean(viewAs);
+  // The player screen: for players, and for an organiser viewing a team.
+  const playerScreen = !isAdmin || viewing;
+  // The game on that screen. An organiser's own `gameId` is the featured one
+  // (see loadGames); a team being viewed brings its own.
+  const boardGameId = viewing ? viewAs.gameId : gameId;
+
+  // Set while rendering rather than in an effect, so the guard is up before
+  // the first click on the screen it protects can land (lib/viewOnly.js).
+  setViewOnly(viewing ? viewAs.teamName : null);
+
+  const game = useGame(boardGameId, session, viewing ? viewAs : null);
 
   // A cannon fire is not a private event — every `shot_fired` row is
   // world-readable (see 0039's `events_read` policy), so anyone with the
   // page open, admins and teamless spectators included, should hear it the
   // moment it lands rather than only the team that pulled the trigger.
   useEffect(() => {
-    if (!supabase || !gameId) return undefined;
+    if (!supabase || !boardGameId) return undefined;
     // Shares one channel with useGame and useGameStats -- see lib/gameEvents.js.
-    return subscribeToGameEvents(gameId, (row) => {
+    return subscribeToGameEvents(boardGameId, (row) => {
       if (row.type !== 'shot_fired') return;
       setShot({ nonce: Date.now(), result: row.payload?.result });
     });
-  }, [gameId]);
+  }, [boardGameId]);
 
   // Signed up, but no captain has picked them yet. Showing the board here would
   // be a game they cannot touch, with the reason buried in a grey clause — so
   // they get a waiting room instead.
   const waitingForTeam =
-    !isAdmin && !game.loading && Boolean(game.game) && !game.myTeamId;
+    playerScreen && !game.loading && Boolean(game.game) && !game.myTeamId;
 
   // Rostered ahead of time, but nothing to do yet: preparation may not even
   // be open, or it is open but placing the fleet is the captain's job, not
@@ -243,7 +261,7 @@ export default function App() {
   // name — so it gets the waiting room, and stays there until the battle
   // itself opens. Only a captain gets in earlier, to actually place ships.
   const notYetOpen =
-    !isAdmin && !game.loading && Boolean(game.game) && Boolean(game.myTeamId) &&
+    playerScreen && !game.loading && Boolean(game.game) && Boolean(game.myTeamId) &&
     game.game.status !== 'active' && game.game.status !== 'finished' &&
     game.myRole !== 'captain';
   const waitingScreen = waitingForTeam || notYetOpen;
@@ -356,6 +374,26 @@ export default function App() {
   // clears its pending reveal timers.
   function switchGame(nextId) {
     if (!nextId || nextId === gameId) return;
+    resetBoardState();
+    writeGamePick(uid, nextId);
+    setGameId(nextId);
+  }
+
+  // Into a team's screen from the console, and back out. The same per-board
+  // state as a game switch is dropped, for the same reasons: none of it
+  // belongs to the board being moved to.
+  function enterView(next) {
+    resetBoardState();
+    setViewAs(next);
+    window.scrollTo({ top: 0 });
+  }
+
+  function exitView() {
+    resetBoardState();
+    setViewAs(null);
+  }
+
+  function resetBoardState() {
     clearTimeout(resultRevealTimerRef.current);
     clearTimeout(resultHideTimerRef.current);
     setShot(null);
@@ -366,8 +404,6 @@ export default function App() {
     setPetPick(false);
     setPetPreview(null);
     setBoardTab('enemy');
-    writeGamePick(uid, nextId);
-    setGameId(nextId);
   }
 
   const { loading, error, teams, myTeamId, myRole, tiles, myShipCells, myFleet, enemyShots, events, evidence, live } = game;
@@ -419,7 +455,7 @@ export default function App() {
     <main className={`app game-app${waitingScreen ? ' waiting-app' : ''}`}>
       <header className="top" id="app-header">
         {/* The subtitle follows the game on screen; the console is every game. */}
-        <Wordmark mode={isAdmin ? null : game.game?.mode ?? null} />
+        <Wordmark mode={playerScreen ? game.game?.mode ?? null : null} />
         {!isAdmin && game.game && (!waitingScreen || myGames.length > 1) && (
           <p className="status header-status">
             <GamePicker
@@ -466,7 +502,7 @@ export default function App() {
             <span className="sound-toggle-label">{muted ? 'Sound off' : 'Sound on'}</span>
           </button>
           {/* The guide teaches battleships; the other modes explain themselves on the board. */}
-          {!isAdmin && !isBingo && !isSnakes && (
+          {playerScreen && !isBingo && !isSnakes && (
             <button className="link" onClick={() => guideRef.current?.openWelcome()}>
               📖 How to Play
             </button>
@@ -475,10 +511,11 @@ export default function App() {
         </div>
       </header>
 
-      {!isAdmin && !isBingo && !isSnakes && (
+      {playerScreen && !isBingo && !isSnakes && (
         <Guide
           ref={guideRef}
-          autoShow={!loading && Boolean(game.game) && !waitingScreen}
+          // Not over an organiser looking in: How to Play is one press away.
+          autoShow={!viewing && !loading && Boolean(game.game) && !waitingScreen}
           onTabNeed={setBoardTab}
           // So the guide states this game's rules rather than the ones that
           // were true when it was written.
@@ -489,15 +526,21 @@ export default function App() {
 
       {/* An admin has no team, so the player view would show them an empty
           board and a lock-in button that cannot work. They get the organiser's
-          console instead, which carries its own both-boards overview. */}
-      {isAdmin && <Admin />}
+          console instead -- and from it, any team's own screen, read only
+          ("View as team"). The console stays mounted while one is open, only
+          hidden, so coming back finds it on the game and pane it was left on. */}
+      {isAdmin && (
+        <div hidden={viewing}>
+          <Admin onViewAs={enterView} />
+        </div>
+      )}
 
       {/* Outside the admin/player split on purpose: an admin has no team but
           still has the page open, and should hear a shot land same as
           anyone else. */}
       <FireEffect shot={shot} muted={muted} />
 
-      {!isAdmin && <>
+      {playerScreen && <>
       {loading && <p>Loading game…</p>}
       {error && <p className="error">{error}</p>}
       {notice && <p className="error">{notice}</p>}
@@ -768,6 +811,26 @@ export default function App() {
             Star on GitHub
           </a>
         </footer>
+      )}
+      {/* Last, so it can ride along the bottom of the window (styles.css). */}
+      {viewing && (
+        <div className="view-as-banner" role="status">
+          <p className="view-as-text">
+            <span aria-hidden="true">👁 </span>
+            Viewing <b>{viewAs.teamName}</b>’s screen as {viewAs.role === 'captain' ? 'their captain' : 'a player'}.
+            {' '}Read only: nothing you press here changes the game.
+            {live === 'offline' && <span className="live-warning"> ⚠ Reconnecting</span>}
+          </p>
+          <div className="view-as-actions">
+            <button
+              className="ghost"
+              onClick={() => setViewAs((v) => ({ ...v, role: v.role === 'captain' ? 'member' : 'captain' }))}
+            >
+              {viewAs.role === 'captain' ? 'See it as a player' : 'See it as the captain'}
+            </button>
+            <button className="primary" onClick={exitView}>Back to the console</button>
+          </div>
+        </div>
       )}
       </>}
 
