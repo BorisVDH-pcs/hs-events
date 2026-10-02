@@ -4414,6 +4414,10 @@ button.builder-cell.ladder-foot { background: rgba(217, 169, 91, .16); }
 .jump-handle { pointer-events: all; cursor: grab; touch-action: none; }
 .jump-handles.passive .jump-handle { pointer-events: none; opacity: .5; }
 .jump-handle .hit { fill: transparent; }
+/* A finger needs more than a mouse: on a touch screen a grip catches about
+   three quarters of its square (the tile there is still picked in the names
+   view). */
+@media (pointer: coarse) { .jump-handle .hit { r: 4.4px; } }
 .jump-handle .grip {
   stroke: rgba(0, 0, 0, .7); stroke-width: .5;
   transition: r .12s ease;
