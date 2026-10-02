@@ -559,6 +559,8 @@ export default function App() {
           // Re-mounted per mode, so a game switch never shows the other's steps.
           key={isSnakes ? 'snakes' : 'battleships'}
           mode={isSnakes ? 'snakes' : 'battleships'}
+          // The countdown screen has no board to point at: show every step.
+          waiting={waitingScreen}
           // Not over an organiser looking in: How to Play is one press away.
           autoShow={!viewing && !loading && Boolean(game.game) && !waitingScreen}
           onTabNeed={setBoardTab}

@@ -255,17 +255,23 @@ const MODES = {
  * a phase you are past cannot do. A section that can only fail is worse
  * company than one that is not there.
  */
-function buildSteps({ mode, maxActive, status }) {
+function buildSteps({ mode, maxActive, status, waiting }) {
   return (MODES[mode] ?? MODES.battleships).steps
-    .filter((s) => !s.phase || [].concat(s.phase).includes(status))
+    // The waiting room is the exception: nothing on it can be highlighted
+    // anyway, and it is where a player has time to read the whole game.
+    .filter((s) => waiting || !s.phase || [].concat(s.phase).includes(status))
     .map((s) => ({ ...s, body: s.body.replaceAll('{maxActive}', String(maxActive)) }));
 }
 
-const Guide = forwardRef(function Guide({ autoShow, onTabNeed, maxActive = 3, status, mode = 'battleships' }, ref) {
+const Guide = forwardRef(function Guide({
+  autoShow, onTabNeed, maxActive = 3, status, mode = 'battleships', waiting = false,
+}, ref) {
   const steps = useMemo(
-    () => buildSteps({ mode, maxActive, status }),
-    [mode, maxActive, status]
+    () => buildSteps({ mode, maxActive, status, waiting }),
+    [mode, maxActive, status, waiting]
   );
+  // The current tour step's target is not on the page (the waiting room).
+  const [missing, setMissing] = useState(false);
   const { subtitle, seenKey } = MODES[mode] ?? MODES.battleships;
   // 'closed' | 'welcome' | 'tour' | 'reference' | 'qa' | 'spotlight'
   const [phase, setPhase] = useState('closed');
@@ -312,6 +318,7 @@ const Guide = forwardRef(function Guide({ autoShow, onTabNeed, maxActive = 3, st
     function place() {
       const el = document.getElementById(target.targetId);
       const ring = document.getElementById('guide-spotlight-ring');
+      setMissing(!el);
       if (!el || !ring) { if (ring) ring.style.display = 'none'; return; }
       const rect = el.getBoundingClientRect();
       const pad = 6;
@@ -432,6 +439,7 @@ const Guide = forwardRef(function Guide({ autoShow, onTabNeed, maxActive = 3, st
               </div>
               <h3 dangerouslySetInnerHTML={{ __html: steps[step].title }} />
               <div className="guide-tour-body" dangerouslySetInnerHTML={{ __html: steps[step].body }} />
+              {missing && <p className="guide-tour-later">You will see this on screen once the game starts.</p>}
               <div className="guide-tour-progress">
                 {steps.map((_, i) => (
                   <span key={i} className={`guide-dot${i === step ? ' on' : ''}`} />
@@ -491,12 +499,16 @@ const Guide = forwardRef(function Guide({ autoShow, onTabNeed, maxActive = 3, st
                     <div className="guide-step-title" dangerouslySetInnerHTML={{ __html: s.title }} />
                   </div>
                   <div className="guide-step-body" dangerouslySetInnerHTML={{ __html: s.body }} />
-                  <button
-                    className="guide-spotlight-btn"
-                    onClick={() => spotlightFromReference(s.targetId, 'reference')}
-                  >
-                    👁 Highlight in UI
-                  </button>
+                  {document.getElementById(s.targetId) ? (
+                    <button
+                      className="guide-spotlight-btn"
+                      onClick={() => spotlightFromReference(s.targetId, 'reference')}
+                    >
+                      👁 Highlight in UI
+                    </button>
+                  ) : (
+                    <p className="guide-tour-later">On screen once the game starts.</p>
+                  )}
                 </div>
               ))}
             </div>

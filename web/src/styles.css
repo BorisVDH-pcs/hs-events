@@ -3037,6 +3037,7 @@ button.cell.picked:not(.hit):not(.miss) { background: rgba(242, 193, 78, .14); }
   letter-spacing: -.013em; margin: 0 0 .5rem;
 }
 .guide-tour-body { color: var(--label-2); font-size: .9375rem; line-height: 1.5; }
+.guide-tour-later { margin: .5rem 0 0; font-size: .8125rem; color: var(--label-3); font-style: italic; }
 /* Page dots, the way a paged view marks its position. */
 .guide-tour-progress { display: flex; gap: .35rem; margin: .85rem 0; }
 .guide-dot {
