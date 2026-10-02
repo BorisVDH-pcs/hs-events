@@ -274,6 +274,45 @@ export const adminDeleteAccount = (profileId) =>
 export const adminListAccountDeletions = (limit = 20) =>
   rpc('admin_list_account_deletions', { p_limit: limit });
 
+// ---- tile suggestions: players propose, an organiser reviews ----
+//
+// `tile` is the same payload `adminSaveLibraryTile` takes (payloadFromDraft),
+// and the rows come back in the catalogue's row shape, so TileForm opens a
+// suggestion exactly the way it opens a catalogue entry.
+
+/** Suggest a tile for the catalogue. Returns the suggestion's id. */
+export const submitTile = (tile, note) =>
+  rpc('submit_tile', { p_tile: tile, p_note: note ?? null });
+
+/** Change one of your own suggestions while it is still waiting for review. */
+export const updateTileSubmission = (id, tile, note) =>
+  rpc('update_tile_submission', { p_id: id, p_tile: tile, p_note: note ?? null });
+
+/** Take back one of your own pending suggestions. Marks it, deletes nothing. */
+export const withdrawTileSubmission = (id) =>
+  rpc('withdraw_tile_submission', { p_id: id });
+
+/** The caller's own suggestions, newest first. */
+export const myTileSubmissions = () => rpc('my_tile_submissions');
+
+/**
+ * 'catalogue', 'pending' or null for a name -- whether suggesting it would
+ * collide. `exceptId` skips one suggestion, so editing your own does not
+ * report its own name as taken.
+ */
+export const tileNameStatus = (name, exceptId) =>
+  rpc('tile_name_status', { p_name: name, p_except: exceptId ?? null });
+
+/** Every suggestion: the pending queue oldest first, then the history. */
+export const adminListTileSubmissions = () => rpc('admin_list_tile_submissions');
+
+/** Copy a suggestion (as edited by the organiser) into the catalogue. */
+export const adminAcceptTileSubmission = (id, tile, note) =>
+  rpc('admin_accept_tile_submission', { p_id: id, p_tile: tile, p_note: note ?? null });
+
+export const adminRefuseTileSubmission = (id, reason) =>
+  rpc('admin_refuse_tile_submission', { p_id: id, p_reason: reason ?? null });
+
 // ---- the tile library, and boards built one square at a time ----
 
 /**

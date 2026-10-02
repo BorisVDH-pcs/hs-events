@@ -1904,7 +1904,16 @@ label {
    without this the placement card and the team-name card meet border to
    border. 1.5rem matches the active-tile rhythm, and collapses against it
    rather than stacking. */
-.app > .card { margin: 1.5rem 0; }
+.app > .card,
+.app > .game-body > .card { margin: 1.5rem 0; }
+
+/* The player's game, wrapped only so it can be hidden while the "Suggest a
+   tile" screen is up. `contents` keeps the wrapper out of the layout, so
+   everything inside still sits in the page exactly as it did before the
+   wrapper existed. `[hidden]` has to be restated: the UA rule is
+   `display: none`, and `contents` above would otherwise win over it. */
+.game-body { display: contents; }
+.game-body[hidden] { display: none; }
 .row { display: flex; gap: .6rem; align-items: end; flex-wrap: wrap; }
 .row > label { flex: 1 1 10rem; }
 .row > button { flex: none; }
@@ -4307,3 +4316,50 @@ button.builder-cell.ladder-foot { background: rgba(217, 169, 91, .16); }
   }
 }
 .table-scroll { overflow-x: auto; }
+
+/* ---- tile suggestions: the player's screen and the organiser's queue ---- */
+
+.suggestions { max-width: 46rem; }
+.app > .suggestions { margin: 1.5rem auto; }
+.suggestions h3 { margin: 1.2rem 0 .5rem; font-size: .9375rem; }
+.suggestions-head { justify-content: space-between; align-items: center; }
+.suggestions-head > h2 { margin: 0; }
+.suggestion-editor {
+  border-top: 1px solid var(--hairline);
+  margin-top: .8rem; padding-top: .2rem;
+}
+
+.suggestion-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
+.suggestion {
+  display: grid; grid-template-columns: 2.5rem minmax(0, 1fr) auto;
+  gap: .75rem; align-items: start;
+  padding: .65rem .75rem;
+  background: var(--fill-3); border-radius: var(--r-md);
+}
+.suggestion.withdrawn { opacity: .6; }
+.suggestion-icon {
+  width: 2.5rem; height: 2.5rem; display: grid; place-items: center;
+  border-radius: var(--r-sm); background: var(--fill-2); color: var(--label-2);
+}
+.suggestion-icon .tile-icon { width: 100%; height: 100%; object-fit: contain; }
+.suggestion-body { display: grid; gap: .2rem; min-width: 0; }
+.suggestion-title { overflow-wrap: anywhere; }
+.suggestion-body .muted { font-size: .8125rem; }
+.suggestion-reply {
+  margin: .25rem 0 0; font-size: .875rem;
+  border-left: 2px solid var(--hairline); padding-left: .6rem;
+  white-space: pre-line; overflow-wrap: anywhere;
+}
+.suggestion-similar { margin: .25rem 0 0; font-size: .8125rem; }
+.suggestion-actions { display: flex; gap: .4rem; flex-wrap: wrap; justify-content: flex-end; }
+.suggestion-history { margin-top: 1rem; }
+.suggestion-history > summary { cursor: pointer; color: var(--label-2); margin-bottom: .5rem; }
+
+.pill.pending { color: var(--gold); background: rgba(242, 193, 78, .16); }
+.pill.refused { color: var(--hit-lit); background: rgba(255, 69, 58, .18); }
+
+@media (max-width: 560px) {
+  /* The buttons drop under the text rather than squeezing it to a word a line. */
+  .suggestion { grid-template-columns: 2.5rem minmax(0, 1fr); }
+  .suggestion-actions { grid-column: 2; justify-content: flex-start; }
+}
