@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { GRID, colLetter, coordLabel, toPosition, fromPosition } from '../lib/board.js';
 import { cardCells } from '../lib/bingo.js';
 import { boardOrder, tileCell, LAST_TILE } from '../lib/snakes.js';
@@ -38,7 +39,7 @@ import { millionsLabel, millionsToTenths } from '../lib/millions.js';
  */
 export default function BoardBuilder({
   game, tiles, library, libraryError, busy,
-  onSetTile, onClearTile, onSaveLibraryTile, onDeleteLibraryTile,
+  onSetTile, onClearTile, onSwapTiles, onSaveLibraryTile, onDeleteLibraryTile,
   onAutofillBoard, onShuffleBoard, onReshuffleBoard, onClearBoard,
   onSaveBoard, onLoadBoard, onDeleteBoard, jumps = [],
 }) {
@@ -316,7 +317,10 @@ export default function BoardBuilder({
    * Cleared by the bulk actions below. Offering "undo J10" after "remove every
    * tile" would restore one square into a board that no longer exists.
    */
-  const [undo, setUndo] = useState(null);   // { row, col, label, prev } | null
+  // A square:  { row, col, label, prev }
+  // A move:    { swap: true, from, to, label, moved, swapped } -- undone by
+  //            swapping back, which is the same write the other way round.
+  const [undo, setUndo] = useState(null);
 
   /**
    * The tile in your hand, if there is one.
@@ -340,6 +344,29 @@ export default function BoardBuilder({
    */
   const [held, setHeld] = useState(null);          // catalogue entry | null
   const [lastPlaced, setLastPlaced] = useState(null);
+
+  /**
+   * Moving a tile that is already on the board.
+   *
+   * Changing where a tile sits used to mean replacing it twice: the square it
+   * should go to, then the square it came from, each time finding the tile in
+   * the catalogue again. Now it is dragged. Dropped on a square with a tile,
+   * the two trade places; on an empty one, it simply moves.
+   *
+   * Dragging is the quick way, and `moving` is the other: the square panel's
+   * "Move" button picks the tile up, and the next square clicked (or reached
+   * with the arrows and Enter) is where it goes. That is the way for a
+   * keyboard, and for a phone where a long press is fiddly.
+   *
+   * Before the start only. Mid-game a square's place is part of the game --
+   * a battleship sits on coordinates, a bingo line is made of squares -- and
+   * the database refuses it anyway.
+   */
+  const [moving, setMoving] = useState(null);      // { row, col } | null
+  const canMove = !live && Boolean(onSwapTiles);
+  // One thing in hand at a time: picking a catalogue tile up puts a moving
+  // one down.
+  useEffect(() => { if (held) setMoving(null); }, [held]);
 
   /**
    * Bring the panel into view when it is underneath the board rather than
@@ -376,11 +403,13 @@ export default function BoardBuilder({
   // held and not while the form is open, which has its own Cancel and would
   // otherwise lose a half-typed tile to a stray key.
   useEffect(() => {
-    if (!held || editing) return undefined;
-    const onKey = (e) => { if (e.key === 'Escape') setHeld(null); };
+    if ((!held && !moving) || editing) return undefined;
+    const onKey = (e) => {
+      if (e.key === 'Escape') { setHeld(null); setMoving(null); }
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [held, editing]);
+  }, [held, moving, editing]);
 
   function remember(row, col) {
     setUndo({
@@ -392,6 +421,10 @@ export default function BoardBuilder({
 
   async function undoLast() {
     if (!undo) return;
+    if (undo.swap) {
+      if (await onSwapTiles(undo.to, undo.from)) { setUndo(null); setAt(undo.from); }
+      return;
+    }
     const { row, col, prev } = undo;
     // Restoring is the same write as placing, so it goes through the same
     // guard: a refused restore leaves the offer standing rather than claiming
@@ -406,6 +439,48 @@ export default function BoardBuilder({
   // resolves these to a boolean rather than throwing, and a refused save that
   // still closed the form and advanced the selection is indistinguishable from
   // a successful one — which is exactly how a tile goes missing.
+
+  /**
+   * Whether a dragged tile may land on this square. Anywhere on the board,
+   * except a snake's head or a ladder's foot, which needs no task; a tile left
+   * on one can still be dragged off it.
+   */
+  const canDropOn = (position) => !jumpStarts.has(position);
+
+  /**
+   * Move the tile on `fromPos` to `toPos`, swapping with whatever is there.
+   * The undo is remembered only once the write has landed: a refused move
+   * changed nothing, so there is nothing to offer back.
+   */
+  async function moveTile(fromPos, toPos) {
+    if (fromPos === toPos || !canDropOn(toPos)) return false;
+    const tile = byPosition.get(fromPos);
+    if (!tile) return false;
+    const from = fromPosition(fromPos);
+    const to = fromPosition(toPos);
+    const other = byPosition.get(toPos) ?? null;
+    const ok = await onSwapTiles(from, to);
+    if (ok) {
+      setUndo({
+        swap: true, from, to,
+        label: `${squareLabel(from.row, from.col)} ${other ? '↔' : '→'} ${squareLabel(to.row, to.col)}`,
+        moved: tile.name, swapped: other?.name ?? null,
+      });
+      setMoving(null);
+      setEditing(null);
+      setAt(to);
+    }
+    return ok;
+  }
+
+  const drag = useTileDrag({
+    attached: !locked,
+    enabled: canMove && !held && !moving && !editing && !busy,
+    panelRef,
+    tileAt: (position) => byPosition.get(position),
+    canDropOn,
+    onDrop: moveTile,
+  });
 
   /** Put one tile on the selected square and move to the next empty one. */
   async function placePayload(payload) {
@@ -512,6 +587,15 @@ export default function BoardBuilder({
     // you select -- so the selection is left exactly where it was and
     // the panel goes on describing what is in your hand.
     if (held) { paint(row, col); return; }
+    // Moving a tile: a click (or Enter) is where it goes. The arrow keys only
+    // walk the board, so reaching the target does not drop it on the way.
+    if (moving) {
+      if (source === 'keyboard') { setAt({ row, col }); return; }
+      // Back on the square it came from: put it down where it was.
+      if (moving.row === row && moving.col === col) { setMoving(null); return; }
+      moveTile(toPosition(moving.row, moving.col), toPosition(row, col));
+      return;
+    }
     setAt({ row, col });
     setEditing(null);
     // Pointer only. The keyboard path moves focus to the cell it lands
@@ -534,6 +618,7 @@ export default function BoardBuilder({
           <>
             {filled} of {need} squares filled.
             {filled < need && ' Click an empty square, then a tile to put in it.'}
+            {filled > 0 && ' Drag a tile to move it; dropped on another tile, the two swap places.'}
             {snakes && jumpStarts.size > 0 && ` The ${jumpStarts.size} snake heads and ladder bottoms need no task.`}
             {snakes && jumpStarts.size === 0 && ' Place the snakes and ladders first: their squares need no task.'}
             {' Arrow keys move around the board; Enter opens the square.'}
@@ -821,6 +906,23 @@ export default function BoardBuilder({
         </p>
       )}
 
+      {/* Moving a tile, said as loudly as holding one: until it lands, a
+          click on the board puts it somewhere rather than selecting. */}
+      {moving && byPosition.has(toPosition(moving.row, moving.col)) && (
+        <p className="builder-holding">
+          <TileIcon slug={byPosition.get(toPosition(moving.row, moving.col)).icon} fallback={null} />
+          <span>
+            Moving <b>{byPosition.get(toPosition(moving.row, moving.col)).name}</b> from{' '}
+            {squareLabel(moving.row, moving.col)} — click the square it goes to. A tile
+            already there swaps places with it.
+          </span>
+          <button className="ghost" onClick={() => setMoving(null)}>
+            Cancel
+          </button>
+          <span className="muted">or press Escape</span>
+        </p>
+      )}
+
       {/* Above the board rather than in the panel, because the panel changes
           shape three ways and the offer must not move or vanish with it. It
           says what it will put back, since "Undo" alone cannot be told apart
@@ -831,9 +933,13 @@ export default function BoardBuilder({
             Undo {undo.label}
           </button>
           <span className="muted">
-            {undo.prev
-              ? <>Puts <b>{undo.prev.name}</b> back on {undo.label}.</>
-              : <>Empties {undo.label} again.</>}
+            {undo.swap
+              ? undo.swapped
+                ? <>Puts <b>{undo.moved}</b> and <b>{undo.swapped}</b> back where they were.</>
+                : <>Moves <b>{undo.moved}</b> back to {squareLabel(undo.from.row, undo.from.col)}.</>
+              : undo.prev
+                ? <>Puts <b>{undo.prev.name}</b> back on {undo.label}.</>
+                : <>Empties {undo.label} again.</>}
           </span>
           {/* The way into holding a tile, offered where it becomes obvious:
               you have just placed one, and the next thing you do is often
@@ -859,7 +965,30 @@ export default function BoardBuilder({
        *
        * Hidden on an empty board, where it has nothing to do and would only be
        * a red button to misread. */}
-      <div className={`builder${held ? ' is-holding' : ''}`}>
+      <div
+        ref={drag.ref}
+        className={[
+          'builder',
+          held || moving ? 'is-holding' : '',
+          drag.enabled ? 'can-drag' : '',
+          drag.dragging ? 'is-dragging' : '',
+        ].filter(Boolean).join(' ')}
+      >
+        {/* The tile under the pointer while it is dragged. In the body, so
+            nothing on the page can shift what `fixed` is fixed to, and moved
+            by the hook directly rather than through a render. */}
+        {drag.dragging && createPortal(
+          <div
+            className="drag-ghost"
+            ref={drag.ghostRef}
+            aria-hidden="true"
+            style={{ transform: `translate(${drag.dragging.x}px, ${drag.dragging.y}px)` }}
+          >
+            <TileIcon slug={drag.dragging.tile.icon} fallback={null} />
+            <span>{drag.dragging.tile.name}</span>
+          </div>,
+          document.body
+        )}
         {/* A snakes board's player view is the player's own board, so it
             shows exactly what a team will: the artwork along the path with
             the snakes and ladders drawn over it. A click still picks the
@@ -1104,7 +1233,23 @@ export default function BoardBuilder({
                         Clear square
                       </button>
                     )}
+                    {/* Dragging's other half, for a keyboard or a phone. */}
+                    {canMove && (
+                      <button
+                        className="ghost"
+                        disabled={busy}
+                        onClick={() => { setHeld(null); setMoving({ row: at.row, col: at.col }); }}
+                      >
+                        Move to another square
+                      </button>
+                    )}
                   </div>
+                  {canMove && (
+                    <p className="muted">
+                      Or drag it on the board: dropped on another tile, the two
+                      swap places.
+                    </p>
+                  )}
                   {!(live && current.claimed) && (
                     <p className="muted">Or pick a replacement below.</p>
                   )}
@@ -1897,4 +2042,175 @@ function BuilderGrid({
       </div>
     </div>
   );
+}
+
+/**
+ * Dragging a tile from one square to another, on any of the builder's boards.
+ *
+ * Pointer events rather than the browser's own drag and drop, which does
+ * nothing on a phone. The boards are left as they are: every square already
+ * carries its number in `data-pos`, so the hook listens on the builder as a
+ * whole, finds the square under the pointer, and marks the two squares
+ * involved with classes of its own.
+ *
+ * A press only becomes a drag once it has moved a few pixels, so a click
+ * still selects a square exactly as before. On a touch screen it takes a
+ * short hold first; a finger that moves straight away is scrolling the page,
+ * and is left to do that.
+ *
+ * Returns the ref for the builder, what is being dragged ({ tile, x, y } where
+ * the drag began, for the ghost under the pointer) and the ghost's own ref.
+ */
+function useTileDrag({ attached, enabled, panelRef, tileAt, canDropOn, onDrop }) {
+  const ref = useRef(null);
+  const ghostRef = useRef(null);
+  const [dragging, setDragging] = useState(null);
+  // The latest of everything, so the listeners below are bound once rather
+  // than on every render of a hundred-square board.
+  const latest = useRef(null);
+  latest.current = { enabled, tileAt, canDropOn, onDrop };
+
+  useEffect(() => {
+    const root = ref.current;
+    if (!root) return undefined;
+    let d = null;               // the press in progress
+    let swallowClick = false;   // the click a finished drag would also fire
+
+    const squareFrom = (el) => {
+      const cell = el?.closest?.('[data-pos]');
+      if (!cell || !root.contains(cell) || panelRef.current?.contains(cell)) return null;
+      return cell;
+    };
+    const mark = (position, cls, on) => {
+      root.querySelector(`[data-pos="${position}"]`)?.classList.toggle(cls, on);
+    };
+    const placeGhost = () => {
+      if (ghostRef.current && d) {
+        ghostRef.current.style.transform = `translate(${d.x}px, ${d.y}px)`;
+      }
+    };
+    const setOver = (position) => {
+      if (position === d.over) return;
+      if (d.over != null) { mark(d.over, 'drag-over', false); mark(d.over, 'drag-no', false); }
+      d.over = position;
+      if (position != null && position !== d.from) {
+        mark(position, latest.current.canDropOn(position) ? 'drag-over' : 'drag-no', true);
+      }
+    };
+
+    function begin() {
+      d.active = true;
+      mark(d.from, 'drag-from', true);
+      document.body.classList.add('dragging-tile');
+      // Where the ghost starts; every move after this sets its transform
+      // directly, which a re-render leaves alone since this value is unchanged.
+      setDragging({ tile: d.tile, x: d.x, y: d.y });
+    }
+
+    function end() {
+      if (!d) return;
+      clearTimeout(d.timer);
+      if (d.active) {
+        mark(d.from, 'drag-from', false);
+        setOver(null);
+        document.body.classList.remove('dragging-tile');
+        setDragging(null);
+      }
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onCancel);
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('touchmove', onTouchMove);
+      d = null;
+    }
+
+    function onDown(e) {
+      const now = latest.current;
+      if (!now.enabled || d || (e.pointerType === 'mouse' && e.button !== 0)) return;
+      const cell = squareFrom(e.target);
+      if (!cell) return;
+      const from = Number(cell.dataset.pos);
+      const tile = now.tileAt(from);
+      if (!tile) return;
+      d = {
+        id: e.pointerId, from, tile,
+        x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY,
+        active: false, over: null,
+        ready: e.pointerType !== 'touch', timer: null,
+      };
+      if (!d.ready) {
+        d.timer = setTimeout(() => {
+          if (!d) return;
+          d.ready = true;
+          navigator.vibrate?.(15);
+          begin();
+        }, 350);
+      }
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+      window.addEventListener('pointercancel', onCancel);
+      window.addEventListener('keydown', onKey);
+      // Not passive, so a drag on a touch screen can stop the page scrolling.
+      window.addEventListener('touchmove', onTouchMove, { passive: false });
+    }
+
+    function onMove(e) {
+      if (!d || e.pointerId !== d.id) return;
+      d.x = e.clientX; d.y = e.clientY;
+      if (!d.active) {
+        const far = Math.hypot(d.x - d.x0, d.y - d.y0);
+        // A finger that moves before the hold is up is scrolling.
+        if (!d.ready) { if (far > 8) end(); return; }
+        if (far < 6) return;
+        begin();
+      }
+      placeGhost();
+      const cell = squareFrom(document.elementFromPoint(d.x, d.y));
+      setOver(cell ? Number(cell.dataset.pos) : null);
+    }
+
+    function onUp(e) {
+      if (!d || e.pointerId !== d.id) return;
+      const { active, from, over } = d;
+      end();
+      if (!active) return;
+      // The press and release were a drag, not a click on the square.
+      swallowClick = true;
+      setTimeout(() => { swallowClick = false; }, 0);
+      if (over != null && over !== from && latest.current.canDropOn(over)) {
+        latest.current.onDrop(from, over);
+      }
+    }
+
+    const onCancel = (e) => { if (d && e.pointerId === d.id) end(); };
+    const onKey = (e) => { if (e.key === 'Escape' && d?.active) { e.stopPropagation(); end(); } };
+    const onTouchMove = (e) => { if (d?.active) e.preventDefault(); };
+    const onClick = (e) => {
+      if (!swallowClick) return;
+      swallowClick = false;
+      e.stopPropagation();
+      e.preventDefault();
+    };
+    // The long press that starts a drag on a phone must not open the menu.
+    const onContextMenu = (e) => { if (d) e.preventDefault(); };
+    // A tile's artwork is an image, and the browser would start dragging the
+    // picture itself -- and cancel this drag -- the moment it moved.
+    const onNativeDrag = (e) => {
+      if (latest.current.enabled && squareFrom(e.target)) e.preventDefault();
+    };
+
+    root.addEventListener('pointerdown', onDown);
+    root.addEventListener('click', onClick, true);
+    root.addEventListener('contextmenu', onContextMenu);
+    root.addEventListener('dragstart', onNativeDrag);
+    return () => {
+      end();
+      root.removeEventListener('pointerdown', onDown);
+      root.removeEventListener('click', onClick, true);
+      root.removeEventListener('contextmenu', onContextMenu);
+      root.removeEventListener('dragstart', onNativeDrag);
+    };
+  }, [attached, panelRef]);
+
+  return { ref, ghostRef, dragging, enabled };
 }

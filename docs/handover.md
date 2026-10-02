@@ -1975,3 +1975,51 @@ it.**
   `my_team_in_game` source and grants, and both policies came back identical
   to before. Paste it into the SQL editor. To retire the feature for good, add
   its body as a later migration.
+
+## Session log — 2026-10-02, "Drag tiles in the board builder"
+
+In the board builder, a tile can now be dragged onto another square, in all
+three modes and in both views (names and "See it as a player does"). Dropped
+on another tile, the two swap places; dropped on an empty square, it just
+moves. The undo bar above the board swaps them back.
+
+The square panel also has **Move to another square**: the next square you
+click (or reach with the arrows and press Enter) is where the tile goes.
+That is the way for a keyboard, or for a phone if the long press is fiddly.
+On a touch screen, a drag starts after a short hold; a finger that moves
+straight away scrolls the page as before.
+
+Only before the game starts (setup and preparation), like clearing a square.
+Mid-game a square's place is part of the game: ships sit on coordinates,
+bingo lines are made of squares, and snakes teams have opened what they
+stand on. On a Snakes board a tile cannot be dropped on a snake's head or a
+ladder's foot. A tile already stranded on one can be dragged off it.
+
+**Database:** `20261004140000_admin_swap_tiles.sql` adds
+`admin_swap_tiles(game, from_row, from_col, to_row, to_col)`:
+- organisers only;
+- one transaction, with the rows locked;
+- the moving tile is parked off the board for the middle step, because the
+  unique (game, row, col) is checked row by row;
+- the rows themselves move, so each tile keeps its id, drops and catalogue
+  link, and `position` (generated) follows.
+
+**Website:** `useTileDrag` at the bottom of `BoardBuilder.jsx` uses pointer
+events, because the browser's own drag and drop does nothing on a phone. It
+listens on the builder and finds squares by their `data-pos`, which
+`SnakesBoard` now carries too.
+
+**Checking it:** `scripts/swap-tiles-check.sql` (paste, Run; the ERROR text
+is the report). On every game's real board, each put back to setup for the
+run, it tests:
+- a swap trades exactly two tiles and nothing else;
+- swapping back restores the board;
+- dropping a tile on its own square changes nothing;
+- a move onto an empty square works;
+- refusals: a player, a signed-out visitor, a started game, off the board,
+  an empty square to move from, and a locked-in tile.
+
+Rehearsed on live and rolled back: 26 passed, 0 failed.
+
+**Undoing it:** `git revert` the commit (the website), and
+`scripts/rollback-admin-swap-tiles.sql` (drops the function).

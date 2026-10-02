@@ -446,6 +446,19 @@ export const adminAutofillBoard = (gameId) =>
 export const adminShuffleBoard = (gameId) =>
   rpc('admin_shuffle_board', { p_game_id: gameId });
 
+/**
+ * Move the tile on `from` to `to`, and whatever was on `to` back to `from`
+ * (`{ row, col }` each). An empty `to` is a plain move. The tiles keep their
+ * ids, drops and catalogue links. Returns `{ moved, swapped, changed }`, the
+ * two names. Before the start only, like clearing a square.
+ */
+export const adminSwapTiles = (gameId, from, to) =>
+  rpc('admin_swap_tiles', {
+    p_game_id: gameId,
+    p_from_row: from.row, p_from_col: from.col,
+    p_to_row: to.row, p_to_col: to.col,
+  });
+
 export const adminDeleteGame = (gameId) =>
   rpc('admin_delete_game', { p_game_id: gameId });
 

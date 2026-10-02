@@ -6,7 +6,7 @@ import {
   adminDeleteAccount,
   adminListShipCells, adminListWebhooks,
   adminListLibrary, adminSaveLibraryTile, adminDeleteLibraryTile,
-  adminSetTile, adminClearTile, adminAutofillBoard, adminShuffleBoard,
+  adminSetTile, adminClearTile, adminSwapTiles, adminAutofillBoard, adminShuffleBoard,
   adminClearBoard, adminGameReadiness, adminResetPassword, adminListPasswordResets,
   adminListAccountDeletions,
   adminSaveBoardPreset, adminApplyBoardPreset, adminDeleteBoardPreset,
@@ -1116,6 +1116,13 @@ export default function Admin({ onViewAs } = {}) {
             }
             onClearTile={(row, col) =>
               run(() => adminClearTile(game.id, row, col), 'Square cleared.', { refresh: ['tiles'] })
+                .then(worked)
+            }
+            // A tile dragged onto another square: the two trade places, or the
+            // tile just moves if the square was empty. The builder's undo bar
+            // says what happened, so no notice on top of it.
+            onSwapTiles={(from, to) =>
+              run(() => adminSwapTiles(game.id, from, to), null, { refresh: ['tiles'] })
                 .then(worked)
             }
             // The way back to an empty board. Asked for by name rather than by

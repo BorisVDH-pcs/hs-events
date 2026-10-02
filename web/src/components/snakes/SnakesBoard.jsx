@@ -138,6 +138,8 @@ export default function SnakesBoard({
                   done ? 'done' : progress ? 'in progress' : null,
                 ].filter(Boolean).join(' · ')}
                 aria-pressed={selected === n}
+                // The square's number, for the board builder's drag and drop.
+                data-pos={n}
                 onClick={() => onSelect?.(n)}
               >
                 <span className="snakes-num">{n}</span>

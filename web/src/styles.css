@@ -3189,6 +3189,51 @@ button.builder-cell.on {
   box-shadow: var(--glow-sm);
 }
 button.builder-cell.empty:hover { border-style: solid; }
+
+/* Dragging a tile to another square (useTileDrag in BoardBuilder.jsx).
+   A square with a tile can be picked up; the one it left fades, the one under
+   the pointer gets a dashed gold ring, and one it cannot land on (a snake's
+   head or a ladder's foot) a red one. */
+.builder.can-drag .builder-cell:not(.empty),
+.builder.can-drag .snakes-cell {
+  cursor: grab;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.builder.can-drag .builder-cell img,
+.builder.can-drag .snakes-cell img { -webkit-user-drag: none; }
+.builder .drag-from { opacity: .35; }
+.builder .drag-over {
+  outline: 2px dashed var(--gold);
+  outline-offset: -2px;
+  background: rgba(242, 193, 78, .14);
+  position: relative;
+  z-index: 2;
+}
+.builder .drag-no { outline: 2px dashed var(--hit-lit); outline-offset: -2px; }
+body.dragging-tile,
+body.dragging-tile * { cursor: grabbing !important; user-select: none; }
+.drag-ghost {
+  position: fixed;
+  left: 0; top: 0;
+  z-index: 1000;
+  pointer-events: none;
+  display: flex; align-items: center; gap: .45rem;
+  max-width: 14rem;
+  padding: .35rem .6rem;
+  margin: -1.2rem 0 0 -1.2rem;
+  background: var(--panel-solid);
+  border: 1px solid var(--gold);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-md);
+  font-size: .85rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.drag-ghost .tile-icon { width: 28px; height: 28px; object-fit: contain; flex: none; }
+.drag-ghost span { overflow: hidden; text-overflow: ellipsis; }
 .builder-cell span {
   overflow: hidden;
   display: -webkit-box;
