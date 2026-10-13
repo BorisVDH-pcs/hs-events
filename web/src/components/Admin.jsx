@@ -12,11 +12,13 @@ import {
   adminSaveBoardPreset, adminApplyBoardPreset, adminDeleteBoardPreset,
   adminNewGame, adminAddTeam, adminDeleteTeam, adminSetEndTime, adminEndGame,
   listBoardJumps, adminSetSnakes, adminSetTerritoryHomes, snakesStandings, adminSnakesEndGame,
+  territoryStandings,
   adminListTileSubmissions, adminAcceptTileSubmission, adminRefuseTileSubmission,
 } from '../lib/supabase.js';
 import { LAST_TILE, isLadder } from '../lib/snakes.js';
 import { TASK_GRID, homesProblem, placePosition, teamHomes } from '../lib/territory.js';
 import TerritoryHomes from './territory/TerritoryHomes.jsx';
+import TerritoryAdminTrack from './territory/TerritoryAdminTrack.jsx';
 import SnakesJumpEditor from './snakes/SnakesJumpEditor.jsx';
 import useJumpDraft from './snakes/useJumpDraft.js';
 import SnakesAdminTrack from './snakes/SnakesAdminTrack.jsx';
@@ -1038,6 +1040,39 @@ export default function Admin({ onViewAs } = {}) {
                   End game now
                 </button>
               )}
+              {/* Territory: the highest score wins, and the dialog names the
+                  team on top now. A capture landing in between can change
+                  that; the server scores again when it ends the game, and the
+                  feed names whoever it finds. */}
+              {territoryMode && game.status === 'active' && (
+                <button
+                  className="danger"
+                  disabled={busy}
+                  onClick={async () => {
+                    let rows;
+                    try {
+                      rows = (await territoryStandings(game.id)) ?? [];
+                    } catch (err) {
+                      setError(err.message);
+                      return;
+                    }
+                    const leader = rows[0];
+                    const anyCapture = rows.some((r) => r.last_capture_at);
+                    const message = anyCapture && leader
+                      ? `${leader.team_name} leads with ${leader.score} point${leader.score === 1 ? '' : 's'} and wins `
+                        + 'unless a capture lands before you confirm.\nThe map closes now for every team.'
+                      : 'No place has changed hands yet, so nobody wins.\nThe map closes now for every team.';
+                    if (!(await confirm(message, {
+                      title: `End "${game.name}" now?`,
+                      confirmLabel: 'End the game',
+                      danger: true,
+                    }))) return;
+                    run(() => adminEndGame(game.id), 'The conquest is over.');
+                  }}
+                >
+                  End game now
+                </button>
+              )}
             </div>
 
             {/* Display-only: nothing here gates Start game, which stays
@@ -1558,6 +1593,22 @@ export default function Admin({ onViewAs } = {}) {
         </>
       )}
 
+      {activePane === 'track' && game && territoryMode && (
+        <>
+          <TerritoryAdminTrack game={game} />
+
+          <section className="card">
+            <h2>Evidence</h2>
+            <p className="muted">
+              Every screenshot submitted, newest first, with who submitted it.
+              There is nothing to approve — the screenshot that meets a task is
+              what captures the place. Revoking one can hand a place back.
+            </p>
+            <EvidenceReview gameId={game.id} mode={game.mode} />
+          </section>
+        </>
+      )}
+
       {activePane === 'track' && game && !cardLike && (
         <>
           <section className="card">
@@ -1733,19 +1784,12 @@ function SetupChecklist({ checks, status, onGo }) {
   );
 }
 
-// Territory is in the code but not yet in the database (Phase 2: its migrations,
-// server functions and the player screen). Offered only by the admin harness
-// until then, where VITE_TERRITORY is set; picking it on the live site would
-// end in a database error.
-const TERRITORY_READY = import.meta.env.VITE_TERRITORY === '1';
-
-const ALL_MODES = [
+const MODES = [
   { key: 'battleships', label: 'Battleships', blurb: 'Two teams, hidden fleets, one shot per completed tile.' },
   { key: 'bingo', label: 'Bingo', blurb: 'Any number of teams on the same card. Every tile is open at once; most tiles completed wins.' },
   { key: 'snakes', label: 'Snakes & Ladders', blurb: 'Any number of teams racing up a 100-tile board. Finish your tile, roll, and mind the snakes; first to complete tile 100 wins.' },
   { key: 'territory', label: 'Territory', blurb: 'Risk on the OSRS map. Teams march out from home and take places by finishing their tasks, even from each other; the biggest empire when time runs out wins.' },
 ];
-const MODES = ALL_MODES.filter((m) => m.key !== 'territory' || TERRITORY_READY);
 
 /**
  * Create a game of either mode.

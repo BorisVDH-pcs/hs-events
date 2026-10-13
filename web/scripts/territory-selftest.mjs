@@ -6,6 +6,7 @@ import {
   MAX_OPEN, capture, neighbours, openRefusal, placeByIndex, placeByKey, placeState,
   regionHolders, resultText, scoreLabel, standings, touches,
   TASK_GRID, defaultHomes, homesProblem, placeAtPosition, placePosition, reachable, teamHomes,
+  fromServer, territoryEventText,
 } from '../src/lib/territory.js';
 import { fromPosition } from '../src/lib/board.js';
 import { readFileSync } from 'node:fs';
@@ -214,5 +215,71 @@ assert.equal(resultText({ status: 'active' }, teams), null);
 assert.match(resultText({ status: 'finished', winner_team_id: 'b', ended_reason: 'time_up' }, teams), /Bravo/);
 
 assert.equal(placeByKey.get('lumbridge').name, 'Lumbridge');
+
+// ---- The board as the server sends it ----
+
+{
+  const sTeams = [{ id: 'a', slot: 1, home: 'lumbridge' }, { id: 'b', slot: 2, home: 'ardougne' }];
+  const at = (key) => placePosition(key);
+  const board = fromServer({
+    teams: sTeams,
+    myTeamId: 'a',
+    tiles: [
+      { position: at('draynor'), claim_id: 'c1', claim_status: 'completed', paused: false },
+      { position: at('varrock'), claim_id: 'c2', claim_status: 'active', paused: false },
+      { position: at('edgeville'), claim_id: 'c3', claim_status: 'active', paused: true },
+      { position: at('falador'), claim_id: null, claim_status: null, paused: false },
+    ],
+    territory: {
+      owners: [{ place: 'lumbridge', team_id: 'a', home: true }, { place: 'ardougne', team_id: 'b', home: true },
+        { place: 'draynor', team_id: 'a', home: false }],
+      captures: [{ place: 'draynor', team_id: 'a', from_team_id: null, at: '2026-10-13T10:00:00Z' }],
+      attacks: [{ place: 'draynor', team_id: 'b' }, { place: 'varrock', team_id: 'a' }],
+      bonuses: { misthalin: 3 },
+    },
+  });
+  assert.deepEqual([...board.open], ['varrock'], 'open = active claims not given up');
+  assert.deepEqual([...board.attacked], ['draynor'], 'attacked = my land a rival is working on');
+  assert.equal(board.owners.get('draynor'), 'a');
+  assert.equal(board.homes.get('b'), 'ardougne');
+  assert.equal(board.bonuses.get('misthalin'), 3);
+  const t = (key) => board.tiles.find((x) => x.position === at(key));
+  assert.equal(t('varrock').claim_id, 'c2', 'an open place uploads to its claim');
+  assert.equal(t('edgeville').claim_id, null, 'a given-up place does not, until it is opened again');
+  assert.equal(t('edgeville').own_claim_id, 'c3', 'but its screenshots can still be shown');
+  assert.equal(t('draynor').claim_id, null);
+  assert.equal(standings(sTeams, board.owners, board.captures, board.bonuses)[0].team_id, 'a');
+  // Before the first load there is no territory object yet.
+  assert.equal(fromServer({ teams: sTeams, tiles: [], territory: null, myTeamId: 'a' }).owners.size, 0);
+}
+
+assert.equal(territoryEventText({ type: 'game_ended', team_id: null, payload: { mode: 'territory', reason: 'time_up' } }, ''),
+  "Time's up! No place changed hands, so nobody wins.");
+assert.equal(territoryEventText({ type: 'game_ended', team_id: 'a', payload: { mode: 'territory', reason: 'admin', score: 9 } }, 'Red'),
+  'The organiser ended the game. Red wins with 9 points.');
+
+// ---- The database has the same map ----
+// The server keeps the world in three tables seeded by the territory
+// migration. A place moved or a link added here has to be added there too (in
+// a new migration), or the map would draw one thing and the server allow
+// another.
+
+const sql = readFileSync(new URL('../../supabase/migrations/20261013120100_territory_mode.sql', import.meta.url), 'utf8')
+  .replace(/\r\n/g, '\n');
+const rows = (table) => {
+  const block = sql.match(new RegExp(`insert into ${table} \\([^)]*\\) values\\n([\\s\\S]*?);\\n`))?.[1];
+  assert.ok(block, `the migration seeds ${table}`);
+  return [...block.matchAll(/^\s*\((.*)\),?$/gm)].map((m) => [...m[1].matchAll(/'((?:[^']|'')*)'|(\d+)/g)]
+    .map((v) => (v[1] !== undefined ? v[1].replace(/''/g, "'") : Number(v[2]))));
+};
+assert.deepEqual(rows('territory_regions'), REGIONS.map((r, i) => [r.key, r.name, defaultBonus(r.key), i + 1]),
+  'the database regions and bonuses match territoryWorld.js');
+assert.deepEqual(rows('territory_places'), PLACES.map((p) => [p.key, p.index, p.name, p.region]),
+  'the database places match territoryWorld.js');
+const pair = (a, b) => (a < b ? `${a}|${b}` : `${b}|${a}`);
+assert.deepEqual(new Set(rows('territory_links').map(([a, b]) => pair(a, b))),
+  new Set(LINKS.map(([a, b]) => pair(a, b))), 'the database links match territoryWorld.js');
+assert.ok(sql.includes(`array[${DEFAULT_HOMES.map((k) => `'${k}'`).join(', ')}]`),
+  'the database suggests the same homes');
 
 console.log(`territory selftest: ok (${PLACES.length} places, ${LINKS.length} links, ${REGIONS.length} regions)`);

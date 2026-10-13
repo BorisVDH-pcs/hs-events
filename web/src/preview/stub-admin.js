@@ -13,7 +13,7 @@
  */
 
 import { DEFAULT_JUMPS, checkJumps } from '../lib/snakes.js';
-import { TASK_GRID, homesProblem, placeByKey, placePosition, teamHomes } from '../lib/territory.js';
+import { TASK_GRID, homesProblem, placeByKey, placePosition, standings, teamHomes } from '../lib/territory.js';
 import { THEMED_TASKS, writeBoard } from './territory-tasks.js';
 
 const uid = () => crypto.randomUUID();
@@ -264,6 +264,18 @@ export function adminSetTerritoryHomes(gameId, picked) {
   for (const t of teamsOf(gameId)) t.home = homes.get(t.id);
   syncTerritory(gameId);
   return wait(homes.size);
+}
+
+/**
+ * territory_standings. Nothing is ever captured in the console's harness, so
+ * every team holds its home and nothing else.
+ */
+export function territoryStandings(gameId) {
+  const list = teamsOf(gameId);
+  const owners = new Map([...teamHomes(list)].map(([teamId, place]) => [place, teamId]));
+  return wait(standings(list, owners, []).map((r) => ({
+    ...r, team_name: teamNameOf(r.team_id), place: null,
+  })));
 }
 
 function removeTeam(teamId) {

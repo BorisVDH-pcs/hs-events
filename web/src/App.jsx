@@ -27,6 +27,7 @@ import { useConfirm } from './components/ConfirmDialog.jsx';
 import GamePicker from './components/GamePicker.jsx';
 import BingoGame from './components/bingo/BingoGame.jsx';
 import SnakesGame from './components/snakes/SnakesGame.jsx';
+import TerritoryLive from './components/territory/TerritoryLive.jsx';
 import { listMyGames, readGamePick, writeGamePick } from './lib/games.js';
 import { readMuted, writeMuted } from './lib/sound.js';
 import { REVEAL_DELAY_MS, SHOT_RESULT_DURATION_MS } from './lib/fireEffect.js';
@@ -442,8 +443,10 @@ export default function App() {
   // it says otherwise; a bingo hands the whole board area to BingoGame.
   const isBingo = game.game?.mode === 'bingo';
   const isSnakes = game.game?.mode === 'snakes';
+  const isTerritory = game.game?.mode === 'territory';
   // Everything written for battleships alone: the guide, its board, its slots.
-  const isBattleships = Boolean(game.game) && !isBingo && !isSnakes;
+  const isBattleships = Boolean(game.game) && !isBingo && !isSnakes && !isTerritory;
+  const guideMode = isSnakes ? 'snakes' : isTerritory ? 'territory' : 'battleships';
   // Matches the column's own default, set to 3 by migration 0031. It was 2
   // here long after the database moved, which is the kind of disagreement that
   // stays invisible until the one game whose column is somehow null renders a
@@ -532,7 +535,7 @@ export default function App() {
             {muted ? '🔇' : '🔊'}
             <span className="sound-toggle-label">{muted ? 'Sound off' : 'Sound on'}</span>
           </button>
-          {/* Battleships and Snakes have a guide; bingo has no written rules yet. */}
+          {/* Battleships, Snakes and Territory have a guide; bingo has no written rules yet. */}
           {playerScreen && !isBingo && (
             <button className="link" onClick={() => guideRef.current?.openWelcome()}>
               📖 How to Play
@@ -557,8 +560,8 @@ export default function App() {
         <Guide
           ref={guideRef}
           // Re-mounted per mode, so a game switch never shows the other's steps.
-          key={isSnakes ? 'snakes' : 'battleships'}
-          mode={isSnakes ? 'snakes' : 'battleships'}
+          key={guideMode}
+          mode={guideMode}
           // The countdown screen has no board to point at: show every step.
           waiting={waitingScreen}
           // Not over an organiser looking in: How to Play is one press away.
@@ -634,6 +637,20 @@ export default function App() {
           tiles={tiles}
           standings={game.standings}
           jumps={game.jumps}
+          events={events}
+          evidence={evidence}
+          onRefresh={game.refresh}
+        />
+      )}
+
+      {game.game && !waitingScreen && isTerritory && (
+        <TerritoryLive
+          game={game.game}
+          teams={teams}
+          myTeamId={myTeamId}
+          myRole={myRole}
+          tiles={tiles}
+          territory={game.territory}
           events={events}
           evidence={evidence}
           onRefresh={game.refresh}

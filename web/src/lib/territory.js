@@ -291,7 +291,9 @@ export function territoryEventText(e, who) {
     case 'game_ended':
       if (p.mode !== 'territory') return null;
       return `${p.reason === 'time_up' ? "Time's up!" : 'The organiser ended the game.'}`
-        + ` ${who} wins with ${p.score} points.`;
+        + (e.team_id ? ` ${who} wins with ${p.score} points.` : ' No place changed hands, so nobody wins.');
+    case 'game_reset':
+      return p.mode === 'territory' ? 'The conquest has been reset — every team is back to its home.' : null;
     default:
       return null;
   }
@@ -301,4 +303,41 @@ export function territoryEventText(e, who) {
 export function scoreLabel(row) {
   const places = `${row.places} place${row.places === 1 ? '' : 's'}`;
   return row.bonus ? `${places} + ${row.bonus} bonus` : places;
+}
+
+/**
+ * The board as the server sends it (board_for_me: `teams`, `tiles` and the
+ * `territory` object from territory_state), in the shapes TerritoryGame draws
+ * with. Pure, so the self-test can hold it to the harness's shapes.
+ *
+ *   tiles     each task, with `claim_id` only while the place is open (it is
+ *             what the uploader posts to) and `own_claim_id` always, so a team
+ *             can look back at what it handed in for a place it took or gave up
+ *   open      the places my team is working on: an active claim not given up
+ *   attacked  places my team holds that a rival is working on
+ */
+export function fromServer({ teams, tiles, territory, myTeamId }) {
+  const owners = new Map((territory?.owners ?? []).map((o) => [o.place, o.team_id]));
+  const open = new Set();
+  const shaped = (tiles ?? []).map((t) => {
+    const working = t.claim_status === 'active' && !t.paused;
+    const key = placeAtPosition(t.position)?.key;
+    if (working && key) open.add(key);
+    return { ...t, claim_id: working ? t.claim_id : null, own_claim_id: t.claim_id ?? null };
+  });
+  const attacked = new Set((territory?.attacks ?? [])
+    .filter((a) => a.team_id !== myTeamId && owners.get(a.place) === myTeamId)
+    .map((a) => a.place));
+  const bonuses = territory?.bonuses
+    ? new Map(Object.entries(territory.bonuses).map(([k, v]) => [k, Number(v)]))
+    : defaultBonuses();
+  return {
+    tiles: shaped,
+    owners,
+    homes: teamHomes(teams ?? []),
+    open,
+    attacked,
+    captures: territory?.captures ?? [],
+    bonuses,
+  };
 }

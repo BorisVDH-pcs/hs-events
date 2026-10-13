@@ -35,6 +35,7 @@ const BLANK = {
   evidence: [],     // my_evidence: my team's uploads, keyed to claims
   standings: [],    // bingo_standings / snakes_standings: every team, best first
   jumps: [],        // snakes: [{ from, to }] -- the snakes on the board
+  territory: null,  // territory_state: who holds what, captures, attacks, bonuses
 };
 
 /**
@@ -129,6 +130,7 @@ export function useGame(gameId, session, viewAs = null) {
         evidence: board.evidence ?? [],
         standings: board.standings ?? [],
         jumps: board.jumps ?? [],
+        territory: board.territory ?? null,
       });
     } catch (err) {
       if (seq !== loadSeq.current || gameId !== shownId.current || viewTeamId !== shownTeam.current) return;

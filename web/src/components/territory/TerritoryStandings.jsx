@@ -16,7 +16,7 @@ export default function TerritoryStandings({ rows, teams, myTeamId, onFind }) {
   const teamOf = (id) => teams.find((t) => t.id === id);
   const top = Math.max(1, ...rows.map((r) => r.score));
   return (
-    <section className="bingo-standings territory-standings stats-panel" aria-labelledby="standings-title">
+    <section className="bingo-standings territory-standings stats-panel" id="territory-standings-section" aria-labelledby="standings-title">
       <h2 id="standings-title">Standings</h2>
       <ol>
         {rows.map((r, i) => {
@@ -26,7 +26,7 @@ export default function TerritoryStandings({ rows, teams, myTeamId, onFind }) {
             <li key={r.team_id} className={mine ? 'mine' : ''}>
               <button
                 className="standings-row"
-                title={`Show ${team?.name}'s home on the map`}
+                title={onFind ? `Show ${team?.name}'s home on the map` : undefined}
                 onClick={() => onFind?.(r.team_id)}
               >
                 <span className="place">{i === 0 && r.score > 0 ? '♛' : i + 1}</span>

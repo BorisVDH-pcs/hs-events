@@ -28,8 +28,6 @@ export default defineConfig({
       { find: /^.*\/lib\/evidence\.js$/, replacement: here('./src/preview/stub-evidence.js') },
     ],
   },
-  // Modes still being tried out, offered here and not on the live site.
-  define: { 'import.meta.env.VITE_TERRITORY': JSON.stringify('1') },
   // No `open`: the page is driven from the Browser pane, and a config that
   // launches the desktop browser on every restart is a nuisance there.
   server: { port: 5176, strictPort: true },
