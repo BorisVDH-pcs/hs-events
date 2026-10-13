@@ -13,11 +13,14 @@
  */
 
 import { DEFAULT_JUMPS, checkJumps } from '../lib/snakes.js';
+import { TASK_GRID, homesProblem, placeByKey, placePosition, teamHomes } from '../lib/territory.js';
+import { THEMED_TASKS, writeBoard } from './territory-tasks.js';
 
 const uid = () => crypto.randomUUID();
 const now = () => new Date().toISOString();
 const inHours = (h) => new Date(Date.now() + h * 3600000).toISOString();
 const pos = (row, col) => (row - 1) * 10 + col;
+const cardSquares = (size) => Array.from({ length: size * size }, (_, i) => pos(Math.floor(i / size) + 1, (i % size) + 1));
 const wait = (v) => new Promise((resolve) => setTimeout(() => resolve(v), 120));
 const fail = (msg) => new Promise((_, reject) => setTimeout(() => reject(new Error(msg)), 120));
 
@@ -157,6 +160,37 @@ teams.filter((t) => t.game_id === snk).forEach((t, i) => {
   });
 });
 
+// Territory: the themed tasks as a saved 8x8 board, one per place, so
+// "load a template" has something to load. A task for every place, homes
+// included -- loading it onto a game skips that game's homes.
+presets.push({
+  id: uid(), name: 'OSRS themed (template)', grid_size: TASK_GRID,
+  squares: Object.keys(THEMED_TASKS).length,
+  tiles: Object.entries(THEMED_TASKS).map(([key, [name, icon, need]]) => {
+    const position = placePosition(key);
+    return {
+      id: uid(), row: Math.floor((position - 1) / 10) + 1, col: ((position - 1) % 10) + 1, position,
+      name, icon, required_evidence: need, options: [],
+      description: `The task for ${placeByKey.get(key).name}.`,
+      completion: 'points', per_set: null, library_id: null, claimed: false,
+    };
+  }),
+  created_at: now(), updated_at: now(), created_by_name: 'HS Organiser',
+});
+
+// A Territory game being set up: no tasks yet, four teams with players.
+const terr = addGame({
+  name: 'Conquest of Gielinor', mode: 'territory', grid: TASK_GRID, status: 'setup',
+  teamNames: ['Lumby Lads', 'Ardy Knights', 'Canifis Howlers', 'Hosidius Harvest'],
+  startsAt: inHours(24), endsAt: inHours(24 + 24 * 7),
+});
+teams.filter((t) => t.game_id === terr).forEach((t, i) => {
+  PLAYERS.slice(i * 3, i * 3 + 3).forEach((name, j) => {
+    const p = profiles.find((x) => x.display_name === name);
+    members.push({ team_id: t.id, profile_id: p.id, role: j === 0 ? 'captain' : 'member' });
+  });
+});
+
 // And one already running, for the Track pane.
 const live = addGame({
   name: 'Snakes and Ladders — Live', mode: 'snakes', grid: 10, status: 'active',
@@ -186,7 +220,51 @@ const teamsOf = (id) => teams.filter((t) => t.game_id === id);
 const tilesOf = (id) => (tilesByGame[id] ??= []);
 const isBingo = (g) => g?.mode === 'bingo';
 const isSnakes = (g) => g?.mode === 'snakes';
+const isTerritory = (g) => g?.mode === 'territory';
 const startsOf = (id) => new Set((jumpsByGame[id] ?? []).map((j) => Number(j.from)));
+// Territory: the squares of the teams' homes, which need no task. The
+// suggested homes by slot, as the console shows them.
+const homeSquaresOf = (id) => (isTerritory(game(id))
+  ? new Set([...teamHomes(teamsOf(id)).values()].map(placePosition))
+  : new Set());
+// The squares that need no task, in whichever mode.
+const skippedOf = (id) => new Set([...startsOf(id), ...homeSquaresOf(id)]);
+
+/**
+ * Hand a territory game's board to the player harness (/preview-territory.html)
+ * through this browser's storage, so a board built here is the one played
+ * there. The most recently changed territory game wins.
+ */
+function syncTerritory(gameId) {
+  const g = game(gameId);
+  if (!isTerritory(g)) return;
+  const tiles = tilesOf(gameId);
+  const homes = teamHomes(teamsOf(gameId));
+  writeBoard(tiles.length
+    ? {
+      name: g.name,
+      savedAt: now(),
+      tiles: tiles.map(({ position, name, icon, required_evidence }) => ({ position, name, icon, required_evidence })),
+      teams: [...teamsOf(gameId)].sort((a, b) => a.slot - b.slot)
+        .map((t) => ({ name: t.name, slot: t.slot, home: homes.get(t.id) })),
+    }
+    : null);
+}
+
+const teamNameOf = (id) => teams.find((t) => t.id === id)?.name ?? 'A team';
+
+/** admin_set_territory_homes: { teamId: placeKey }, refused if it walls land off. */
+export function adminSetTerritoryHomes(gameId, picked) {
+  const g = game(gameId);
+  if (!isTerritory(g)) return fail('Only a Territory game has homes');
+  if (g.status !== 'setup' && g.status !== 'placement') return fail('Homes are fixed once the game has started');
+  const homes = teamHomes(teamsOf(gameId).map((t) => ({ ...t, home: picked[t.id] ?? t.home })));
+  const problem = homesProblem(homes, teamNameOf);
+  if (problem) return fail(problem);
+  for (const t of teamsOf(gameId)) t.home = homes.get(t.id);
+  syncTerritory(gameId);
+  return wait(homes.size);
+}
 
 function removeTeam(teamId) {
   const i = teams.findIndex((t) => t.id === teamId);
@@ -251,6 +329,13 @@ export const adminCreateGame = (name, a, b) =>
 
 export function adminNewGame({ name, mode, teams: names, gridSize = 10, endsAt = null }) {
   if (mode === 'battleships') return adminCreateGame(name, names[0], names[1]);
+  if (mode === 'territory') {
+    if (!names.length) return fail('Territory needs at least one team');
+    if (names.length > 6) return fail('Territory has six homes, so at most six teams');
+    if (endsAt && Date.parse(endsAt) <= Date.now()) return fail('The end time is in the past');
+    // Starts with no tasks: the organiser deals, loads or picks them.
+    return wait(addGame({ name, mode, grid: TASK_GRID, status: 'setup', teamNames: names, endsAt }));
+  }
   if (mode === 'snakes') {
     if (!names.length) return fail('Snakes and Ladders needs at least one team');
     if (endsAt) return fail('Snakes and Ladders has no end time — it ends when a team finishes tile 100');
@@ -308,10 +393,23 @@ export function startGame(id) {
     const empty = ts.find((t) => !members.some((m) => m.team_id === t.id));
     if (!ts.length) return fail('Game needs at least one team before it can start');
     if (empty) return fail(`${empty.name} has no players yet — add them in the roster`);
+  } else if (isTerritory(g)) {
+    const homes = homeSquaresOf(id);
+    const missing = cardSquares(g.grid_size)
+      .filter((n) => !homes.has(n) && !tilesOf(id).some((t) => t.position === n));
+    if (missing.length) {
+      return fail(`Every place but the homes needs a task — ${missing.length} still have none`);
+    }
+    const problem = homesProblem(teamHomes(ts), teamNameOf);
+    if (problem) return fail(problem);
+    if (!ts.length) return fail('Territory needs at least one team');
+    const empty = ts.find((t) => !members.some((m) => m.team_id === t.id));
+    if (empty) return fail(`${empty.name} has no players yet — add them in the roster`);
+    if (g.ends_at && Date.parse(g.ends_at) <= Date.now()) return fail('The end time has already passed');
   } else if (tilesOf(id).length !== need) {
     return fail(`The board has ${tilesOf(id).length} of ${need} tiles`);
   }
-  if (isSnakes(g)) {
+  if (isSnakes(g) || isTerritory(g)) {
     // checked above
   } else if (isBingo(g)) {
     if (!ts.length) return fail('A bingo needs at least one team');
@@ -340,7 +438,9 @@ export function adminResetGame(id) {
 }
 
 export const adminGameReadiness = () => wait(games.map((g) => ({
-  game_id: g.id, tile_count: tilesOf(g.id).length, tiles_needed: g.grid_size * g.grid_size,
+  game_id: g.id,
+  tile_count: tilesOf(g.id).filter((t) => !homeSquaresOf(g.id).has(t.position)).length,
+  tiles_needed: g.grid_size * g.grid_size - homeSquaresOf(g.id).size,
 
   teams_with_full_fleet: 0, webhook_count: webhooks.filter((w) => w.game_id === g.id).length,
 })));
@@ -385,19 +485,34 @@ export function adminSetTile(gameId, row, col, payload) {
   const i = list.findIndex((t) => t.row === row && t.col === col);
   const tile = tileFromPayload(gameId, row, col, payload);
   if (i >= 0) list[i] = tile; else list.push(tile);
+  syncTerritory(gameId);
   return wait(tile.id);
+}
+
+export function adminSwapTiles(gameId, from, to) {
+  const list = tilesOf(gameId);
+  const a = list.find((t) => t.row === from.row && t.col === from.col);
+  const b = list.find((t) => t.row === to.row && t.col === to.col);
+  if (!a) return fail('There is no tile on that square');
+  if (skippedOf(gameId).has(pos(to.row, to.col))) return fail('That square needs no task');
+  Object.assign(a, { row: to.row, col: to.col, position: pos(to.row, to.col) });
+  if (b) Object.assign(b, { row: from.row, col: from.col, position: pos(from.row, from.col) });
+  syncTerritory(gameId);
+  return wait({ moved: a.name, swapped: b?.name ?? null, changed: b ? 2 : 1 });
 }
 
 export function adminClearTile(gameId, row, col) {
   const list = tilesOf(gameId);
   const i = list.findIndex((t) => t.row === row && t.col === col);
   if (i >= 0) list.splice(i, 1);
+  syncTerritory(gameId);
   return wait(null);
 }
 
 export function adminClearBoard(gameId) {
   const n = tilesOf(gameId).length;
   tilesByGame[gameId] = [];
+  syncTerritory(gameId);
   return wait(n);
 }
 
@@ -411,12 +526,13 @@ export function adminAutofillBoard(gameId) {
   for (let row = 1; row <= g.grid_size; row++) {
     for (let col = 1; col <= g.grid_size; col++) {
       if (list.some((t) => t.row === row && t.col === col)) continue;
-      if (startsOf(gameId).has(pos(row, col))) continue;   // snake heads, ladder feet
+      if (skippedOf(gameId).has(pos(row, col))) continue;   // snake heads, ladder feet, homes
       empty++;
       const entry = pool.shift();
       if (entry) { list.push(fromLibrary(entry, row, col)); filled++; }
     }
   }
+  syncTerritory(gameId);
   return wait({ filled, empty, pool: filled + pool.length, similar: 0 });
 }
 
@@ -429,6 +545,7 @@ export function adminShuffleBoard(gameId) {
     if (row !== t.row || col !== t.col) moved++;
     Object.assign(t, { row, col, position: pos(row, col) });
   });
+  syncTerritory(gameId);
   return wait({ moved, tiles: list.length });
 }
 
@@ -449,8 +566,13 @@ export function adminApplyBoardPreset(gameId, presetId) {
   if (p.grid_size !== game(gameId).grid_size) {
     return fail(`That board is ${p.grid_size}×${p.grid_size}; this game is not`);
   }
-  tilesByGame[gameId] = structuredClone(p.tiles).map((t) => ({ ...t, id: uid() }));
-  return wait({ name: p.name, placed: p.squares });
+  // Nothing lands on a home: a template made for other homes leaves that
+  // place's task out rather than putting it where nobody can play it.
+  const homes = homeSquaresOf(gameId);
+  const placed = structuredClone(p.tiles).filter((t) => !homes.has(t.position)).map((t) => ({ ...t, id: uid() }));
+  tilesByGame[gameId] = placed;
+  syncTerritory(gameId);
+  return wait({ name: p.name, placed: placed.length });
 }
 
 export function adminDeleteBoardPreset(id) {
@@ -605,6 +727,10 @@ export function adminSnakesEndGame(gameId, winnerId) {
 }
 
 export const adminListPetJars = () => wait([]);
+// Tile suggestions from players: none in the harness.
+export const adminListTileSubmissions = () => wait([]);
+export const adminAcceptTileSubmission = () => fail('Not available in the harness.');
+export const adminRefuseTileSubmission = () => fail('Not available in the harness.');
 export const adminRevokePetJar = () => fail('Not available in the harness.');
 export const adminResetPassword = () => fail('Passwords are not available in the harness.');
 export const adminListPasswordResets = () => wait([]);

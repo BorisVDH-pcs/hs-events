@@ -82,6 +82,13 @@ const VERBS = {
     busy: 'Completing…',
     needed: 'needed to complete it',
   },
+  territory: {
+    lastPiece: 'completes the task — and the place becomes yours.',
+    title: 'Capture this place?',
+    confirm: 'Submit & capture',
+    busy: 'Capturing…',
+    needed: 'needed to capture it',
+  },
 };
 
 /*

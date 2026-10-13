@@ -10,6 +10,8 @@ import TileIcon from './TileIcon.jsx';
 import TileInfo from './TileInfo.jsx';
 import TileForm from './TileForm.jsx';
 import SnakesBoard from './snakes/SnakesBoard.jsx';
+import { placeAtPosition, placePosition } from '../lib/territory.js';
+import { REGIONS } from '../lib/territoryWorld.js';
 import { statusLabel } from '../lib/status.js';
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion.js';
 import {
@@ -48,6 +50,7 @@ export default function BoardBuilder({
   onSetTile, onClearTile, onSwapTiles, onSaveLibraryTile, onDeleteLibraryTile,
   onAutofillBoard, onShuffleBoard, onReshuffleBoard, onClearBoard,
   onSaveBoard, onLoadBoard, onDeleteBoard, jumps = [], jumpEdit = null, onSaveJumps,
+  homes = null,
 }) {
   // Saved boards. Held here rather than in the console's own slices because
   // nothing outside this panel reads them, and re-fetching a list of names
@@ -111,12 +114,26 @@ export default function BoardBuilder({
     () => new Map(snakes ? jumps.map((j) => [Number(j.from), Number(j.to)]) : []),
     [snakes, jumps]
   );
-  const need = size * size - jumpStarts.size;
-  // Tiles left on a jump start by an older layout or a loaded board: never
-  // played, and worth clearing so the board says what is really on it.
-  const stranded = tiles.filter((t) => jumpStarts.has(t.position));
+  // Territory: an 8x8 card whose squares are the map's places (lib/territory.js),
+  // so a square is called by its place. A team's home needs no task, the way a
+  // snake's head does not: nobody can take it. `homes` is Map placeKey ->
+  // team name; `homeSquares` the same by position.
+  const territory = game.mode === 'territory';
+  const homeSquares = useMemo(
+    () => new Map(territory && homes ? [...homes].map(([key, team]) => [placePosition(key), team]) : []),
+    [territory, homes]
+  );
+  // The squares that need no task, whichever mode makes them so.
+  const noTask = snakes ? jumpStarts : homeSquares;
+  const need = size * size - noTask.size;
+  // Tiles left on a jump start (or a home) by an older layout or a loaded
+  // board: never played, and worth clearing so the board says what is really
+  // on it.
+  const stranded = tiles.filter((t) => noTask.has(t.position));
   const filled = tiles.length - stranded.length;
-  const squareLabel = (row, col) => (snakes ? `Tile ${toPosition(row, col)}` : coordLabel(row, col));
+  const squareLabel = (row, col) => (snakes ? `Tile ${toPosition(row, col)}`
+    : territory ? placeAtPosition(toPosition(row, col))?.name ?? coordLabel(row, col)
+      : coordLabel(row, col));
 
   const byPosition = useMemo(
     () => new Map(tiles.map((t) => [t.position, t])),
@@ -228,10 +245,12 @@ export default function BoardBuilder({
       // earlier square is the more useful half of "it is already somewhere".
       if (!key || map.has(key)) continue;
       const { row, col } = fromPosition(t.position);
-      map.set(key, snakes ? `Tile ${t.position}` : coordLabel(row, col));
+      map.set(key, snakes ? `Tile ${t.position}`
+        : territory ? placeAtPosition(t.position)?.name ?? coordLabel(row, col)
+          : coordLabel(row, col));
     }
     return map;
-  }, [tiles, current, snakes]);
+  }, [tiles, current, snakes, territory]);
 
   /**
    * The artwork, which is the whole of what a player sees.
@@ -382,7 +401,7 @@ export default function BoardBuilder({
   function nextEmptyAfter(position) {
     const order = snakes
       ? Array.from({ length: LAST_TILE }, (_, i) => i + 1).filter((n) => !jumpStarts.has(n))
-      : cardCells(size).map((c) => c.position);
+      : cardCells(size).map((c) => c.position).filter((n) => !homeSquares.has(n));
     const from = order.indexOf(position);
     for (let step = 1; step <= order.length; step += 1) {
       const p = order[(from + step) % order.length];
@@ -536,7 +555,7 @@ export default function BoardBuilder({
    * except a snake's head or a ladder's foot, which needs no task; a tile left
    * on one can still be dragged off it.
    */
-  const canDropOn = (position) => !jumpStarts.has(position);
+  const canDropOn = (position) => !noTask.has(position);
 
   /**
    * Move the tile on `fromPos` to `toPos`, swapping with whatever is there.
@@ -603,7 +622,7 @@ export default function BoardBuilder({
   async function paint(row, col) {
     const existing = byPosition.get(toPosition(row, col));
     if (live && existing?.claimed) return;
-    if (jumpStarts.has(toPosition(row, col))) return;
+    if (noTask.has(toPosition(row, col))) return;
     remember(row, col);
     await onSetTile(row, col, payloadFromRow(held, { libraryId: held.id }));
   }
@@ -668,7 +687,8 @@ export default function BoardBuilder({
           the board that is running.
         </p>
         <BuilderGrid size={size} tiles={byPosition} at={null} onPick={() => {}}
-                     snakes={snakes} jumpStarts={jumpStarts} />
+                     snakes={snakes} jumpStarts={jumpStarts}
+                     territory={territory} homeSquares={homeSquares} />
       </section>
     );
   }
@@ -707,11 +727,16 @@ export default function BoardBuilder({
           </>
         ) : (
           <>
-            {filled} of {need} squares filled.
-            {filled < need && ' Click an empty square, then a tile to put in it.'}
+            {territory ? <>{filled} of {need} places have a task.</> : <>{filled} of {need} squares filled.</>}
+            {territory && filled === 0 && ' The map starts with no tasks. Deal them at random from the catalogue, load a saved board, or give each place its own.'}
+            {filled < need && (territory
+              ? ' Click a place, then a tile to make it that place’s task.'
+              : ' Click an empty square, then a tile to put in it.')}
             {filled > 0 && ' Drag a tile to move it; dropped on another tile, the two swap places.'}
             {snakes && jumpStarts.size > 0 && ` The ${jumpStarts.size} snake heads and ladder bottoms need no task.`}
             {snakes && jumpStarts.size === 0 && ' Place the snakes and ladders first: their squares need no task.'}
+            {territory && homeSquares.size > 0 && ` The ${homeSquares.size} homes need no task: nobody can take them.`}
+            {territory && ' Each square is a place on the map, region by region.'}
             {' Arrow keys move around the board; Enter opens the square.'}
           </>
         )}
@@ -973,7 +998,9 @@ export default function BoardBuilder({
         <p className="builder-undo">
           <span>
             <b>{stranded.length}</b> task{stranded.length === 1 ? ' sits' : 's sit'} on
-            a snake head or ladder bottom ({stranded.map((t) => t.position).join(', ')}) —
+            {territory
+              ? <>a team&rsquo;s home ({stranded.map((t) => placeAtPosition(t.position)?.name).join(', ')}) —</>
+              : <>a snake head or ladder bottom ({stranded.map((t) => t.position).join(', ')}) —</>}
             nobody lands there, so {stranded.length === 1 ? 'it is' : 'they are'} never played.
           </span>
           <button
@@ -1174,6 +1201,8 @@ export default function BoardBuilder({
             tiles={byPosition}
             snakes={snakes}
             jumpStarts={jumpStarts}
+            territory={territory}
+            homeSquares={homeSquares}
             live={live}
             playerView={playerView}
             at={at}
@@ -1235,6 +1264,15 @@ export default function BoardBuilder({
                 onHold={(entry) => setHeld(entry)}
               />
             </>
+          ) : at && homeSquares.has(toPosition(at.row, at.col)) ? (
+            <HomeSquarePanel
+              label={squareLabel(at.row, at.col)}
+              team={homeSquares.get(toPosition(at.row, at.col))}
+              tile={live ? null : current}
+              busy={busy}
+              onClose={() => setAt(null)}
+              onClear={() => { remember(at.row, at.col); onClearTile(at.row, at.col); }}
+            />
           ) : at && jumpStarts.has(toPosition(at.row, at.col)) ? (
             /* A snake's head or a ladder's foot: nothing to build. Said here
                rather than refused, so pointing at one explains itself. */
@@ -2029,9 +2067,40 @@ function JumpSquarePanel({ label, n, to, tile, busy, onClose, onClear }) {
   );
 }
 
+/** A team's home, picked on a territory board. */
+function HomeSquarePanel({ label, team, tile, busy, onClose, onClear }) {
+  return (
+    <>
+      <div className="row builder-head">
+        <h3>{label}</h3>
+        <button className="ghost" onClick={onClose}>Done</button>
+      </div>
+      <p className="muted">
+        🏠 {team ? <>Home of <b>{team}</b>.</> : 'A team’s home.'} A team holds its home
+        from the start and it can never be taken, so this place needs no task.
+      </p>
+      {tile && (
+        <div className="builder-current">
+          <p className="muted">
+            <b>{tile.name}</b> is still on this place and will never be played.
+          </p>
+          <button className="ghost danger" disabled={busy} onClick={onClear}>
+            Clear place
+          </button>
+        </div>
+      )}
+    </>
+  );
+}
+
+// Alternate shading per region on a territory card, so where one region ends
+// and the next begins reads at a glance.
+const REGION_SHADE = new Map(REGIONS.map((r, i) => [r.key, i % 2 ? 'b' : 'a']));
+const REGION_NAME = new Map(REGIONS.map((r) => [r.key, r.name]));
+
 function BuilderGrid({
   size = GRID, tiles, at, onPick, playerView = false, live = false,
-  snakes = false, jumpStarts = new Map(),
+  snakes = false, jumpStarts = new Map(), territory = false, homeSquares = new Map(),
 }) {
   const gridRef = useRef(null);
   // Which cell the Tab key lands on — a roving tabindex, so the board is one
@@ -2164,6 +2233,10 @@ function BuilderGrid({
               const position = toPosition(row, col);
               const tile = tiles.get(position);
               const here = at && at.row === row && at.col === col;
+              const place = territory ? placeAtPosition(position) : null;
+              const home = homeSquares.get(position);
+              const isHome = home !== undefined;
+              const where = place ? `${place.name} (${REGION_NAME.get(place.region)})` : coordLabel(row, col);
               return (
                 <button
                   key={`${row}-${col}`}
@@ -2172,7 +2245,9 @@ function BuilderGrid({
                   tabIndex={position === focusPos ? 0 : -1}
                   className={[
                     'tile-cell builder-cell',
-                    tile ? '' : 'empty',
+                    tile || isHome ? '' : 'empty',
+                    place ? `territory-cell region-${REGION_SHADE.get(place.region)}` : '',
+                    isHome ? 'jump-start home-square' : '',
                     here ? 'on' : '',
                     playerView ? 'as-player' : '',
                     // Only while a game is live, because before one starts
@@ -2181,20 +2256,28 @@ function BuilderGrid({
                     live && tile?.claimed ? 'claimed' : '',
                   ].filter(Boolean).join(' ')}
                   onClick={() => onPick(row, col, 'pointer')}
-                  title={live && tile?.claimed
-                    ? `${tile.name} — locked in by a team`
-                    : tile ? tile.name : `${coordLabel(row, col)} — empty`}
+                  title={isHome
+                    ? `${where} — ${home}'s home, no task needed`
+                    : live && tile?.claimed
+                      ? `${tile.name} — locked in by a team`
+                      : tile ? (place ? `${where}: ${tile.name}` : tile.name) : `${where} — empty`}
                 >
                   {/* In the player view the artwork is the whole cell, the
                       way it is on the enemy board: no caption to read the
                       square by, which is the point of looking. `standIn` so a
                       square with no icon shows the same placeholder a team
                       would actually be given, rather than looking empty. */}
-                  {!playerView && <b>{coordLabel(row, col)}</b>}
-                  {playerView
-                    ? <TileIcon slug={tile?.icon} standIn={Boolean(tile)} fallback={null} />
-                    : tile?.icon && <TileIcon slug={tile.icon} fallback={null} />}
-                  {!playerView && <span>{tile?.name ?? ''}</span>}
+                  {!playerView && <b>{place ? place.name : coordLabel(row, col)}</b>}
+                  {isHome ? (
+                    <span className="jump-start-what">🏠 Home</span>
+                  ) : (
+                    <>
+                      {playerView
+                        ? <TileIcon slug={tile?.icon} standIn={Boolean(tile)} fallback={null} />
+                        : tile?.icon && <TileIcon slug={tile.icon} fallback={null} />}
+                      {!playerView && <span>{tile?.name ?? ''}</span>}
+                    </>
+                  )}
                 </button>
               );
             }),

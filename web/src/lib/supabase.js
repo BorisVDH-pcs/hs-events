@@ -208,6 +208,15 @@ export async function listBoardJumps(gameId = null) {
 export const adminSetSnakes = (gameId, jumps) =>
   rpc('admin_set_snakes', { p_game_id: gameId, p_snakes: jumps });
 
+/**
+ * Territory: each team's home place, `homes` as { teamId: placeKey }. Before
+ * the start only. The server refuses homes that would wall land off from a
+ * team (lib/territory.js homesProblem asks the same first). PHASE 2: the RPC
+ * does not exist yet; only the admin harness answers this.
+ */
+export const adminSetTerritoryHomes = (gameId, homes) =>
+  rpc('admin_set_territory_homes', { p_game_id: gameId, p_homes: homes });
+
 /** Every team, furthest along first — also who wins if the game ends now. */
 export const snakesStandings = (gameId) =>
   rpc('snakes_standings', { p_game_id: gameId });
