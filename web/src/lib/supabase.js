@@ -142,6 +142,34 @@ export async function snakesOpenTile(gameId) {
   return data;
 }
 
+// ---- Territory (20261013120100) ---------------------------------------------
+
+/**
+ * Open a place for my team and answer with its claim id, for the upload path.
+ * The server checks the place is linked to my land and that the team has a
+ * free one of its two; opening a place again carries on where it left off.
+ */
+export async function territoryOpenTile(gameId, place) {
+  assertWritable();
+  const { data, error } = await supabase.rpc('territory_open_tile', { p_game_id: gameId, p_place: place });
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+/** Give up a place my team has open. Its screenshots are kept. */
+export async function territoryDropTile(gameId, place) {
+  assertWritable();
+  const { error } = await supabase.rpc('territory_drop_tile', { p_game_id: gameId, p_place: place });
+  if (error) throw new Error(error.message);
+}
+
+/** Record the result once the timer has run out; harmless before, like settleBingo. */
+export async function settleTerritory(gameId) {
+  const { data, error } = await supabase.rpc('territory_settle', { p_game_id: gameId });
+  if (error) throw new Error(error.message);
+  return data;
+}
+
 // ---- Admin API -----------------------------------------------------------
 // Every one of these re-checks is_admin() server-side, so hiding the admin tab
 // in the UI is a convenience, never the control.
@@ -211,11 +239,14 @@ export const adminSetSnakes = (gameId, jumps) =>
 /**
  * Territory: each team's home place, `homes` as { teamId: placeKey }. Before
  * the start only. The server refuses homes that would wall land off from a
- * team (lib/territory.js homesProblem asks the same first). PHASE 2: the RPC
- * does not exist yet; only the admin harness answers this.
+ * team (lib/territory.js homesProblem asks the same first).
  */
 export const adminSetTerritoryHomes = (gameId, homes) =>
   rpc('admin_set_territory_homes', { p_game_id: gameId, p_homes: homes });
+
+/** Territory: every team, highest score first — who wins if the game ends now. */
+export const territoryStandings = (gameId) =>
+  rpc('territory_standings', { p_game_id: gameId });
 
 /** Every team, furthest along first — also who wins if the game ends now. */
 export const snakesStandings = (gameId) =>

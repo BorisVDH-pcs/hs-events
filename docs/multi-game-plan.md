@@ -86,6 +86,11 @@ Decisions worth knowing before changing it:
 - **Smoke tests: both pass against the live project** (run 2026-10-02):
   `scripts/bingo-smoke-test.sql` 48/48 and `scripts/snakes-smoke-test.sql`
   88/88. Both roll everything back, so nothing they create is kept.
+- **Territory** (the fourth mode, `docs/territory-rules.md`): migrations
+  `20261013120000`/`20261013120100`, applied by CI on merge. Its smoke test,
+  `scripts/territory-smoke-test.sql`, passes 62/62 offline in a PGlite replay
+  of every migration (bingo, snakes and submissions unchanged next to it); run
+  it in the SQL editor once CI has applied the migrations.
 
 ## Later
 

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useCountdown, pad } from '../../lib/countdown.js';
 import { MAX_OPEN, placeByKey, placePosition, resultText, standings as rank } from '../../lib/territory.js';
 import { markerColor, teamInitials } from '../../lib/snakes.js';
@@ -21,6 +21,11 @@ import TerritoryStandings from './TerritoryStandings.jsx';
  * up, and a capture happens inside add_evidence when the last screenshot lands.
  * This page draws what it is handed.
  *
+ * THE TIMER works as in BingoGame: submissions are refused from `ends_at`,
+ * which fixes the result, and every open page asks the server to record it
+ * (`actions.settle`, territory_settle) when its countdown reaches zero. The
+ * first one wins; the rest are no-ops.
+ *
  *   owners    Map placeKey -> teamId, homes included
  *   homes     Map teamId -> placeKey
  *   open      Set of placeKeys my team has in progress
@@ -36,6 +41,7 @@ export default function TerritoryGame({
 }) {
   const [selected, setSelected] = useState(null);
   const [focus, setFocus] = useState(null);
+  const [now, setNow] = useState(() => Date.now());
 
   const isPreparation = game.status === 'setup' || game.status === 'placement';
   const isActive = game.status === 'active';
@@ -46,6 +52,26 @@ export default function TerritoryGame({
   const myTeam = lettered.find((t) => t.id === myTeamId) ?? null;
   const rows = useMemo(() => rank(lettered, owners, captures, bonuses), [lettered, owners, captures, bonuses]);
   const tileFor = (key) => tiles.find((t) => t.position === placePosition(key)) ?? null;
+
+  const settledFor = useRef(null);
+  const settle = actions?.settle;
+  useEffect(() => {
+    if (!isActive || !game.ends_at || !settle) return undefined;
+    const wait = Date.parse(game.ends_at) - Date.now();
+    const run = () => {
+      // Guard before touching `now`, which is a dependency of this effect.
+      if (settledFor.current === game.id) return;
+      settledFor.current = game.id;
+      setNow(Date.now());
+      Promise.resolve(settle())
+        .catch(() => { settledFor.current = null; })
+        .finally(() => onRefresh?.());
+    };
+    if (wait <= 0) { run(); return undefined; }
+    // setTimeout clamps anything past ~24.8 days; re-arm instead of firing early.
+    const id = setTimeout(() => setNow(Date.now()), Math.min(wait + 500, 2 ** 31 - 1));
+    return () => clearTimeout(id);
+  }, [isActive, game.id, game.ends_at, now, settle, onRefresh]);
 
   const select = (key) => setSelected((s) => (s === key ? null : key));
   const findTeam = (teamId) => {
@@ -72,7 +98,7 @@ export default function TerritoryGame({
             the biggest empire wins. The tasks are revealed when the organiser starts the game.
           </p>
         </section>
-        <section className="boards">
+        <section className="boards" id="territory-map-section">
           <TerritoryMap
             teams={lettered} myTeamId={myTeamId} owners={owners} homes={homes}
             open={open} attacked={attacked} status={game.status}
@@ -98,7 +124,7 @@ export default function TerritoryGame({
             <EventFeed events={events} teams={teams} myTeamId={myTeamId} />
           </div>
 
-          <div className="board-col">
+          <div className="board-col" id="territory-map-section">
             <div className="tabs board-tabs territory-tabs">
               <button className="on" aria-current="true">
                 World map{myTeam ? ` · ${rows.find((r) => r.team_id === myTeamId)?.score ?? 0} pts` : ''}
@@ -114,7 +140,7 @@ export default function TerritoryGame({
             <TerritoryLegend colour={myTeam ? markerColor(myTeam.slot) : null} />
           </div>
 
-          <div className="side-col">
+          <div className="side-col" id="territory-place-section">
             {selected ? (
               <>
                 <TerritoryPlacePanel

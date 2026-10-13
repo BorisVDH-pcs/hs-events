@@ -237,12 +237,87 @@ const SNAKES_STEPS = [
   },
 ];
 
+/**
+ * Territory. The tour and reference for the map screen (TerritoryGame). The
+ * place panel and the standings only exist once the game has started; before
+ * that a team sees the map and the feed.
+ */
+const TERRITORY_STEPS = [
+  {
+    targetId: 'app-header',
+    title: '⚔️ Territory',
+    body: 'The whole of Gielinor, carved into <strong>64 places</strong>, from Varlamore to '
+      + 'Morytania. Every place has an OSRS task. Finish it and the place is '
+      + '<strong>yours</strong>.<br><br>'
+      + 'Every team starts on its <strong>home</strong>. A home has no task and can never '
+      + 'be taken. <strong>Anyone on the team</strong> can work on places and upload proof.',
+  },
+  {
+    targetId: 'territory-map-section',
+    title: '🗺️ The Map',
+    body: 'Each place is coloured by the team that holds it. Lines join places that '
+      + '<strong>border</strong> each other; dashed lines are boat and other travel routes.'
+      + '<br><br>'
+      + 'You can only go for a place <strong>linked to land you hold</strong>. Those glow '
+      + 'gold. Drag to move around the map and use the buttons to zoom.',
+  },
+  {
+    targetId: 'territory-place-section',
+    phase: LIVE,
+    title: '📸 Taking a Place',
+    body: 'Press a place to read its task. Upload, drop or <strong>paste</strong> (Ctrl+V) a '
+      + 'screenshot to start on it.<br><br>'
+      + 'Your team can work on <strong>2 places at a time</strong>. The screenshot that meets '
+      + 'the task <strong>captures the place</strong>. There is no separate button.<br><br>'
+      + 'Changed your mind? <strong>Give up this place</strong> frees the slot. Your '
+      + 'screenshots are kept for if you come back to it.',
+  },
+  {
+    targetId: 'territory-place-section',
+    phase: LIVE,
+    title: '🗡️ Stealing',
+    body: 'A place another team holds is taken the same way: <strong>do its task</strong>, at '
+      + 'the same target. They keep it until you finish.<br><br>'
+      + 'Your first screenshot on it tells everyone you are <strong>attacking</strong>, so '
+      + 'they see it coming. Lose a place and your old screenshots for it no longer count: '
+      + 'taking it back starts from zero.',
+  },
+  {
+    targetId: 'territory-standings-section',
+    phase: LIVE,
+    title: '👑 Score',
+    body: 'One point for every place you hold, plus a <strong>bonus</strong> for every region '
+      + 'you hold <strong>whole</strong> (Misthalin, Asgarnia, Kandarin and the rest).<br><br>'
+      + 'Press a team to find its home on the map.',
+  },
+  {
+    targetId: 'event-feed-section',
+    title: '📰 Activity Feed',
+    body: 'Every capture, steal and attack, for every team.<br><br>'
+      + 'Your own team\'s uploads show here too, for your team only.',
+  },
+  {
+    targetId: 'app-header',
+    title: '🏆 Winning',
+    body: 'When the timer runs out, the <strong>highest score wins</strong>. On a tie, the '
+      + 'team whose last capture came <strong>first</strong> wins.<br><br>'
+      + 'The organiser can also end the game early; the score at that moment counts.'
+      + '<br><br>That is everything. Open the <strong>Quick Reference</strong> any time you '
+      + 'need a reminder.',
+  },
+];
+
 const MODES = {
   battleships: { steps: TOUR_STEPS, subtitle: 'Battleships · Complete Guide', seenKey: SEEN_KEY },
   snakes: {
     steps: SNAKES_STEPS,
     subtitle: 'Snakes and Ladders · Complete Guide',
     seenKey: `${SEEN_KEY}:snakes`,
+  },
+  territory: {
+    steps: TERRITORY_STEPS,
+    subtitle: 'Territory · Complete Guide',
+    seenKey: `${SEEN_KEY}:territory`,
   },
 };
 

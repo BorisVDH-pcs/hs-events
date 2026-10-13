@@ -252,6 +252,13 @@ export const snakesRoll = (g) => (snakesHandlers.roll ?? noSnakes)(g);
 export const snakesSpendRollback = (g) => (snakesHandlers.rollback ?? noSnakes)(g);
 export const snakesOpenTile = (g) => (snakesHandlers.open ?? noSnakes)(g);
 
+// The live territory screen's calls (TerritoryLive). The territory harness
+// renders TerritoryGame with its own simulation instead, so here they refuse.
+const noTerritory = () => Promise.reject(new Error('Not available in the harness.'));
+export const territoryOpenTile = noTerritory;
+export const territoryDropTile = noTerritory;
+export const settleTerritory = () => Promise.resolve(false);
+
 // Imported by AdminOverview, which the bingo overview borrows a helper from.
 // Never called on the bingo page.
 export const adminListShipCells = () => Promise.resolve([]);

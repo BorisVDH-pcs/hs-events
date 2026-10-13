@@ -3,6 +3,7 @@ import { supabase, adminRevokeEvidence } from '../lib/supabase.js';
 import { signedUrls } from '../lib/evidence.js';
 import { coordLabel, fromPosition } from '../lib/board.js';
 import { millionsLabel } from '../lib/millions.js';
+import { placeAtPosition } from '../lib/territory.js';
 import { useConfirm } from './ConfirmDialog.jsx';
 
 /**
@@ -111,6 +112,17 @@ function consequences(p) {
     if (p.game_reopened) out.push(`The game is reopened — ${p.team_name} no longer has tile 100 done.`);
     if (p.winner_changed) out.push('The winner changes to whoever is now furthest along.');
     out.push('Other teams are told nothing, though the standings show the lower count.');
+  } else if (p.mode === 'territory') {
+    // Territory: a place that stops counting changes hands back.
+    const place = placeAtPosition(p.position)?.name ?? 'The place';
+    if (p.uncompleted) {
+      out.push(`${p.team_name} loses ${place}. It goes back to whoever held it before, or becomes free land. `
+        + `To take it again, ${p.team_name} opens it again (one of their 2 places) and finishes the task.`);
+    } else if (p.was_completed) {
+      out.push(`${place} stays taken — the task is still met without this piece.`);
+    }
+    if (p.winner_changed) out.push('The winner changes to whoever now has the highest score.');
+    out.push('Everyone sees the map change, but not why.');
   } else if (p.mode === 'bingo') {
     if (p.uncompleted) {
       out.push(`The tile is no longer complete — it stops counting for ${p.team_name}, who can submit against it again.`);
@@ -147,7 +159,7 @@ function consequences(p) {
   // this in the middle of a live event, and "does the other team find out"
   // is the question they will actually have — worth answering in the dialog
   // rather than leaving them to reason about RLS policies.
-  if (p.mode !== 'bingo' && p.mode !== 'snakes') {
+  if (p.mode !== 'bingo' && p.mode !== 'snakes' && p.mode !== 'territory') {
     out.push(p.announced_to_all
       ? `The other team is told a shot was withdrawn — not which square, which tile, or what was on it.`
       : `The other team is told nothing.`);
@@ -177,6 +189,8 @@ function consequences(p) {
  */
 function squareLabel(position, mode) {
   if (mode === 'snakes') return `Tile ${position}`;
+  // Territory: a task belongs to a place, and players know it by its name.
+  if (mode === 'territory') return placeAtPosition(position)?.name ?? `Square ${position}`;
   const { row, col } = fromPosition(position);
   return coordLabel(row, col);
 }
@@ -484,7 +498,7 @@ export default function EvidenceReview({ gameId, mode }) {
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder={mode === 'snakes' ? 'Tile name or number' : 'Tile name or square'}
+          placeholder={mode === 'snakes' ? 'Tile name or number' : mode === 'territory' ? 'Task or place' : 'Tile name or square'}
           aria-label="Filter by tile"
         />
         <select value={team} onChange={(e) => setTeam(e.target.value)} aria-label="Filter by team">

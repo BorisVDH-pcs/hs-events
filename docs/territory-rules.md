@@ -2,14 +2,14 @@
 
 Agreed with Boris, 2026-10-13. A proposed fourth game mode on High Society
 Events, next to Battleships, Bingo and Snakes and Ladders. Teams fight over the
-real Old School RuneScape world, Risk-style. **Status: prototype.** It is
-playable on the evidence harness (`npm run preview:evidence`, port 5176):
-`/preview-admin.html` to set a game up and `/preview-territory.html` to play.
-The code is on main, but Territory is hidden from the live console
-(`TERRITORY_READY` in Admin.jsx) until Phase 2 puts it in the database.
+real Old School RuneScape world, Risk-style. **Status: a real mode (Phase 2).**
+The organiser picks it under New game in the console, and the server enforces
+every rule below. The harness (`npm run preview:evidence`, port 5176:
+`/preview-admin.html` and `/preview-territory.html`) still plays it with no
+database, for trying out changes.
 
 Decisions made by Boris are marked **(decided)**. Everything else is a default
-I picked so the prototype could be played. Each one is easy to change.
+I picked so it could be played. Each one is easy to change.
 
 ---
 
@@ -69,8 +69,8 @@ I picked so the prototype could be played. Each one is easy to change.
   - **Every team can always reach every place.** No team can pass through
     another team's home, so homes that would cut any place off from any team
     are refused. The picker names what would be cut off and which homes are in
-    the way, and the game can't start until it is fixed. The server will check
-    this too.
+    the way, and the game can't start until it is fixed. The server checks this
+    too, with the same message.
   - Until the organiser picks, the teams get the suggested homes in order:
     Lumbridge, Ardougne, Canifis, Hosidius, Civitas illa Fortis and Trollheim.
 - **Tasks**: every other place gets one task. **A new game starts with no tasks**,
@@ -90,9 +90,10 @@ I picked so the prototype could be played. Each one is easy to change.
     that game's homes.
   - Tasks use the same five completion rules as bingo (`points`, `value`,
     `one_set`, `each_set`, `points_per_set`).
-- **Region bonuses**: the default is half the region's place count, rounded,
-  with a minimum of 2. This makes bigger regions worth more. The organiser can
-  change each bonus.
+- **Region bonuses**: half the region's place count, rounded, with a minimum
+  of 2. This makes bigger regions worth more: 4 for Kandarin and Kourend, 2 for
+  Tirannwn, 3 for the rest. For now they are the same in every game; letting
+  the organiser change them per game is not built yet.
 - **Timer**: the organiser sets an end time, as in bingo.
 
 ## 3. Taking land
@@ -109,8 +110,9 @@ I picked so the prototype could be played. Each one is easy to change.
    rival's land. **(decided)**
 4. **Stealing means redoing the task at the same target.** **(decided)**
    - The owner keeps the place until the attacker finishes.
-   - The owner then loses it, along with any progress it had made there. To win
-     it back, the old owner has to do the full task again.
+   - The owner then loses it, along with any progress it had made there. Its old
+     screenshots for that place are put aside (the organiser can still see
+     them), so winning it back means doing the full task again.
 5. **Under attack.** When an attacker's first screenshot lands on a rival's
    place, the owner sees that place pulse red. The feed also says "X is
    attacking Y".
@@ -120,6 +122,10 @@ I picked so the prototype could be played. Each one is easy to change.
 7. **Giving up.** "Give up this place" frees one of the 2 slots. The screenshots
    are kept, so picking the place up again later carries on where the team left
    off.
+8. **Revoked screenshots.** If the organiser revokes a screenshot that a capture
+   needed, the capture is undone. The place goes back to whoever held it before
+   (or becomes free land), and the team that lost it has to open it again to
+   retake it. If the game is already over, the winner is worked out again.
 
 ## 4. Scoring and winning
 
@@ -129,7 +135,10 @@ I picked so the prototype could be played. Each one is easy to change.
   - Example: Misthalin has 6 places and a bonus of 3, so a team that holds all
     of Misthalin, plus 3 more places elsewhere, scores 9 + 3 = 12.
 - **The game ends when the timer runs out.** The highest score wins.
-  **(decided)** The organiser can also end the game early.
+  **(decided)** The organiser can also end the game early (Configure → Game →
+  End game now); the dialog names the team in the lead.
+- **If no place changed hands**, nobody wins: every team still holds only its
+  home.
 - **Ties** go to the team whose last capture came earliest. That team reached
   the score first.
 
@@ -140,6 +149,7 @@ I picked so the prototype could be played. Each one is easy to change.
 - "Canifis Howlers is attacking Varrock, held by Lumby Lads."
 - "Ardy Knights gave up on Catherby." (shown to that team only)
 - "Time's up! Canifis Howlers wins with 6 points."
+- "Time's up! No place changed hands, so nobody wins."
 
 ## 6. What's open
 
@@ -151,17 +161,28 @@ These questions are for after Boris has played it:
 - Should a place you just captured be protected for a short time?
 - Is 64 places right for the clan's team sizes, or is it too many or too few?
 
-## 7. If it becomes a real mode (Phase 2)
+## 7. How it is built
 
-The plan, in short:
-
-- a `territory` game mode
-- tables for homes, region bonuses, links and a capture log
-- tasks stored as tiles on an 8×8 card (`grid_size 8`, `placePosition` in `lib/territory.js`), so the existing deal, preset and readiness RPCs need only a "skip the homes" branch
-- a lost claim is parked and stamped with `lost_at`, so only evidence submitted
-  after the loss counts toward retaking the place
-- mode branches in the shared RPCs
-- an offline PGlite smoke test
-- wiring in App, Admin and the Guide
-
-Then the branch is pushed, Boris merges the PR, and CI applies the migrations.
+- **Migrations**: `20261013120000_territory_enums.sql` (the `territory` mode
+  and its three event types, in their own file because of the Postgres enum
+  rule) and `20261013120100_territory_mode.sql` (everything else).
+- **The world** is in three read-only tables seeded from
+  `web/src/lib/territoryWorld.js`: `territory_regions`, `territory_places`
+  and `territory_links`. The self-test (`npm run test:territory`) fails if the
+  two ever disagree.
+- **Tasks** are tiles on an 8×8 card (`grid_size 8`), one square per place
+  (`placePosition` in `lib/territory.js`). So the existing deal, preset and
+  readiness RPCs needed only a "skip the homes" branch.
+- **Homes** are `teams.home`, one per place per game.
+- **Who holds what** is the capture log, `territory_captures`: a place belongs
+  to its latest capture that has not been revoked, or else to the team whose
+  home it is. Revoking evidence revokes the capture, which is why undoing one
+  hands the place back.
+- **A lost place**: the loser's claim is parked and its evidence moved to
+  `territory_lost_evidence` (organisers only), so a retake starts from zero.
+- **Shared RPCs** (`add_evidence`, `start_game`, `board_for_me`,
+  `admin_end_game`, `admin_revoke_evidence`, `discord_line` and others) each
+  got a territory branch on top of their latest version.
+- **Tests**: `scripts/territory-smoke-test.sql` plays two games through in
+  the SQL editor and rolls itself back; the error message it ends with is the
+  report.

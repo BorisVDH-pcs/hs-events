@@ -18,6 +18,7 @@ const MODE_TITLES = {
   battleships: { text: 'Battleships', image: 'battleships-wordmark.png' },
   bingo: { text: 'Bingo' },
   snakes: { text: 'Snakes & Ladders' },
+  territory: { text: 'Territory' },
 };
 
 export function modeTitle(mode) {
@@ -57,6 +58,13 @@ const WAITING_WORDS = {
     opens: 'The first roll is',
     soon: 'First roll in',
     standby: 'Everyone at Start: waiting on an admin to start',
+  },
+  territory: {
+    title: 'Gathering at home',
+    assigned: (team) => `You're on ${team}. The map opens and the conquest begins once an admin starts the game.`,
+    opens: 'The conquest begins',
+    soon: 'The conquest begins in',
+    standby: 'Every team at home: waiting on an admin to start',
   },
 };
 const WAITING_DEFAULT = {
