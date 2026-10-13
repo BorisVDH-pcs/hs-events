@@ -11,10 +11,12 @@ import {
   adminListAccountDeletions,
   adminSaveBoardPreset, adminApplyBoardPreset, adminDeleteBoardPreset,
   adminNewGame, adminAddTeam, adminDeleteTeam, adminSetEndTime, adminEndGame,
-  listBoardJumps, adminSetSnakes, snakesStandings, adminSnakesEndGame,
+  listBoardJumps, adminSetSnakes, adminSetTerritoryHomes, snakesStandings, adminSnakesEndGame,
   adminListTileSubmissions, adminAcceptTileSubmission, adminRefuseTileSubmission,
 } from '../lib/supabase.js';
 import { LAST_TILE, isLadder } from '../lib/snakes.js';
+import { TASK_GRID, homesProblem, placePosition, teamHomes } from '../lib/territory.js';
+import TerritoryHomes from './territory/TerritoryHomes.jsx';
 import SnakesJumpEditor from './snakes/SnakesJumpEditor.jsx';
 import useJumpDraft from './snakes/useJumpDraft.js';
 import SnakesAdminTrack from './snakes/SnakesAdminTrack.jsx';
@@ -67,8 +69,20 @@ const SNAKES_STEP_HINT = {
   finished:  'This race is over.',
 };
 
+// Territory: Risk on the OSRS map. Every place but the homes needs a task, and
+// those tasks are an 8x8 card (lib/territory.js), so the board is built, dealt
+// and saved exactly as a bingo card is. It starts empty.
+const TERRITORY_STEP_HINT = {
+  setup:     'Give every place a task — deal them at random, load a saved board or pick them one by one — '
+           + 'and add players to every team, then start.',
+  placement: 'Players can see their team, their home and the countdown. Start the game to open the map.',
+  active:    'The conquest is running. It ends when the end time passes, or when you end it.',
+  finished:  'This conquest is over.',
+};
+
 const isBingoGame = (g) => g?.mode === 'bingo';
 const isSnakesGame = (g) => g?.mode === 'snakes';
+const isTerritoryGame = (g) => g?.mode === 'territory';
 const NO_JUMPS = [];
 
 /**
@@ -129,6 +143,15 @@ function readinessGaps(game, counts, teams, members, jumps = NO_JUMPS) {
   if (isSnakesGame(game)) {
     const need = LAST_TILE - jumps.length;
     if (counts && counts.tile_count < need) gaps.push(`${need - counts.tile_count} more tiles`);
+    if (gameTeams.length === 0) gaps.push('a team');
+    if (gameTeams.some((t) => !members.some((m) => m.team_id === t.id))) gaps.push('players');
+    return gaps;
+  }
+
+  if (isTerritoryGame(game)) {
+    const need = TASK_GRID * TASK_GRID - gameTeams.length;
+    if (counts && counts.tile_count < need) gaps.push(`${need - counts.tile_count} more tasks`);
+    if (gameTeams.length && homesProblem(teamHomes(gameTeams))) gaps.push('homes');
     if (gameTeams.length === 0) gaps.push('a team');
     if (gameTeams.some((t) => !members.some((m) => m.team_id === t.id))) gaps.push('players');
     return gaps;
@@ -469,6 +492,11 @@ export default function Admin({ onViewAs } = {}) {
   const rosterCount = members.filter((m) => gameTeams.some((t) => t.id === m.team_id)).length;
   const bingo = isBingoGame(game);
   const snakesMode = isSnakesGame(game);
+  const territoryMode = isTerritoryGame(game);
+  // Each team's home: the one the organiser picked, or the suggestion for its
+  // slot until they do. A home needs no task, like a snake's head.
+  const homes = territoryMode ? teamHomes(gameTeams) : null;
+  const homesIssue = homes ? homesProblem(homes, (id) => gameTeams.find((t) => t.id === id)?.name) : null;
   const saveJumps = (draft) => run(
     () => adminSetSnakes(game.id, draft),
     (n) => `${n} snake${n === 1 ? '' : 's'} and ladder${n === 1 ? '' : 's'} saved.`,
@@ -476,7 +504,7 @@ export default function Admin({ onViewAs } = {}) {
   );
   // Bingo and snakes share everything about teams and starting: any number of
   // teams, no captains or fleets to wait on, preparation optional.
-  const cardLike = bingo || snakesMode;
+  const cardLike = bingo || snakesMode || territoryMode;
   const teamsWithoutPlayers = gameTeams.filter((t) => !members.some((m) => m.team_id === t.id));
 
   // Bingo's list is shorter because start_game asks less of it: a full card,
@@ -541,7 +569,30 @@ export default function Admin({ onViewAs } = {}) {
 
   const bingoChecks = bingo ? cardChecks : null;
 
-  const checks = !game ? [] : bingoChecks ?? snakesChecks ?? [
+  // Territory: a task on every place but the homes, and teams and players as
+  // bingo. A task left on a home square is not counted, as with snakes.
+  const homeSquares = new Set(homes ? [...homes.values()].map(placePosition) : []);
+  const territoryNeed = TASK_GRID * TASK_GRID - homeSquares.size;
+  const territoryFilled = tiles.filter((t) => !homeSquares.has(t.position)).length;
+  const territoryChecks = game && territoryMode ? [
+    {
+      key: 'tiles', label: 'Tasks', required: true,
+      ok: territoryFilled === territoryNeed,
+      detail: `${territoryFilled} of ${territoryNeed}`,
+      fix: territoryFilled === 0
+        ? 'Give the places their tasks on the Board tab: at random, from a saved board, or one by one.'
+        : `${territoryNeed - territoryFilled} places still have no task — fill them in on the Board tab.`,
+    },
+    {
+      key: 'homes', label: 'Homes', required: true,
+      ok: gameTeams.length > 0 && !homesIssue,
+      detail: gameTeams.length ? `${gameTeams.length} set` : 'no teams',
+      fix: homesIssue ?? 'Add teams first; each gets a home on the Board tab.',
+    },
+    ...cardChecks.filter((c) => c.key !== 'tiles'),
+  ] : null;
+
+  const checks = !game ? [] : bingoChecks ?? snakesChecks ?? territoryChecks ?? [
     {
       key: 'tiles', label: 'Tiles', required: true,
       ok: tiles.length === needTiles,
@@ -732,6 +783,7 @@ export default function Admin({ onViewAs } = {}) {
           return id;
         }, mode === 'bingo' ? 'Bingo created. Fill its card next.'
           : mode === 'snakes' ? 'Snakes and Ladders created. Place the snakes and ladders, then fill the board.'
+            : mode === 'territory' ? 'Territory created. Its places have no tasks yet — fill them on the Board tab.'
             : 'Game created. Add its tiles next.')
           .then((id) => {
             if (worked(id) && id) { setGameId(id); setPane('configure'); }
@@ -755,13 +807,14 @@ export default function Admin({ onViewAs } = {}) {
                     <span className="pill mode-pill">Bingo · {g.grid_size}×{g.grid_size}</span>
                   )}
                   {isSnakesGame(g) && <span className="pill mode-pill">Snakes &amp; Ladders</span>}
+                  {isTerritoryGame(g) && <span className="pill mode-pill">Territory</span>}
                   {g.is_featured && (
                     <span className="pill" title="Unassigned players see this game's countdown">
                       ★ Featured
                     </span>
                   )}
                   <div className="meta">
-                    {names.join(isBingoGame(g) || isSnakesGame(g) ? ', ' : ' vs ') || 'no teams'}
+                    {names.join(g.mode === 'battleships' ? ' vs ' : ', ') || 'no teams'}
                     {/* Named, not counted. "3" would send you into the game to
                         find out which three; the words are what stop the badge
                         being another thing to open. Only while a game can
@@ -895,8 +948,10 @@ export default function Admin({ onViewAs } = {}) {
             <h2>{game.name} — {statusLabel(game.status)}</h2>
             <p className="muted">
               {bingo && <span className="pill mode-pill">Bingo · {game.grid_size}×{game.grid_size}</span>}
-              {snakesMode && <span className="pill mode-pill">Snakes &amp; Ladders</span>}{' '}
-              {(bingo ? BINGO_STEP_HINT : snakesMode ? SNAKES_STEP_HINT : STEP_HINT)[game.status]}
+              {snakesMode && <span className="pill mode-pill">Snakes &amp; Ladders</span>}
+              {territoryMode && <span className="pill mode-pill">Territory</span>}{' '}
+              {(bingo ? BINGO_STEP_HINT : snakesMode ? SNAKES_STEP_HINT
+                : territoryMode ? TERRITORY_STEP_HINT : STEP_HINT)[game.status]}
             </p>
 
             <SetupChecklist
@@ -920,7 +975,9 @@ export default function Admin({ onViewAs } = {}) {
                   ? 'Bingo started — the card is open to every team.'
                   : snakesMode
                     ? 'The race has started — every team can roll.'
-                    : 'Game started — fleets are now frozen.')}
+                    : territoryMode
+                      ? 'The conquest has begun — every team marches out from home.'
+                      : 'Game started — fleets are now frozen.')}
               >
                 Start game
               </button>
@@ -1000,7 +1057,7 @@ export default function Admin({ onViewAs } = {}) {
                 server refuses every submission, and the standings at that point
                 are the result. Editable while running, so an evening can be
                 extended — but never into the past, which would end it by stealth. */}
-            {bingo && game.status !== 'finished' && (
+            {(bingo || territoryMode) && game.status !== 'finished' && (
               <TimeEditor
                 label="End time"
                 hint="(submissions close at this moment)"
@@ -1127,12 +1184,27 @@ export default function Admin({ onViewAs } = {}) {
             />
           )}
 
+          {territoryMode && (
+            <TerritoryHomes
+              // Keyed on what is saved, so a save (or another organiser's)
+              // starts the picker again from the stored homes.
+              key={`${game.id}:${[...homes].join()}`}
+              teams={gameTeams}
+              homes={homes}
+              editable={game.status === 'setup' || game.status === 'placement'}
+              busy={busy}
+              onSave={(picked) => run(() => adminSetTerritoryHomes(game.id, picked), 'Homes saved.',
+                { refresh: ['games'] })}
+            />
+          )}
+
           <BoardBuilder
             game={game}
             tiles={tiles}
             jumps={snakesMode ? jumpEdit.shown : jumps}
             jumpEdit={snakesMode ? jumpEdit : null}
             onSaveJumps={saveJumps}
+            homes={homes && new Map([...homes].map(([id, key]) => [key, gameTeams.find((t) => t.id === id)?.name]))}
             library={library}
             libraryError={libraryError}
             busy={busy}
@@ -1590,7 +1662,7 @@ const CONFIG_TABS = [
 // Which tab fixes each setup check (SetupChecklist keys). Fleets are placed by
 // captains, so that one stays on Game.
 const CHECK_TAB = {
-  tiles: 'board', jumps: 'board', teams: 'teams', captains: 'teams', roster: 'teams', discord: 'discord',
+  tiles: 'board', jumps: 'board', homes: 'board', teams: 'teams', captains: 'teams', roster: 'teams', discord: 'discord',
 };
 
 const CONFIG_TABS_KEY = 'hs-admin-config-tabs';
@@ -1661,11 +1733,19 @@ function SetupChecklist({ checks, status, onGo }) {
   );
 }
 
-const MODES = [
+// Territory is in the code but not yet in the database (Phase 2: its migrations,
+// server functions and the player screen). Offered only by the admin harness
+// until then, where VITE_TERRITORY is set; picking it on the live site would
+// end in a database error.
+const TERRITORY_READY = import.meta.env.VITE_TERRITORY === '1';
+
+const ALL_MODES = [
   { key: 'battleships', label: 'Battleships', blurb: 'Two teams, hidden fleets, one shot per completed tile.' },
   { key: 'bingo', label: 'Bingo', blurb: 'Any number of teams on the same card. Every tile is open at once; most tiles completed wins.' },
   { key: 'snakes', label: 'Snakes & Ladders', blurb: 'Any number of teams racing up a 100-tile board. Finish your tile, roll, and mind the snakes; first to complete tile 100 wins.' },
+  { key: 'territory', label: 'Territory', blurb: 'Risk on the OSRS map. Teams march out from home and take places by finishing their tasks, even from each other; the biggest empire when time runs out wins.' },
 ];
+const MODES = ALL_MODES.filter((m) => m.key !== 'territory' || TERRITORY_READY);
 
 /**
  * Create a game of either mode.
@@ -1684,8 +1764,9 @@ function NewGame({ busy, onCreate }) {
 
   const bingo = mode === 'bingo';
   const snakes = mode === 'snakes';
+  const territory = mode === 'territory';
   // Every mode but battleships takes any number of teams.
-  const multi = bingo || snakes;
+  const multi = bingo || snakes || territory;
   const names = multi ? teamNames : teamNames.slice(0, 2);
   const filled = names.map((n) => n.trim()).filter(Boolean);
   // Case-insensitive, like the server: "Alpha" and "alpha" read as one team in
@@ -1719,7 +1800,7 @@ function NewGame({ busy, onCreate }) {
       <div className="row new-game-fields">
         <label className="field-name">Game name
           <input value={name} onChange={(e) => setName(e.target.value)}
-                 placeholder={bingo ? 'Clan Bingo' : snakes ? 'Snakes and Ladders' : 'Battleships V4'} />
+                 placeholder={bingo ? 'Clan Bingo' : snakes ? 'Snakes and Ladders' : territory ? 'Conquest of Gielinor' : 'Battleships V4'} />
         </label>
         {bingo && (
           <label className="field-size">Card size
@@ -1770,10 +1851,12 @@ function NewGame({ busy, onCreate }) {
         <label className="field-time"><span>Start time <span className="muted">(optional)</span></span>
           <input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} />
         </label>
-        {bingo && (
+        {(bingo || territory) && (
           <label
             className="field-time"
-            title="Without an end time, the game runs until a team fills the card."
+            title={territory
+              ? 'The biggest empire at this moment wins.'
+              : 'Without an end time, the game runs until a team fills the card.'}
           >
             <span>End time <span className="muted">(optional)</span></span>
             <input type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} />
@@ -1786,9 +1869,9 @@ function NewGame({ busy, onCreate }) {
               name: name.trim(),
               mode,
               teams: filled,
-              gridSize: bingo ? gridSize : 10,
+              gridSize: bingo ? gridSize : territory ? TASK_GRID : 10,
               startsAt: startsAt ? new Date(startsAt).toISOString() : null,
-              endsAt: bingo && endsAt ? new Date(endsAt).toISOString() : null,
+              endsAt: (bingo || territory) && endsAt ? new Date(endsAt).toISOString() : null,
             });
             if (worked(result)) {
               setName(''); setTeamNames(['', '']); setStartsAt(''); setEndsAt('');
@@ -1801,6 +1884,12 @@ function NewGame({ busy, onCreate }) {
       {bingo && (
         <p className="muted new-game-note">
           Without an end time, the game runs until a team fills the card.
+        </p>
+      )}
+      {territory && (
+        <p className="muted new-game-note">
+          The whole OSRS map: 64 places, one task each, starting empty. Up to six
+          teams, each with its own home. The biggest empire at the end time wins.
         </p>
       )}
       {snakes && (

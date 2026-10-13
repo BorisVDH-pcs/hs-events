@@ -4495,6 +4495,22 @@ button.builder-cell.jump-start { border-style: solid; opacity: .85; }
 button.builder-cell.snake-head { background: rgba(255, 69, 58, .12); }
 button.builder-cell.ladder-foot { background: rgba(217, 169, 91, .16); }
 .builder-cell .jump-start-what { font-weight: 700; color: var(--muted); }
+/* Territory: each square of the 8x8 card is a place on the map, named in the
+   cell. Regions alternate in shade so the card reads region by region. */
+button.builder-cell.territory-cell > b {
+  font-size: .68rem; line-height: 1.15; color: var(--gold-dim);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%;
+}
+button.builder-cell.territory-cell.region-b:not(.on) { background-color: rgba(242, 193, 78, .045); }
+/* Territory homes picker (TerritoryHomes.jsx): a row per team. */
+.territory-homes-list { list-style: none; margin: .4rem 0 .8rem; padding: 0; display: grid; gap: .45rem; }
+.territory-homes-list li { display: grid; grid-template-columns: auto minmax(7rem, 12rem) minmax(0, 16rem); align-items: center; gap: .6rem; }
+.territory-homes-team { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 560px) {
+  .territory-homes-list li { grid-template-columns: auto minmax(0, 1fr); }
+  .territory-homes-list select, .territory-homes-list li > b { grid-column: 1 / -1; }
+}
+button.builder-cell.home-square { background: rgba(242, 193, 78, .12); border-color: var(--gold-dim); }
 .builder-draft-note {
   display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .8rem;
   margin: .2rem 0 .6rem; font-size: .85rem; font-weight: 600; color: var(--gold-dim);
@@ -4641,3 +4657,353 @@ body.dragging-jump * { cursor: grabbing !important; user-select: none; }
   .suggestion { grid-template-columns: 2.5rem minmax(0, 1fr); }
   .suggestion-actions { grid-column: 2; justify-content: flex-start; }
 }
+
+/* ============================================================
+   Territory (components/territory). Risk on the OSRS world map.
+   ============================================================ */
+
+/* The map wants more of the row than a 10x10 grid does, so the middle column
+   grows; the side columns keep their minimums. */
+.territory-layout { grid-template-columns: minmax(220px, .9fr) minmax(0, 3.2fr) minmax(270px, 1fr); }
+@media (max-width: 1100px) {
+  .territory-layout { grid-template-columns: 1fr; }
+}
+/* That leaves the feed column narrow, and place names are long ("Hosidius
+   Harvest took Wizards' Tower from Lumby Lads!"), so each line puts its time
+   and tag on top and gives the sentence the full width underneath. */
+@media (min-width: 1101px) {
+  .territory-layout .feed li:not(.feed-day) { flex-wrap: wrap; gap: .1rem .6rem; }
+  .territory-layout .feed li:not(.feed-day) > span:last-child { flex-basis: 100%; }
+}
+
+/* The map sits in an engraved gold frame, like a chart pinned to the wall of
+   the clan hall. */
+.territory-map {
+  padding: .45rem;
+  border-radius: var(--r-2xl);
+  background:
+    linear-gradient(160deg, rgba(242, 193, 78, .16), rgba(242, 193, 78, .03) 40%, rgba(242, 193, 78, .10)),
+    var(--panel);
+  backdrop-filter: blur(30px) saturate(180%);
+  -webkit-backdrop-filter: blur(30px) saturate(180%);
+  border: 1px solid rgba(242, 193, 78, .38);
+  box-shadow: var(--shadow-md), 0 0 0 1px rgba(0, 0, 0, .6), 0 0 32px rgba(242, 193, 78, .08);
+  animation: board-in .34s var(--ease-out);
+}
+.territory-map-view {
+  position: relative;
+  /* The image's own shape on a wide screen; taller on a phone, where the map
+     is panned rather than seen whole. */
+  aspect-ratio: 2960 / 1500;
+  border-radius: var(--r-xl);
+  overflow: hidden;
+  background: #2b3656;   /* the map's own sea, so a pan past the edge is calm */
+  box-shadow: inset 0 0 0 1px rgba(255, 223, 149, .28);
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+/* A soft vignette pulls the eye in from the corners. */
+.territory-map-view::after {
+  content: "";
+  position: absolute; inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  box-shadow: inset 0 0 70px rgba(0, 0, 0, .55);
+}
+.territory-map-view:active { cursor: grabbing; }
+.territory-map-view:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+@media (max-width: 700px) {
+  .territory-map-view { aspect-ratio: 4 / 5; }
+}
+.territory-map-view svg { display: block; width: 100%; height: 100%; }
+.territory-dim { fill: rgba(0, 0, 0, .28); pointer-events: none; }
+.territory-veil { fill: rgba(6, 9, 18, .52); pointer-events: none; }
+
+/* ---- the land ---- */
+.territory-area {
+  fill: rgba(10, 8, 4, .16);
+  fill-opacity: 1;
+  stroke: rgba(14, 9, 2, .78);
+  stroke-width: 1.1;
+  stroke-linejoin: round;
+  cursor: pointer;
+  transition: fill .6s var(--ease-out), fill-opacity .6s var(--ease-out);
+}
+.territory-area.mine,
+.territory-area.rival { fill-opacity: .44; }
+.territory-area.home,
+.territory-area.home-rival { fill-opacity: .58; }
+
+.territory-hatch.gold { fill: rgba(242, 193, 78, .55); }
+.territory-hatch.lit  { fill: rgba(255, 223, 149, .75); }
+.territory-hatch.red  { fill: rgba(255, 69, 58, .7); }
+.territory-overlay { pointer-events: none; stroke-linejoin: round; }
+.territory-overlay.openable {
+  fill: url(#territory-hatch-gold);
+  stroke: var(--gold); stroke-width: 1.6;
+  animation: territory-breathe 2.4s ease-in-out infinite;
+}
+.territory-overlay.working {
+  fill: url(#territory-hatch-lit);
+  stroke: var(--gold-lit); stroke-width: 2.2;
+}
+.territory-overlay.attacked {
+  fill: url(#territory-hatch-red);
+  stroke: var(--hit); stroke-width: 2.4;
+  animation: territory-breathe 1s ease-in-out infinite;
+}
+@keyframes territory-breathe {
+  0%, 100% { opacity: .45; }
+  50%      { opacity: 1; }
+}
+
+/* The Leagues regions: a dark bed under a fine gold line, like an inked
+   border on an old map. */
+.territory-region-edge { fill: none; stroke: var(--gold); stroke-width: 1.5; stroke-linejoin: round; pointer-events: none; opacity: .9; }
+.territory-region-edge.under { stroke: rgba(10, 6, 0, .85); stroke-width: 4.5; opacity: 1; }
+
+.territory-route {
+  fill: none; pointer-events: none;
+  stroke: rgba(236, 226, 200, .8); stroke-width: 1.6;
+  stroke-dasharray: 5 5; stroke-linecap: round;
+  filter: drop-shadow(0 0 1.5px rgba(0, 0, 0, .9));
+}
+.territory-route.land { stroke-dasharray: 1 4; stroke-width: 2.4; }
+.territory-route.far { opacity: .28; stroke-width: 1.2; }
+.territory-route.lit { opacity: 1; stroke: var(--gold-lit); stroke-width: 2; }
+
+.territory-outline { fill: none; pointer-events: none; stroke-linejoin: round; }
+.territory-outline.neighbour { stroke: rgba(255, 255, 255, .55); stroke-width: 1.4; stroke-dasharray: 3 3; }
+.territory-outline.hovered { stroke: var(--gold-lit); stroke-width: 2; fill: rgba(255, 223, 149, .1); }
+.territory-outline.selected {
+  stroke: #fff; stroke-width: 2.6; fill: rgba(255, 255, 255, .08);
+  filter: drop-shadow(0 0 4px rgba(255, 223, 149, .9));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .territory-overlay { animation: none !important; }
+}
+
+/* ---- region names ---- */
+.territory-region-label { pointer-events: none; }
+.territory-region-label text {
+  fill: rgba(255, 223, 149, .9);
+  stroke: rgba(8, 5, 0, .8);
+  paint-order: stroke;
+  font-family: "Cinzel", "Trajan Pro", "Palatino Linotype", Palatino, Georgia, serif;
+  font-weight: 700;
+  letter-spacing: .14em;
+  text-anchor: middle;
+}
+.territory-region-label text.bonus {
+  fill: rgba(235, 235, 245, .7);
+  font-family: var(--body);
+  font-weight: 600;
+  letter-spacing: .02em;
+}
+.territory-region-label.held text:first-child { fill: var(--gold-lit); }
+
+/* ---- markers ---- */
+.territory-marker { cursor: pointer; }
+.territory-marker .hit { fill: transparent; }
+.territory-marker .pin { fill: #efe4c8; stroke: rgba(12, 8, 2, .9); }
+.territory-marker.selected .pin,
+.territory-marker.hovered .pin { stroke: var(--gold-lit); }
+.territory-marker .crest {
+  stroke: var(--gold-lit);
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .8));
+}
+.territory-marker .crest-letter {
+  fill: #111;
+  font-weight: 800;
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none;
+}
+
+.territory-label {
+  fill: #fff;
+  stroke: rgba(0, 0, 0, .85);
+  paint-order: stroke;
+  font-family: "Palatino Linotype", Palatino, Georgia, serif;
+  font-weight: 700;
+  text-anchor: middle;
+  pointer-events: none;
+}
+.territory-marker.mine .territory-label,
+.territory-marker.home .territory-label { fill: var(--gold-lit); }
+
+/* ---- the card that follows the mouse ---- */
+.territory-hover {
+  position: absolute;
+  transform: translate(-50%, calc(-100% - 18px));
+  display: grid; gap: .1rem;
+  min-width: 9.5rem; max-width: 15rem;
+  padding: .5rem .7rem .55rem;
+  border-radius: var(--r-md);
+  background: rgba(14, 12, 8, .92);
+  border: 1px solid rgba(242, 193, 78, .45);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, .55);
+  font-size: .78rem; line-height: 1.35;
+  pointer-events: none;
+  z-index: 2;
+}
+.territory-hover strong {
+  font-family: "Palatino Linotype", Palatino, Georgia, serif;
+  font-size: .95rem; color: var(--gold-lit);
+}
+.territory-hover .owner { display: inline-flex; align-items: center; gap: .35rem; }
+.territory-hover .owner i { width: .6rem; height: .6rem; border-radius: 2px; box-shadow: 0 0 0 1px rgba(255, 255, 255, .45); }
+.territory-hover .tag { justify-self: start; margin-top: .2rem; padding: .05rem .45rem; border-radius: var(--r-pill); font-size: .7rem; font-weight: 700; }
+.territory-hover .tag.openable { background: rgba(242, 193, 78, .18); color: var(--gold-lit); }
+.territory-hover .tag.working  { background: rgba(255, 223, 149, .22); color: var(--gold-lit); }
+.territory-hover .tag.attacked { background: rgba(255, 69, 58, .22); color: var(--hit-lit); }
+
+.territory-zoom {
+  position: absolute; right: .6rem; top: .6rem;
+  display: grid; gap: .3rem;
+  z-index: 3;
+}
+.territory-zoom button {
+  width: 2.1rem; height: 2.1rem;
+  padding: 0;
+  border-radius: 50%;
+  background: rgba(14, 12, 8, .86);
+  border: 1px solid rgba(242, 193, 78, .45);
+  color: var(--gold-lit);
+  font-size: 1.1rem; line-height: 1;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .5);
+}
+.territory-zoom button:hover { border-color: var(--gold-lit); background: rgba(40, 30, 10, .92); }
+.territory-credit { margin: .4rem .3rem 0; font-size: .7rem; text-align: right; }
+
+.territory-legend {
+  display: flex; flex-wrap: wrap; gap: .45rem 1.1rem;
+  list-style: none; margin: .65rem .3rem 0; padding: 0;
+  font-size: .78rem;
+}
+.territory-legend li { display: inline-flex; align-items: center; gap: .45rem; }
+.territory-legend .key {
+  width: 1.05rem; height: .8rem; border-radius: 3px;
+  border: 1.5px solid rgba(14, 9, 2, .9);
+  background: rgba(120, 120, 128, .25);
+}
+.territory-legend .key.mine { background: var(--mine, var(--gold)); opacity: .85; }
+.territory-legend .key.openable {
+  border-color: var(--gold);
+  background: repeating-linear-gradient(45deg, rgba(242, 193, 78, .6) 0 2px, transparent 2px 5px);
+}
+.territory-legend .key.working {
+  border-color: var(--gold-lit);
+  background: repeating-linear-gradient(45deg, rgba(255, 223, 149, .8) 0 2px, transparent 2px 5px);
+}
+.territory-legend .key.attacked {
+  border-color: var(--hit);
+  background: repeating-linear-gradient(45deg, rgba(255, 69, 58, .75) 0 2px, transparent 2px 5px);
+}
+.territory-legend .key.line { width: 1.5rem; height: 0; border-radius: 0; background: none; border-width: 2px 0 0; }
+.territory-legend .key.line.region { border-color: var(--gold); box-shadow: 0 0 0 1.5px rgba(10, 6, 0, .85); }
+.territory-legend .key.line.boat { border-color: rgba(236, 226, 200, .85); border-top-style: dashed; }
+
+.team-crest { flex: none; display: block; filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, .6)); }
+
+/* ---- standings ---- */
+.territory-standings .standings-row {
+  grid-template-areas: "place team count" "place sub sub" "place regions regions" "place bar bar";
+  row-gap: .25rem;
+}
+.territory-standings .standings-row .team { display: flex; align-items: center; gap: .45rem; }
+.territory-standings .standings-row .team .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.territory-standings .standings-row .you {
+  flex: none;
+  padding: 0 .4rem;
+  border-radius: var(--r-pill);
+  background: rgba(242, 193, 78, .14);
+  color: var(--gold-lit);
+  font-size: .68rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+}
+.territory-standings .standings-row .sub { grid-area: sub; font-size: .75rem; }
+.territory-standings .standings-row .count {
+  color: var(--gold-lit);
+  font-family: "Palatino Linotype", Palatino, Georgia, serif;
+  font-size: 1.15rem; font-weight: 700;
+}
+.territory-standings li:first-child .place { font-size: 1rem; }
+.territory-standings .standings-row .regions { grid-area: regions; display: flex; flex-wrap: wrap; gap: .25rem; }
+.territory-standings .standings-row .bar { height: 5px; }
+.territory-region-chip {
+  padding: .05rem .45rem;
+  border-radius: var(--r-pill);
+  border: 1px solid rgba(242, 193, 78, .45);
+  background: rgba(242, 193, 78, .1);
+  color: var(--gold-lit);
+  font-size: .68rem; font-weight: 600;
+}
+.territory-region-chip::before { content: "♛ "; }
+
+/* ---- the place panel: washed in the colour of whoever holds it ---- */
+.side-col .territory-place-panel {
+  background-image: linear-gradient(180deg,
+    color-mix(in srgb, var(--owner, transparent) 22%, transparent),
+    transparent 9rem);
+  border-top: 3px solid var(--owner, rgba(242, 193, 78, .4));
+}
+.territory-place-panel h2 {
+  font-family: "Palatino Linotype", Palatino, Georgia, serif;
+  font-size: 1.3rem;
+  color: var(--gold-lit);
+  letter-spacing: .01em;
+}
+.territory-place-region {
+  margin-top: .1rem;
+  color: var(--gold-dim);
+  font-size: .7rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
+}
+.territory-place-art { border-radius: var(--r-md); box-shadow: inset 0 0 0 1px rgba(242, 193, 78, .35); }
+.territory-owner {
+  display: flex; align-items: center; gap: .55rem;
+  padding: .5rem .7rem;
+  border-radius: var(--r-md);
+  background: var(--fill-3);
+  font-size: .9rem;
+}
+.territory-owner.mine,
+.territory-owner.home { background: rgba(242, 193, 78, .1); color: var(--gold-lit); }
+.territory-owner.attacked { background: rgba(255, 69, 58, .14); color: var(--hit-lit); }
+.territory-task {
+  padding: .6rem .7rem;
+  border-radius: var(--r-md);
+  border: 1px solid rgba(242, 193, 78, .22);
+  background: rgba(0, 0, 0, .22);
+}
+.territory-task h3 { margin: 0; font-size: .98rem; }
+.territory-task p { margin-top: .2rem; }
+.territory-refusal { font-style: italic; }
+.territory-drop { justify-self: start; }
+
+.territory-links-list > p {
+  font-size: .7rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
+}
+.territory-links-list ul {
+  list-style: none; margin: .35rem 0 0; padding: 0;
+  display: flex; flex-wrap: wrap; gap: .35rem;
+}
+.territory-link-chip {
+  display: inline-flex; align-items: center; gap: .35rem;
+  padding: .25rem .6rem;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--hairline);
+  background: var(--fill-3);
+  color: var(--text);
+  font: inherit; font-size: .8rem;
+  text-transform: none; letter-spacing: 0;
+}
+.territory-link-chip:hover { border-color: var(--gold-deep); background: rgba(242, 193, 78, .08); filter: none; }
+.territory-chip-dot {
+  width: .6rem; height: .6rem; border-radius: 2px;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, .45);
+}
+
+.harness-tools { margin-top: .6rem; }

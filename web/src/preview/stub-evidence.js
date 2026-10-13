@@ -7,22 +7,34 @@ import { DEMO_URLS } from './stub-supabase.js';
 
 export const BUCKET = 'evidence';
 
+/**
+ * A harness that simulates a game (territory-main.jsx) plugs in here:
+ * `upload(args)` stands in for add_evidence and returns what it would, and
+ * `urls` maps the storage paths it invents to object URLs of the picked file.
+ * Every other harness leaves it empty and uploads refuse, as they always did.
+ */
+export const evidenceHandlers = { upload: null, urls: {} };
+
 export async function signedUrls(paths) {
   const out = {};
-  for (const p of paths) if (DEMO_URLS[p]) out[p] = DEMO_URLS[p];
+  for (const p of paths) {
+    const url = DEMO_URLS[p] ?? evidenceHandlers.urls[p];
+    if (url) out[p] = url;
+  }
   return out;
 }
 
-// The harness only renders EvidenceReview, which needs signedUrls and nothing
-// else. These exist because this server also serves the app's own index.html
-// at `/`, and a visit there pulls in EvidenceUploader: a missing export is a
-// hard module error that breaks the page before anything renders. Stubbed to
-// refuse rather than to pretend — uploading has no meaning without a database.
+// The evidence harness only renders EvidenceReview, which needs signedUrls and
+// nothing else. These exist because this server also serves the app's own
+// index.html at `/`, and a visit there pulls in EvidenceUploader: a missing
+// export is a hard module error that breaks the page before anything renders.
+// Stubbed to refuse rather than to pretend, unless a harness simulates them.
 export async function downscale() {
   throw new Error('Uploads are not available in the evidence harness.');
 }
 
-export async function uploadEvidence() {
+export async function uploadEvidence(args) {
+  if (evidenceHandlers.upload) return evidenceHandlers.upload(args);
   throw new Error('Uploads are not available in the evidence harness.');
 }
 
