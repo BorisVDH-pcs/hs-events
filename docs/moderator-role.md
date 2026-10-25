@@ -102,13 +102,24 @@ taken from the live definition, so nothing else in them can drift.
 
 Every swap asserts its pattern matched **exactly once** and raises otherwise, so
 a guard that has been reworded since cannot be silently skipped, and a failed
-assertion aborts the whole migration. 57 assertions in total: 50 standard
+assertion aborts the whole migration. 51 assertions in total: 44 standard
 guards, 5 reworded ones (`start_game`, `admin_board_for_team`, `place_fleet`,
 `rename_team`, `acting_as_team`), and 2 for `admin_game_readiness`, which
 filters its rows rather than refusing.
 
-Of the 61 functions carrying the standard guard, 50 are swapped and 11 stay
-admin-only by the decisions above. None is unaccounted for.
+55 live functions carry the standard guard: 44 are swapped, `admin_game_readiness`
+filters instead, and 10 stay admin-only by the decisions above. None is
+unaccounted for.
+
+The swap checks every signature and every guard **before** it changes anything,
+and reports all the problems it found rather than stopping at the first. That is
+not caution for its own sake. The list originally held six more functions, and
+the first attempt to apply it died on `admin_import_board_to_library(uuid)`,
+which a later migration had dropped. The check that was supposed to have caught
+this read the migration ledger for `create or replace function` and never looked
+at `drop function`, so it reported six functions as present that had not existed
+for weeks. **The ledger is not the database.** `to_regprocedure` returns null
+instead of raising, which is what lets the migration name all six in one run.
 
 `scripts/rollback-moderator-sweep.sql` puts every guard back.
 

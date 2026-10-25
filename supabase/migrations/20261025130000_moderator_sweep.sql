@@ -103,12 +103,16 @@ declare
   r      record;
   v_def  text;
   v_n    int;
-  -- The guard as 61 functions write it, to the character.
+  v_proc regprocedure;
+  v_bad  text[] := '{}';
+  -- The guard as 55 live functions write it, to the character.
   v_std  constant text := 'if not is_admin\(\) then raise exception ''Admins only''; end if;';
 begin
-  for r in
-    select fn, gate, msg from (values
-      -- ---- handed a game id: 30 functions ----------------------------------
+  -- The list is read twice, so it is written once. Dropped with the migration's
+  -- own transaction, which is also what takes every swap back on a failure.
+  create temp table swap_list(fn text, gate text, msg text) on commit drop;
+  insert into swap_list (fn, gate, msg) values
+      -- ---- handed a game id: 24 functions ----------------------------------
       ('admin_add_team(uuid, text)',                          'may_manage_game(p_game_id)', 'Not your game'),
       ('admin_apply_board_preset(uuid, uuid)',                'may_manage_game(p_game_id)', 'Not your game'),
       ('admin_autofill_board(uuid)',                          'may_manage_game(p_game_id)', 'Not your game'),
@@ -116,11 +120,9 @@ begin
       ('admin_clear_tile(uuid, smallint, smallint)',          'may_manage_game(p_game_id)', 'Not your game'),
       ('admin_delete_game(uuid)',                             'may_manage_game(p_game_id)', 'Not your game'),
       ('admin_end_game(uuid)',                                'may_manage_game(p_game_id)', 'Not your game'),
-      ('admin_import_board_to_library(uuid)',                 'may_manage_game(p_game_id)', 'Not your game'),
       ('admin_list_evidence(uuid)',                           'may_manage_game(p_game_id)', 'Not your game'),
       ('admin_list_pet_jars(uuid)',                           'may_manage_game(p_game_id)', 'Not your game'),
       ('admin_list_pet_trades(uuid)',                         'may_manage_game(p_game_id)', 'Not your game'),
-      ('admin_list_score_events(uuid)',                       'may_manage_game(p_game_id)', 'Not your game'),
       ('admin_list_ship_cells(uuid)',                         'may_manage_game(p_game_id)', 'Not your game'),
       ('admin_list_tiles(uuid)',                              'may_manage_game(p_game_id)', 'Not your game'),
       ('admin_list_webhooks(uuid)',                           'may_manage_game(p_game_id)', 'Not your game'),
@@ -128,20 +130,17 @@ begin
       ('admin_save_board_preset(uuid, text)',                 'may_manage_game(p_game_id)', 'Not your game'),
       ('admin_set_end_time(uuid, timestamptz)',               'may_manage_game(p_game_id)', 'Not your game'),
       ('admin_set_featured_game(uuid)',                       'may_manage_game(p_game_id)', 'Not your game'),
-      ('admin_set_scoring(uuid, smallint, smallint, smallint)','may_manage_game(p_game_id)', 'Not your game'),
       ('admin_set_snakes(uuid, jsonb)',                       'may_manage_game(p_game_id)', 'Not your game'),
       ('admin_set_start_time(uuid, timestamptz)',             'may_manage_game(p_game_id)', 'Not your game'),
       ('admin_set_territory_homes(uuid, jsonb)',              'may_manage_game(p_game_id)', 'Not your game'),
       ('admin_set_tile(uuid, smallint, smallint, jsonb)',     'may_manage_game(p_game_id)', 'Not your game'),
-      ('admin_set_tiles(uuid, jsonb)',                        'may_manage_game(p_game_id)', 'Not your game'),
       ('admin_set_webhook(uuid, uuid, text, boolean, text)',  'may_manage_game(p_game_id)', 'Not your game'),
       ('admin_shuffle_board(uuid)',                           'may_manage_game(p_game_id)', 'Not your game'),
       ('admin_snakes_end_game(uuid, uuid)',                   'may_manage_game(p_game_id)', 'Not your game'),
       ('admin_swap_tiles(uuid, int, int, int, int)',          'may_manage_game(p_game_id)', 'Not your game'),
       ('admin_tile_progress(uuid)',                           'may_manage_game(p_game_id)', 'Not your game'),
 
-      -- ---- handed a team id: 9 functions ------------------------------------
-      ('admin_adjust_score(uuid, integer, text, uuid)',       'may_manage_team(p_team_id)', 'Not your game'),
+      -- ---- handed a team id: 8 functions ------------------------------------
       ('admin_delete_team(uuid)',                             'may_manage_team(p_team_id)', 'Not your game'),
       ('admin_remove_member(uuid, uuid)',                     'may_manage_team(p_team_id)', 'Not your game'),
       ('admin_set_member(uuid, uuid, team_role)',             'may_manage_team(p_team_id)', 'Not your game'),
@@ -151,11 +150,10 @@ begin
       ('admin_snakes_punish(uuid)',                           'may_manage_team(p_team_id)', 'Not your game'),
       ('admin_snakes_uncomplete_tile(uuid, integer)',         'may_manage_team(p_team_id)', 'Not your game'),
 
-      -- ---- handed some other row: 6 functions -------------------------------
+      -- ---- handed some other row: 4 functions -------------------------------
       ('admin_release_claim(uuid)',                           'may_manage_claim(p_claim_id)',        'Not your game'),
       ('admin_revoke_evidence(uuid, boolean)',                'may_manage_evidence(p_evidence_id)',  'Not your game'),
       ('admin_test_tile(uuid, jsonb)',                        'may_manage_tile(p_tile_id)',          'Not your game'),
-      ('admin_delete_score_event(uuid)',                      'may_manage_score_event(p_id)',        'Not your game'),
       ('admin_delete_webhook(uuid)',                          'may_manage_webhook(p_id)',            'Not your game'),
       ('admin_revoke_pet_jar(uuid, boolean)',                 'may_manage_pet_jar(p_submission_id)', 'Not your game'),
 
@@ -169,15 +167,34 @@ begin
       -- ---- creating a game: the mode is the permission ----------------------
       ('admin_new_game(text, game_mode, text[], smallint, timestamptz)', 'may_run_mode(p_mode)',        'Not a mode you run'),
       ('admin_create_game(text, text, text, smallint, smallint)',        'may_run_mode(''battleships'')', 'Not a mode you run')
-    ) as t(fn, gate, msg)
-  loop
-    v_def := pg_get_functiondef(r.fn::regprocedure);
+    ;
 
-    select count(*) into v_n from regexp_matches(v_def, v_std, 'g');
-    if v_n <> 1 then
-      raise exception '% has % copies of the standard guard, expected 1 -- nothing swapped', r.fn, v_n;
+  for r in select fn, gate, msg from swap_list loop
+    -- Two passes on purpose. The first only looks, and collects EVERY problem
+    -- before raising, so one run names all of them instead of stopping at the
+    -- first and hiding the rest behind it. to_regprocedure returns null rather
+    -- than raising, which is what makes a dropped function reportable at all:
+    -- six of these were listed here for functions the ledger still defines but
+    -- a later migration had dropped, and ::regprocedure aborted on the first.
+    v_proc := to_regprocedure(r.fn);
+    if v_proc is null then
+      v_bad := v_bad || format('%s does not exist', r.fn);
+    else
+      select count(*) into v_n from regexp_matches(pg_get_functiondef(v_proc), v_std, 'g');
+      if v_n <> 1 then
+        v_bad := v_bad || format('%s has %s copies of the standard guard, expected 1', r.fn, v_n);
+      end if;
     end if;
+  end loop;
 
+  if array_length(v_bad, 1) is not null then
+    raise exception 'nothing swapped -- %', array_to_string(v_bad, '; ');
+  end if;
+
+  -- Second pass: every signature resolves and every guard is where it should
+  -- be, so these all go through or the transaction takes them all back.
+  for r in select fn, gate, msg from swap_list loop
+    v_def := pg_get_functiondef(r.fn::regprocedure);
     execute regexp_replace(
       v_def, v_std,
       'if not ' || r.gate || ' then raise exception ''' || r.msg || '''; end if;');
@@ -276,8 +293,9 @@ declare
   v_left  text[] := '{}';
 begin
   foreach v_fn in array array[
-    'admin_delete_game(uuid)', 'admin_set_tiles(uuid, jsonb)', 'admin_adjust_score(uuid, integer, text, uuid)',
-    'admin_release_claim(uuid)', 'admin_new_game(text, game_mode, text[], smallint, timestamptz)',
+    'admin_delete_game(uuid)', 'admin_set_tile(uuid, smallint, smallint, jsonb)',
+    'admin_remove_member(uuid, uuid)', 'admin_release_claim(uuid)',
+    'admin_new_game(text, game_mode, text[], smallint, timestamptz)',
     'start_game(uuid)', 'place_fleet(uuid, jsonb)', 'admin_game_readiness()'] loop
     if pg_get_functiondef(v_fn::regprocedure) ~ 'if not is_admin\(\) then raise exception ''Admins only''' then
       v_left := v_left || v_fn;
