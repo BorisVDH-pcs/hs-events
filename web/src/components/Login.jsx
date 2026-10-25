@@ -66,7 +66,16 @@ export default function Login() {
           email,
           password,
           // Copied into the profiles row by the on_auth_user_created trigger.
-          options: { data: { display_name: username.trim(), rsn: username.trim() } },
+          //
+          // NO rsn. It used to be seeded from the username here, which meant
+          // every account on the site had a RuneScape name nobody had ever
+          // checked — right for the people who happened to register under
+          // their exact in-game name, silently wrong for everyone else, and
+          // Wise Old Man scored the wrong ones zero without anyone noticing.
+          // A guess that looks like an answer is worse than no answer: left
+          // null, the challenge sign-up box asks for the name instead of
+          // pre-filling a bad one, and My Account is where it gets saved.
+          options: { data: { display_name: username.trim() } },
         });
         if (error) throw error;
 

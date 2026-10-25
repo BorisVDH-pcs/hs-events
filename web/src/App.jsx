@@ -17,6 +17,7 @@ import CaptainPlacement from './components/CaptainPlacement.jsx';
 import StartTimeBadge from './components/StartTimeBadge.jsx';
 import Admin from './components/Admin.jsx';
 import TeamNameEditor from './components/TeamNameEditor.jsx';
+import MyAccount from './components/MyAccount.jsx';
 import Wordmark from './components/Wordmark.jsx';
 import { REPO_URL, pageTitle } from './lib/site.js';
 import EvidencePanel from './components/EvidencePanel.jsx';
@@ -123,6 +124,11 @@ export default function App() {
   const displayName = session?.user?.user_metadata?.display_name ?? '';
 
   const uid = session?.user?.id ?? null;
+
+  // My Account, open over whatever is on screen. Not a tab: it belongs to the
+  // player rather than to the game they happen to be looking at, and a tab
+  // would have to live somewhere different on five different screens.
+  const [accountsOpen, setAccountsOpen] = useState(false);
 
   // The chosen game, mirrored so the roster refresh can read it without taking
   // it as a dependency -- which would rebuild the refresh on every switch.
@@ -601,9 +607,19 @@ export default function App() {
               {suggesting ? '← Back to the game' : '💡 Suggest a tile'}
             </button>
           )}
+          {/* Beside Sign out, on every screen. The reason somebody comes
+              looking for this is that the hiscores are not finding them, and
+              that can be discovered from any of the five modes. */}
+          <button className="link" onClick={() => setAccountsOpen(true)}>
+            🧑 My accounts
+          </button>
           <button className="link" onClick={() => supabase.auth.signOut()}>Sign out</button>
         </div>
       </header>
+
+      {accountsOpen && (
+        <MyAccount profileId={uid} onClose={() => setAccountsOpen(false)} />
+      )}
 
       {playerScreen && !isBingo && !isChallenge && (
         <Guide
@@ -713,6 +729,10 @@ export default function App() {
           events={events}
           profileId={session?.user?.id ?? null}
           onRefresh={game.refresh}
+          // The sign-up card's way into My accounts: the moment a player
+          // discovers the hiscores are not finding them is the moment they
+          // want to fix the name for good, not just for this event.
+          onOpenAccounts={() => setAccountsOpen(true)}
         />
       )}
 

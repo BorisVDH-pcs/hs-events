@@ -5137,3 +5137,34 @@ label.choice:has(input:disabled) { cursor: default; opacity: .5; }
   .choice-row { gap: .1rem; flex-direction: column; align-items: start; }
   .choice-detail { margin-left: .8rem; padding-left: .7rem; }
 }
+
+/* ---- My accounts (20261026130000) ----------------------------------------
+   A list of blocks, not the admin pane's .account-list rows: each one carries
+   a name, a line about what Wise Old Man made of it, and its own buttons, so
+   they stack rather than sitting side by side. */
+
+.my-account { max-width: 34rem; }
+
+.rsn-list {
+  list-style: none; padding: 0; margin: .8rem 0 0; display: grid; gap: 0;
+  max-height: 22rem; overflow-y: auto;
+}
+.rsn-row {
+  display: grid; gap: .35rem;
+  padding: .7rem .1rem;
+  border-bottom: 1px solid var(--hairline);
+}
+.rsn-row:last-child { border-bottom: none; }
+.rsn-row p { margin: 0; font-size: .875rem; }
+.rsn-name { display: flex; align-items: baseline; gap: .4rem; flex-wrap: wrap; }
+
+/* The one that lands in profiles.rsn, and so the one every sign-up box starts
+   from. Said in a word rather than left to the ordering, which a screen reader
+   does not convey and a sorted list does not promise. */
+.rsn-name .badge {
+  font-size: .6875rem; text-transform: uppercase; letter-spacing: .04em;
+  padding: .1rem .35rem; border-radius: .25rem;
+  background: var(--accent-soft, rgba(127, 127, 127, .18));
+}
+
+.rsn-add { margin-top: 1rem; display: grid; gap: .5rem; }

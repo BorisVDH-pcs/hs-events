@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  supabase,
   challengeList, challengeMine, challengeStandings, challengeWomCompetition,
   challengeJoin, challengeLeave, challengeDeclare, challengeAddEvidence, womPulse,
+  myAccounts, challengeMyAccounts,
 } from '../../lib/supabase.js';
 import {
   MAX_EVIDENCE, WOM_PULSE_MS,
@@ -12,6 +12,7 @@ import {
 import { useCountdown, pad } from '../../lib/countdown.js';
 import EventFeed from '../EventFeed.jsx';
 import ChallengeLadder from './ChallengeLadder.jsx';
+import ChallengeRsnField from './ChallengeRsnField.jsx';
 
 /**
  * The player's view of a challenge.
@@ -28,13 +29,20 @@ import ChallengeLadder from './ChallengeLadder.jsx';
  * shape would mean editing a shared function for the one mode that has nothing
  * in common with the other four.
  */
-export default function ChallengeGame({ game, teams = [], events = [], profileId = null, onRefresh }) {
+export default function ChallengeGame({
+  game, teams = [], events = [], profileId = null, onRefresh, onOpenAccounts = null,
+}) {
   const [setup, setSetup] = useState(null);
   const [mine, setMine] = useState(null);
   const [standings, setStandings] = useState([]);
   // The WOM competition's id, or null until the create request comes back.
   const [wom, setWom] = useState(null);
-  const [profileRsn, setProfileRsn] = useState('');
+  // The saved accounts behind the picker, and — in an all-accounts event —
+  // the ones this entry is actually being scored on.
+  const [accounts, setAccounts] = useState([]);
+  const [entryAccounts, setEntryAccounts] = useState([]);
+  // True while the player is typing a name rather than picking a saved one.
+  const [freeform, setFreeform] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -55,16 +63,21 @@ export default function ChallengeGame({ game, teams = [], events = [], profileId
 
   const load = useCallback(async () => {
     try {
-      const [list, entry, rows, womId] = await Promise.all([
+      const [list, entry, rows, womId, mineAccounts] = await Promise.all([
         challengeList(),
         challengeMine(game.id),
         challengeStandings(game.id),
         challengeWomCompetition(game.id),
+        // Empty for a normal event — the rows only exist where the organiser
+        // asked for every account to count — so it is always asked for rather
+        // than branched on a setup that has not loaded yet.
+        challengeMyAccounts(game.id),
       ]);
       setSetup((list ?? []).find((c) => c.game_id === game.id) ?? null);
       setMine(entry ?? null);
       setStandings(rows ?? []);
       setWom(womId ?? null);
+      setEntryAccounts(mineAccounts ?? []);
       setError(null);
     } catch (err) {
       setError(err.message);
@@ -75,17 +88,28 @@ export default function ChallengeGame({ game, teams = [], events = [], profileId
 
   useEffect(() => { setLoading(true); load(); }, [load]);
 
-  // The name typed at sign-up, as a starting point for the box. The entry
-  // snapshots whatever is sent, so correcting it here fixes this event only
-  // and leaves the profile alone.
+  // The player's saved accounts, which the picker is built from and whose
+  // primary is what an empty box starts at. The entry still snapshots whatever
+  // is sent, so picking one here fixes this event only and leaves the saved
+  // list alone — which is the whole reason My Account had to exist separately.
   useEffect(() => {
-    if (!supabase || !profileId) return;
-    supabase.from('profiles').select('rsn').eq('id', profileId).maybeSingle()
-      .then(({ data }) => setProfileRsn(data?.rsn ?? ''))
-      .catch(() => setProfileRsn(''));
+    if (!profileId) return;
+    myAccounts()
+      .then((rows) => setAccounts(rows ?? []))
+      .catch(() => setAccounts([]));
   }, [profileId]);
 
-  useEffect(() => { setRsn(mine?.rsn ?? profileRsn ?? ''); }, [mine?.rsn, profileRsn]);
+  const primaryRsn = accounts.find((a) => a.is_primary)?.rsn ?? '';
+
+  useEffect(() => {
+    const next = mine?.rsn ?? primaryRsn ?? '';
+    setRsn(next);
+    // A name already on the entry that is not one of the saved accounts is a
+    // one-off, and the box has to open on it rather than silently snapping to
+    // the main — that would change what the entry is scored on at the next
+    // press of Save.
+    setFreeform(Boolean(next) && !accounts.some((a) => a.rsn === next));
+  }, [mine?.rsn, primaryRsn, accounts]);
   useEffect(() => { setFigure(storedToInput(mine?.declared, unit)); }, [mine?.declared, unit]);
 
   /**
@@ -246,18 +270,26 @@ export default function ChallengeGame({ game, teams = [], events = [], profileId
 
             {setup?.wom_metric && (
               <>
-                <label className="field-name">Your RuneScape name
-                  <input
-                    value={rsn}
-                    onChange={(e) => setRsn(e.target.value)}
-                    placeholder="Exactly as the hiscores spell it"
-                    disabled={busy}
-                  />
-                </label>
-                <p className="muted">
-                  Wise Old Man matches this exactly. Get it wrong and the hiscores
-                  have nothing to match, so a week of play scores nothing.
-                </p>
+                <ChallengeRsnField
+                  accounts={accounts}
+                  value={rsn}
+                  onChange={setRsn}
+                  disabled={busy}
+                  freeform={freeform}
+                  onFreeform={setFreeform}
+                  onOpenAccounts={onOpenAccounts}
+                />
+                {/* Said before they sign up, not after: in this kind of event
+                    the whole list goes on the competition, and somebody with
+                    an alt they would rather keep out of it needs to know that
+                    while they can still take it off the list. */}
+                {setup.all_accounts && (
+                  <p className="muted">
+                    Every account on your My accounts list counts in this one, and
+                    their figures are added together. The name above is just the
+                    one the ladder shows you under.
+                  </p>
+                )}
               </>
             )}
 
@@ -344,14 +376,15 @@ export default function ChallengeGame({ game, teams = [], events = [], profileId
                 nobody should have to sit out a week over a typo. */}
             {isActive && setup?.wom_metric && (
               <>
-                <label className="field-name">Your RuneScape name
-                  <input
-                    value={rsn}
-                    onChange={(e) => setRsn(e.target.value)}
-                    placeholder="Exactly as the hiscores spell it"
-                    disabled={busy}
-                  />
-                </label>
+                <ChallengeRsnField
+                  accounts={accounts}
+                  value={rsn}
+                  onChange={setRsn}
+                  disabled={busy}
+                  freeform={freeform}
+                  onFreeform={setFreeform}
+                  onOpenAccounts={onOpenAccounts}
+                />
                 <div className="row">
                   <button
                     className="ghost"
@@ -361,6 +394,40 @@ export default function ChallengeGame({ game, teams = [], events = [], profileId
                     Save my name
                   </button>
                 </div>
+              </>
+            )}
+
+            {/* In an all-accounts event the entry's one name is not the whole
+                story, so the accounts actually behind the figure are listed
+                with what WOM made of each. The partly-broken case is the point:
+                a player with three accounts and one typo is still scoring, and
+                a single banner over the lot of them would say nothing is
+                wrong. */}
+            {setup?.all_accounts && entryAccounts.length > 0 && (
+              <>
+                <p className="muted">
+                  Counting {entryAccounts.length} account{entryAccounts.length === 1 ? '' : 's'}:
+                </p>
+                <ul className="rsn-list">
+                  {entryAccounts.map((a) => (
+                    <li key={a.rsn} className="rsn-row">
+                      <div className="rsn-name">
+                        <strong>{a.rsn}</strong>
+                        <span className="muted"> · {womLabel(a.wom_gained)}</span>
+                      </div>
+                      {a.wom_found === false && (
+                        <p className="error">
+                          Never found on the hiscores — this one is counting as zero.
+                        </p>
+                      )}
+                      {!a.wom_added && (
+                        <p className="error">
+                          Wise Old Man has not taken this name yet. It is tried again every minute.
+                        </p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
               </>
             )}
 
