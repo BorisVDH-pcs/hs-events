@@ -69,25 +69,27 @@ export default function ChallengeNewGame({ busy, onCreate }) {
         </label>
       </div>
 
-      <div className="row new-game-fields" role="radiogroup" aria-label="Who competes">
-        <label className="field-size">
-          <input
-            type="radio" name="challenge-solo" checked={solo}
-            onChange={() => setSolo(true)} disabled={busy}
-          />
-          {' '}Everyone for themselves
-        </label>
-        <label className="field-size">
-          <input
-            type="radio" name="challenge-solo" checked={!solo}
-            onChange={() => setSolo(false)} disabled={busy}
-          />
-          {' '}Teams <span className="muted">(a team scores its members added together)</span>
-        </label>
-      </div>
+      <section className="cnew-question">
+        <h4>Who competes</h4>
+        <div className="choice-row" role="radiogroup" aria-label="Who competes">
+          <label className="choice">
+            <input
+              type="radio" name="challenge-solo" checked={solo}
+              onChange={() => setSolo(true)} disabled={busy}
+            />
+            <span>Everyone for themselves</span>
+          </label>
+          <label className="choice">
+            <input
+              type="radio" name="challenge-solo" checked={!solo}
+              onChange={() => setSolo(false)} disabled={busy}
+            />
+            <span>Teams <span className="muted">(a team scores its members added together)</span></span>
+          </label>
+        </div>
 
       {!solo && (
-        <div className="row new-game-fields">
+        <div className="row new-game-fields choice-detail">
           {teamNames.map((n, i) => (
             <label key={i} className="field-team">
               {`Team ${i + 1}`}
@@ -118,11 +120,15 @@ export default function ChallengeNewGame({ busy, onCreate }) {
         </div>
       )}
       {!solo && duplicate && <p className="error">Two teams have the same name.</p>}
+      </section>
 
-      <h3>What it is scored on</h3>
+      {/* Each figure is a tick with its own settings folded in underneath, so
+          the fields that only matter when it is on are plainly attached to it
+          rather than floating in the row beside it. */}
+      <section className="cnew-question">
+        <h4>What it is scored on</h4>
 
-      <div className="row new-game-fields">
-        <label className="field-size">
+        <label className="choice">
           <input
             type="checkbox" checked={useWom} disabled={busy}
             onChange={(e) => {
@@ -131,29 +137,29 @@ export default function ChallengeNewGame({ busy, onCreate }) {
               else if (!useDeclared) setRankedBy('wom');
             }}
           />
-          {' '}From the hiscores
+          <span>From the hiscores <span className="muted">(Wise Old Man counts it)</span></span>
         </label>
         {useWom && (
-          <label className="field-name">Wise Old Man metric
-            <input
-              list="challenge-metrics"
-              value={metric}
-              onChange={(e) => setMetric(e.target.value.trim())}
-              placeholder="zulrah"
-              disabled={busy}
-            />
-          </label>
+          <div className="row new-game-fields choice-detail">
+            <label className="field-name">Which metric
+              <input
+                list="challenge-metrics"
+                value={metric}
+                onChange={(e) => setMetric(e.target.value.trim())}
+                placeholder="zulrah"
+                disabled={busy}
+              />
+            </label>
+            {/* A list, not a closed set: WOM adds bosses faster than this file
+                gets edited, and an event refused for a metric that exists
+                would be our fault, not the organiser's. */}
+            <datalist id="challenge-metrics">
+              {WOM_METRICS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+            </datalist>
+          </div>
         )}
-        {/* A list, not a closed set: WOM adds bosses faster than this file gets
-            edited, and an event refused for a metric that exists would be our
-            fault, not the organiser's. */}
-        <datalist id="challenge-metrics">
-          {WOM_METRICS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
-        </datalist>
-      </div>
 
-      <div className="row new-game-fields">
-        <label className="field-size">
+        <label className="choice">
           <input
             type="checkbox" checked={useDeclared} disabled={busy}
             onChange={(e) => {
@@ -162,61 +168,67 @@ export default function ChallengeNewGame({ busy, onCreate }) {
               else if (!useWom) setRankedBy('declared');
             }}
           />
-          {' '}A number players give
+          <span>A number players give <span className="muted">(with screenshots behind it)</span></span>
         </label>
         {useDeclared && (
-          <>
-            <label className="field-name">What they are giving
-              <input
-                value={declaredLabel}
-                onChange={(e) => setDeclaredLabel(e.target.value)}
-                placeholder="Total loot"
-                disabled={busy}
-              />
-            </label>
-            <label className="field-size">In
-              <select
-                value={declaredUnit}
-                onChange={(e) => setDeclaredUnit(e.target.value)}
-                disabled={busy}
-              >
-                <option value="gp">Millions of gp</option>
-                <option value="count">A count</option>
-              </select>
-            </label>
-          </>
+          <div className="choice-detail">
+            <div className="row new-game-fields">
+              <label className="field-name">What they are giving
+                <input
+                  value={declaredLabel}
+                  onChange={(e) => setDeclaredLabel(e.target.value)}
+                  placeholder="Total loot"
+                  disabled={busy}
+                />
+              </label>
+              <label className="field-size">In
+                <select
+                  value={declaredUnit}
+                  onChange={(e) => setDeclaredUnit(e.target.value)}
+                  disabled={busy}
+                >
+                  <option value="gp">Millions of gp</option>
+                  <option value="count">A count</option>
+                </select>
+              </label>
+            </div>
+            <p className="muted new-game-note">
+              Players type this themselves and hang a start and a finish
+              screenshot behind it. The site cannot read a screenshot, so an
+              organiser checks the two against each other in Track and can
+              correct the number.
+            </p>
+          </div>
         )}
-      </div>
 
-      {useDeclared && (
-        <p className="muted new-game-note">
-          Players type this themselves and hang a start and a finish screenshot
-          behind it. The site cannot read a screenshot, so an organiser checks
-          the two against each other in Track and can correct the number.
-        </p>
-      )}
+        {!useWom && !useDeclared && (
+          <p className="error">Pick at least one, or there is nothing to score.</p>
+        )}
+      </section>
 
       {both && (
-        <div className="row new-game-fields" role="radiogroup" aria-label="Which figure wins">
-          <span className="field-size">Which one wins it</span>
-          <label className="field-size">
-            <input
-              type="radio" name="challenge-ranked" checked={rankedBy === 'wom'}
-              onChange={() => setRankedBy('wom')} disabled={busy}
-            />
-            {' '}The hiscores figure
-          </label>
-          <label className="field-size">
-            <input
-              type="radio" name="challenge-ranked" checked={rankedBy === 'declared'}
-              onChange={() => setRankedBy('declared')} disabled={busy}
-            />
-            {' '}{declaredLabel.trim() || 'The number they give'}
-          </label>
-        </div>
+        <section className="cnew-question">
+          <h4>Which one wins it</h4>
+          <div className="choice-row" role="radiogroup" aria-label="Which figure wins">
+            <label className="choice">
+              <input
+                type="radio" name="challenge-ranked" checked={rankedBy === 'wom'}
+                onChange={() => setRankedBy('wom')} disabled={busy}
+              />
+              <span>The hiscores figure</span>
+            </label>
+            <label className="choice">
+              <input
+                type="radio" name="challenge-ranked" checked={rankedBy === 'declared'}
+                onChange={() => setRankedBy('declared')} disabled={busy}
+              />
+              <span>{declaredLabel.trim() || 'The number they give'}</span>
+            </label>
+          </div>
+        </section>
       )}
 
-      <div className="row new-game-fields">
+      <div className="row new-game-fields cnew-create">
         <button
           disabled={busy || !ready}
           onClick={async () => {
