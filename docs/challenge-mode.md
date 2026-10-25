@@ -145,19 +145,70 @@ is carried through untouched.
 there. Run this against a database the sweep has not reached and that pattern
 matches zero times, so the whole migration aborts instead of half-applying.
 
+## Finding one
+
+This is the one thing the player screen could not do with what was already
+there. Every other mode is reached through the roster: `listMyGames`
+(`web/src/lib/games.js`) reads `team_members` and answers "which games am I
+in". A challenge is opt-in and a solo one has no teams at all, so there is
+nothing in `team_members` to find — and an event nobody has joined yet has
+nothing anywhere, which would leave the sign-up screen unreachable by the
+people it is for.
+
+So `20261026120300` adds `challenge_list()`. It answers with every event open
+or running, every one this player entered in the last fortnight, and every one
+they organise — each with its setup, how many have signed up, and whether this
+caller is one of them. `challenge_setup` and `challenge_entries` both have RLS
+on and no policies, so this is the only way in, and it carries counts rather
+than names: **who** has signed up stays the organiser's business until the
+event starts, which is the same rule `challenge_standings` keeps.
+
+`listMyGames` folds those into the picker after the rostered games, joined
+ones first. The order is not cosmetic. `App` opens `mine[0]` for anyone with
+no stored choice, so sorting the whole list by date would move every player
+off the bingo they are playing the moment an organiser creates next week's
+event.
+
+## An end time is not only a bingo's
+
+`admin_set_end_time` has refused every mode but bingo since
+`20261001120100`, and said so: *Only a bingo has an end time*. That stopped
+being true when territory landed — the end time is the whole of how a conquest
+finishes, and the console has offered an editor for it ever since, which has
+been refused every time it was pressed. A challenge needs one too, and for a
+harder reason: `challenge_start` will not start an event whose end time has
+passed or is missing, and the organiser had no way to set it.
+
+`20261026120400` patches that one check to name the three modes that have an
+end time. The territory bug is fixed in the same breath rather than left in
+place beside the fix for it.
+
 ## What is built, and what is not
 
-Done, in `20261026120200_challenge_rpcs.sql`: creating an event, joining and
-leaving, declaring a figure and uploading the shots behind it, the organiser's
-review list with correct-and-verify, the ladder, starting, ending, and both
-halves of the Wise Old Man call.
+Done:
+
+- `20261026120200_challenge_rpcs.sql` — creating an event, joining and leaving,
+  declaring a figure with the shots behind it, the organiser's review list with
+  correct-and-verify, the ladder, starting, ending, and both halves of the Wise
+  Old Man call.
+- The console — Challenge in New game with its own body (what it is scored on,
+  rather than how big the board is), its own checklist, Start event, End event
+  now, and a Track pane with the ladder, the review list and a Refresh button
+  for the figures. Configure shows Game and Discord only: a challenge has no
+  board and no roster.
+- The player screen — `components/challenge/`. Sign up with the RSN WOM will
+  match, give the number, hang the start and finish shots on it, and the
+  ladder. It loads its own data rather than going through `board_for_me`:
+  that function answers in one call because every other mode is a board, and
+  teaching it a fourth shape would mean editing a shared function for the one
+  mode that has nothing in common with the others.
 
 Still to come:
 
-1. The console: a Challenge pane, the setup form, the organiser's review list.
-2. The player screen: join, submit, the ladder.
-3. Adding a latecomer to a running WOM competition, so sign-ups can stay open.
-4. A storage policy for `challenge_evidence` paths (`{game}/{entry}/{uuid}`).
+1. Adding a latecomer to a running WOM competition, so sign-ups can stay open.
+2. A storage policy for `challenge_evidence` paths (`{game}/{entry}/{uuid}`).
+   Until then a screenshot is a pasted link to an image uploaded elsewhere,
+   which the organiser opens from the review list.
 
 ## Who may run one
 

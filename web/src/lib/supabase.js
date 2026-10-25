@@ -177,6 +177,115 @@ export async function settleTerritory(gameId) {
  */
 export const myModeratorModes = () => rpc('my_moderator_modes');
 
+// ---- Challenge (20261026120200, 20261026120300) -----------------------------
+// A short event: a start, an end, one figure per entrant, and a ladder. No
+// board, so none of the tile calls above apply to it.
+
+/**
+ * Every challenge worth showing this player: open, running, and the ones they
+ * entered in the last fortnight. The only way in — challenge_setup and
+ * challenge_entries are both closed to clients.
+ */
+export const challengeList = () => rpc('challenge_list');
+
+/** Sign up. `rsn` defaults server-side to the name on the profile. */
+export async function challengeJoin(gameId, rsn = null) {
+  assertWritable();
+  return rpc('challenge_join', { p_game_id: gameId, p_rsn: rsn });
+}
+
+/** Withdraw. Only before the event starts; after that it is an organiser's job. */
+export async function challengeLeave(gameId) {
+  assertWritable();
+  return rpc('challenge_leave', { p_game_id: gameId });
+}
+
+/**
+ * The number the player gives, in the event's own unit — tenths of a million
+ * for `gp` (lib/millions.js), a plain count otherwise.
+ */
+export async function challengeDeclare(gameId, amount) {
+  assertWritable();
+  return rpc('challenge_declare', { p_game_id: gameId, p_amount: amount });
+}
+
+/** A screenshot behind that number. `phase` is 'start' or 'finish'. */
+export async function challengeAddEvidence(gameId, phase, url, note = null) {
+  assertWritable();
+  return rpc('challenge_add_evidence', {
+    p_game_id: gameId, p_phase: phase, p_url: url, p_note: note,
+  });
+}
+
+/** This player's own entry, or null if they are not in it. */
+export const challengeMine = (gameId) => rpc('challenge_mine', { p_game_id: gameId });
+
+/** The ladder. Empty until the event starts. */
+export const challengeStandings = (gameId) =>
+  rpc('challenge_standings', { p_game_id: gameId });
+
+/**
+ * Ask Wise Old Man for the standings. Answers with a request id, or null when
+ * somebody else has just asked — the rate limit is server-side, so every open
+ * page may call this and between them they cost one request.
+ */
+export const challengeFetch = (gameId) => rpc('challenge_fetch', { p_game_id: gameId });
+
+/**
+ * Read whatever WOM has sent back and write it onto the entries. Answers with
+ * how many replies it handled, so a screen can tell "nothing yet" from
+ * "nothing to do". Idempotent, and any client may call it — there is no
+ * scheduler, which is the arrangement bingo's timer already uses.
+ */
+export const challengeReconcile = (gameId) =>
+  rpc('challenge_reconcile', { p_game_id: gameId });
+
+/**
+ * One turn of that loop.
+ *
+ * Read first, then ask: reading picks up the reply to the last request, and
+ * asking queues the next one for whoever is looking a minute from now. Answers
+ * with how many replies were handled, which is a screen's cue to re-read the
+ * standings.
+ */
+export async function womPulse(gameId) {
+  const handled = await challengeReconcile(gameId);
+  await challengeFetch(gameId);
+  return handled ?? 0;
+}
+
+// ---- Challenge, organiser side ---------------------------------------------
+
+/** Its own call, not admin_new_game: that one has no room for a metric or a ranking. */
+export const adminNewChallenge = ({
+  name, endsAt, solo = true, womMetric = null,
+  declaredLabel = null, declaredUnit = null, rankedBy = null, teams = [],
+}) =>
+  rpc('admin_new_challenge', {
+    p_name: name, p_ends_at: endsAt, p_solo: solo, p_wom_metric: womMetric,
+    p_declared_label: declaredLabel, p_declared_unit: declaredUnit,
+    p_ranked_by: rankedBy, p_teams: teams,
+  });
+
+/** Every entry with its figures and every screenshot behind them. */
+export const adminChallengeEntries = (gameId) =>
+  rpc('admin_challenge_entries', { p_game_id: gameId });
+
+/** Correct a number. Records who corrected it; the old one is not kept. */
+export const adminChallengeSetFigure = (entryId, amount) =>
+  rpc('admin_challenge_set_figure', { p_entry_id: entryId, p_amount: amount });
+
+/** Mark a number checked, or undo that with `ok` false. */
+export const adminChallengeVerify = (entryId, ok = true) =>
+  rpc('admin_challenge_verify', { p_entry_id: entryId, p_ok: ok });
+
+/** Which team an entrant plays for; null takes them off one. */
+export const adminChallengeSetTeam = (entryId, teamId) =>
+  rpc('admin_challenge_set_team', { p_entry_id: entryId, p_team_id: teamId });
+
+/** Sign-ups close and the Wise Old Man competition is created from whoever is in. */
+export const challengeStart = (gameId) => rpc('challenge_start', { p_game_id: gameId });
+
 // ---- Admin API -----------------------------------------------------------
 // Every one of these re-checks is_admin() server-side, so hiding the admin tab
 // in the UI is a convenience, never the control.
