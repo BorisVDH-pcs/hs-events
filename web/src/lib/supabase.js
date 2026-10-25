@@ -349,6 +349,21 @@ export const adminChallengeEntries = (gameId) =>
 export const adminChallengeWom = (gameId, reveal = false) =>
   rpc('admin_challenge_wom', { p_game_id: gameId, p_reveal: reveal });
 
+/**
+ * Point an event at a competition Wise Old Man already has. The repair for a
+ * create reply that never arrived: WOM made the competition, we never heard
+ * its number. An empty code is allowed and means exactly what it says -- the
+ * code was in the reply that was lost, and WOM will not issue another.
+ */
+export const adminChallengeWomLink = (gameId, competitionId, code = '') =>
+  rpc('admin_challenge_wom_link', {
+    p_game_id: gameId, p_competition_id: competitionId, p_verification_code: code,
+  });
+
+/** Ask for a competition again, for an event that has none anywhere. */
+export const adminChallengeWomRetry = (gameId) =>
+  rpc('admin_challenge_wom_retry', { p_game_id: gameId });
+
 /** Correct a number. Records who corrected it; the old one is not kept. */
 export const adminChallengeSetFigure = (entryId, amount) =>
   rpc('admin_challenge_set_figure', { p_entry_id: entryId, p_amount: amount });
