@@ -41,6 +41,7 @@ import EvidenceReview from './EvidenceReview.jsx';
 import PetJarReview from './PetJarReview.jsx';
 import DiscordWebhooks from './DiscordWebhooks.jsx';
 import PasswordResetDialog from './PasswordResetDialog.jsx';
+import CardHead from './CardHead.jsx';
 import TileSuggestionReview from './TileSuggestionReview.jsx';
 import { useConfirm } from './ConfirmDialog.jsx';
 import { statusLabel } from '../lib/status.js';
@@ -270,7 +271,8 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
   const [pane, setPane] = useState('games');
   // Configure's sub-tab per game id (see CONFIG_TABS), so coming back to a
   // game opens where you were working on it.
-  const [configTabs, setConfigTabs] = useState(readConfigTabs);
+  const [configTabs, setConfigTabs] = useState(() => readTabMemory(CONFIG_TABS_KEY));
+  const [trackTabs, setTrackTabs] = useState(() => readTabMemory(TRACK_TABS_KEY));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
@@ -841,12 +843,34 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
     if (!game) return;
     setConfigTabs((prev) => {
       const next = { ...prev, [game.id]: key };
-      writeConfigTabs(next);
+      writeTabMemory(CONFIG_TABS_KEY, next);
       return next;
     });
   };
   // What still blocks the start, counted on the sub-tab where it gets fixed.
   const configTabBadge = (key) => blocking.filter((c) => (CHECK_TAB[c.key] ?? 'game') === key).length;
+
+  // Track's own tabs, remembered per game the same way Configure's are.
+  const trackTabList = game
+    ? trackTabsFor(game, {
+      hasWom: Boolean(challengeSetup?.wom_metric),
+      hasScreens: Boolean(onViewAs) && gameTeams.length > 0,
+    })
+    : [];
+  const storedTrackTab = game ? trackTabs[game.id] : null;
+  // A remembered tab can name one this game has not got -- another mode, or a
+  // challenge that was never linked to a competition.
+  const trackTab = trackTabList.some((t) => t.key === storedTrackTab)
+    ? storedTrackTab
+    : trackTabList[0]?.key;
+  const openTrackTab = (key) => {
+    if (!game) return;
+    setTrackTabs((prev) => {
+      const next = { ...prev, [game.id]: key };
+      writeTabMemory(TRACK_TABS_KEY, next);
+      return next;
+    });
+  };
 
   const sections = [
     {
@@ -1780,189 +1804,163 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
           challenge has not got one. What an organiser needs to see of it is
           the entrants and their numbers, which is the whole of the pane
           below. */}
-      {activePane === 'track' && game && !challengeMode && (
-        <TeamScreens game={game} teams={gameTeams} onViewAs={onViewAs} />
-      )}
-
-      {activePane === 'track' && game && challengeMode && (
+      {activePane === 'track' && game && trackTabList.length > 0 && (
         <>
-          {challengeSetup?.wom_metric && (
-            <section className="card">
-              <h2>Wise Old Man</h2>
-              <p className="muted">
-                There is no scheduler on this project, so nothing fetches on its
-                own: an open player screen asks every minute, and this is the
-                same ask by hand. Reading WOM is two steps — the request goes
-                out, the reply lands a moment later — so a first press that
-                changes nothing is normal. Press it again.
-              </p>
-              <div className="row">
-                <button
-                  className="ghost"
-                  disabled={busy}
-                  onClick={() => run(
-                    () => womPulse(game.id),
-                    (handled) => (handled > 0
-                      ? 'The figures are up to date.'
-                      : 'Asked Wise Old Man. The reply lands in a moment — press again to read it.'),
+          <ConfigTabs tab={trackTab} onPick={openTrackTab} tabs={trackTabList} label="Track" />
+
+          {/* Every tab stays mounted and only the open one shows, as on
+              Configure. Nothing refetches when you switch -- which is what the
+              one-long-scroll gave you for free, and would have been the price
+              of tabs otherwise. */}
+          {challengeMode ? (
+            <>
+              <div className="config-pane" hidden={trackTab !== 'ladder'}>
+                <ChallengeLadder
+                  standings={challengeLadder}
+                  setup={challengeSetup}
+                  title={game.status === 'finished' ? 'Final ladder' : 'If it ended now'}
+                />
+              </div>
+
+              <div className="config-pane" hidden={trackTab !== 'entries'}>
+                <ChallengeEntries
+                  entries={challengeEntries}
+                  setup={challengeSetup}
+                  teams={gameTeams}
+                  busy={busy}
+                  onSetFigure={(entryId, amount) => run(
+                    () => adminChallengeSetFigure(entryId, amount),
+                    'Number corrected — the ladder and the feed both say who changed it.',
                     { refresh: ['challenge'] },
                   )}
-                >
-                  Refresh the figures
-                </button>
-                {challengeSetup?.ranked_by === 'wom' && game.status === 'active' && (
-                  <span className="muted">
-                    This event is scored on them, so it cannot be ended while they are stale.
-                  </span>
+                  onVerify={(entryId, ok) => run(
+                    () => adminChallengeVerify(entryId, ok),
+                    ok ? 'Checked. The player cannot change it now.' : 'Unchecked — the player can change it again.',
+                    { refresh: ['challenge'] },
+                  )}
+                  onSetTeam={(entryId, teamId) => run(
+                    () => adminChallengeSetTeam(entryId, teamId),
+                    'Team set.',
+                    { refresh: ['challenge'] },
+                  )}
+                />
+              </div>
+
+              {challengeSetup?.wom_metric && (
+                <div className="config-pane" hidden={trackTab !== 'wom'}>
+                  <section className="card">
+                    <CardHead
+                      title="Wise Old Man"
+                      lead="Read the hiscores again now, instead of waiting for the next pass."
+                      more={'There is no scheduler on this project, so nothing fetches on its own: an open '
+                        + 'player screen asks every minute, and this is the same ask by hand. Reading WOM is '
+                        + 'two steps — the request goes out, the reply lands a moment later — so a first press '
+                        + 'that changes nothing is normal. Press it again.'}
+                    />
+                    <div className="row">
+                      <button
+                        className="ghost"
+                        disabled={busy}
+                        onClick={() => run(
+                          () => womPulse(game.id),
+                          (handled) => (handled > 0
+                            ? 'The figures are up to date.'
+                            : 'Asked Wise Old Man. The reply lands in a moment — press again to read it.'),
+                          { refresh: ['challenge'] },
+                        )}
+                      >
+                        Refresh the figures
+                      </button>
+                      {challengeSetup?.ranked_by === 'wom' && game.status === 'active' && (
+                        <span className="muted">
+                          This event is scored on them, so it cannot be ended while they are stale.
+                        </span>
+                      )}
+                    </div>
+                  </section>
+
+                  <ChallengeWom
+                    wom={challengeWom}
+                    setup={challengeSetup}
+                    busy={busy}
+                    onReveal={async () => (await adminChallengeWom(game.id, true))?.verification_code}
+                    onLink={(competitionId, code) => run(
+                      () => adminChallengeWomLink(game.id, competitionId, code),
+                      code
+                        ? 'Linked. The standings are read on the next pass.'
+                        : 'Linked without a code — the standings are read, but the competition cannot be edited from here.',
+                      { refresh: ['challenge'] },
+                    )}
+                    onRetry={() => run(
+                      () => adminChallengeWomRetry(game.id),
+                      'Asked Wise Old Man again. The answer lands within a minute or two.',
+                      { refresh: ['challenge'] },
+                    )}
+                  />
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="config-pane" hidden={trackTab !== 'board'}>
+                {bingo && (
+                  <section className="card">
+                    <CardHead
+                      title="Cards"
+                      lead="Every team’s card, with what it has completed and what it is part-way through."
+                      more="Pick a team to see its card; a tile in progress shows its evidence count."
+                    />
+                    <BingoOverview game={game} teams={gameTeams} />
+                  </section>
+                )}
+                {snakesMode && (
+                  <SnakesAdminTrack
+                    game={game}
+                    tiles={tiles}
+                    jumps={jumps}
+                    busy={busy}
+                    run={run}
+                    confirm={confirm}
+                  />
+                )}
+                {territoryMode && <TerritoryAdminTrack game={game} />}
+                {!cardLike && (
+                  <section className="card">
+                    <CardHead
+                      title="Boards"
+                      lead="One board per team, showing the game from that team’s side."
+                      more={'The opponent’s ships they are hunting, and their own locked-in tiles and shots on '
+                        + 'top. A locked-in square shows its evidence count — 1/3 is a team mid-task — and '
+                        + 'clicking one opens what they have submitted for it.'}
+                    />
+                    <AdminOverview gameId={game.id} teams={gameTeams} />
+                  </section>
                 )}
               </div>
-            </section>
+
+              <div className="config-pane" hidden={trackTab !== 'evidence'}>
+                <EvidenceCard gameId={game.id} mode={game.mode} />
+              </div>
+
+              {!cardLike && (
+                <div className="config-pane" hidden={trackTab !== 'pets'}>
+                  <section className="card">
+                    <CardHead
+                      title="Pets and jars"
+                      lead="Every pet or jar screenshot, newest first."
+                      more={'Each one earned its team a tile preview. Revoking one takes that preview back. '
+                        + 'If the team has already spent it, their latest preview is hidden again.'}
+                    />
+                    <PetJarReview gameId={game.id} />
+                  </section>
+                </div>
+              )}
+
+              <div className="config-pane" hidden={trackTab !== 'screens'}>
+                <TeamScreens game={game} teams={gameTeams} onViewAs={onViewAs} />
+              </div>
+            </>
           )}
-
-          <ChallengeLadder
-            standings={challengeLadder}
-            setup={challengeSetup}
-            title={game.status === 'finished' ? 'Final ladder' : 'If it ended now'}
-          />
-
-          <ChallengeWom
-            wom={challengeWom}
-            setup={challengeSetup}
-            busy={busy}
-            onReveal={async () => (await adminChallengeWom(game.id, true))?.verification_code}
-            onLink={(competitionId, code) => run(
-              () => adminChallengeWomLink(game.id, competitionId, code),
-              code
-                ? 'Linked. The standings are read on the next pass.'
-                : 'Linked without a code — the standings are read, but the competition cannot be edited from here.',
-              { refresh: ['challenge'] },
-            )}
-            onRetry={() => run(
-              () => adminChallengeWomRetry(game.id),
-              'Asked Wise Old Man again. The answer lands within a minute or two.',
-              { refresh: ['challenge'] },
-            )}
-          />
-
-          <ChallengeEntries
-            entries={challengeEntries}
-            setup={challengeSetup}
-            teams={gameTeams}
-            busy={busy}
-            onSetFigure={(entryId, amount) => run(
-              () => adminChallengeSetFigure(entryId, amount),
-              'Number corrected — the ladder and the feed both say who changed it.',
-              { refresh: ['challenge'] },
-            )}
-            onVerify={(entryId, ok) => run(
-              () => adminChallengeVerify(entryId, ok),
-              ok ? 'Checked. The player cannot change it now.' : 'Unchecked — the player can change it again.',
-              { refresh: ['challenge'] },
-            )}
-            onSetTeam={(entryId, teamId) => run(
-              () => adminChallengeSetTeam(entryId, teamId),
-              'Team set.',
-              { refresh: ['challenge'] },
-            )}
-          />
-        </>
-      )}
-
-      {activePane === 'track' && game && bingo && (
-        <>
-          <section className="card">
-            <h2>Cards</h2>
-            <p className="muted">
-              Every team’s card, with what it has completed and what it is part-way
-              through. Pick a team to see its card; a tile in progress shows its
-              evidence count.
-            </p>
-            <BingoOverview game={game} teams={gameTeams} />
-          </section>
-
-          <section className="card">
-            <h2>Evidence</h2>
-            <p className="muted">
-              Every screenshot submitted, newest first, with who submitted it.
-              There is nothing to approve — attaching the required number is what
-              completes a tile. Revoking one can take a tile back off a team’s count.
-            </p>
-            <EvidenceReview gameId={game.id} mode={game.mode} />
-          </section>
-        </>
-      )}
-
-      {activePane === 'track' && game && snakesMode && (
-        <>
-          <SnakesAdminTrack
-            game={game}
-            tiles={tiles}
-            jumps={jumps}
-            busy={busy}
-            run={run}
-            confirm={confirm}
-          />
-
-          <section className="card">
-            <h2>Evidence</h2>
-            <p className="muted">
-              Every screenshot submitted, newest first, with who submitted it.
-              There is nothing to approve — attaching what the tile asks for is
-              what completes it. Revoking one can take a tile back off a team.
-            </p>
-            <EvidenceReview gameId={game.id} mode={game.mode} />
-          </section>
-        </>
-      )}
-
-      {activePane === 'track' && game && territoryMode && (
-        <>
-          <TerritoryAdminTrack game={game} />
-
-          <section className="card">
-            <h2>Evidence</h2>
-            <p className="muted">
-              Every screenshot submitted, newest first, with who submitted it.
-              There is nothing to approve — the screenshot that meets a task is
-              what captures the place. Revoking one can hand a place back.
-            </p>
-            <EvidenceReview gameId={game.id} mode={game.mode} />
-          </section>
-        </>
-      )}
-
-      {activePane === 'track' && game && !cardLike && !challengeMode && (
-        <>
-          <section className="card">
-            <h2>Boards</h2>
-            <p className="muted">
-              One board per team, showing the game from that team’s side: the
-              opponent’s ships they are hunting, and their own locked-in tiles and shots
-              on top. A locked-in square shows its evidence count — 1/3 is a team
-              mid-task — and clicking one opens what they have submitted for it.
-            </p>
-            <AdminOverview gameId={game.id} teams={gameTeams} />
-          </section>
-
-          <section className="card">
-            <h2>Evidence</h2>
-            <p className="muted">
-              Every screenshot submitted, newest first, with who submitted it.
-              There is nothing to approve — attaching the required number is what
-              lets a team fire. This is for settling a dispute, or catching one.
-            </p>
-            <EvidenceReview gameId={game.id} mode={game.mode} />
-          </section>
-
-          <section className="card">
-            <h2>Pet/jar submissions</h2>
-            <p className="muted">
-              Every pet or jar screenshot, newest first. Each one earned its team a
-              tile preview. Revoking one takes that preview back. If the team has
-              already spent it, their latest preview is hidden again.
-            </p>
-            <PetJarReview gameId={game.id} />
-          </section>
         </>
       )}
 
@@ -1973,17 +1971,6 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
 }
 
 /**
- * What still has to happen before this game can run.
- *
- * There is no written runbook, and the people setting up a game will not be the
- * people who built this. So the panel has to be the runbook: every requirement
- * visible at once, each with the screen that satisfies it named in the fix, and
- * nothing discovered only by pressing a button and reading an error.
- *
- * Rows in `setup` and `placement` only. Once a game is running the list has
- * served its purpose and would just be six ticks taking up the top of the page.
- */
-/**
  * The way into each team's own screen, read only (App.jsx, lib/viewOnly.js).
  *
  * Not a reconstruction: it is the players' screen itself -- board, buttons,
@@ -1991,7 +1978,7 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
  * what board_for_me answers a member of that team. So what is wrong there is
  * wrong for them, and what looks right does.
  *
- * At the top of Track for every mode and status: before the start it shows
+ * Its own tab on Track, for every mode and status: before the start it shows
  * the waiting room a team is looking at, which is worth checking too.
  */
 function TeamScreens({ game, teams, onViewAs }) {
@@ -2043,24 +2030,79 @@ const CHECK_TAB = {
   tiles: 'board', jumps: 'board', homes: 'board', teams: 'teams', captains: 'teams', roster: 'teams', discord: 'discord',
 };
 
+// Which sub-tab each game was last left on, per pane. Track keeps its own
+// map: the tab you want on Configure and the one you want on Track are
+// different answers about the same game.
 const CONFIG_TABS_KEY = 'hs-admin-config-tabs';
-function readConfigTabs() {
+const TRACK_TABS_KEY = 'hs-admin-track-tabs';
+
+function readTabMemory(key) {
   try {
-    const saved = JSON.parse(localStorage.getItem(CONFIG_TABS_KEY) ?? '{}');
+    const saved = JSON.parse(localStorage.getItem(key) ?? '{}');
     return saved && typeof saved === 'object' ? saved : {};
   } catch {
     return {};
   }
 }
-function writeConfigTabs(tabs) {
-  try { localStorage.setItem(CONFIG_TABS_KEY, JSON.stringify(tabs)); } catch { /* private window: in-session only */ }
+function writeTabMemory(key, tabs) {
+  try { localStorage.setItem(key, JSON.stringify(tabs)); } catch { /* private window: in-session only */ }
 }
 
-function ConfigTabs({ tab, onPick, badge, tabs = CONFIG_TABS }) {
+/**
+ * Track's tabs for one game.
+ *
+ * Track used to be every job at once in one scroll -- for battleships that is
+ * the boards, every screenshot in the game, the pet and jar queue and the four
+ * team screens, stacked. Four separate questions, and no way to ask only one.
+ * Configure has had tabs since it was built; this is the same answer.
+ *
+ * The board tab keeps one key across modes so the remembered tab survives
+ * moving between games, and only its label changes.
+ */
+const TRACK_BOARD_LABEL = {
+  battleships: 'Boards', bingo: 'Cards', snakes: 'Board', territory: 'Map',
+};
+
+function trackTabsFor(game, { hasWom, hasScreens }) {
+  if (isChallengeGame(game)) {
+    return [
+      { key: 'ladder', label: 'Ladder' },
+      { key: 'entries', label: 'Entries' },
+      // Nothing to show for an event scored only on what players send in.
+      ...(hasWom ? [{ key: 'wom', label: 'Wise Old Man' }] : []),
+    ];
+  }
+  return [
+    { key: 'board', label: TRACK_BOARD_LABEL[game.mode] ?? 'Board' },
+    { key: 'evidence', label: 'Evidence' },
+    ...(game.mode === 'battleships' ? [{ key: 'pets', label: 'Pets and jars' }] : []),
+    // TeamScreens renders nothing without teams, and a tab onto nothing is
+    // worse than no tab.
+    ...(hasScreens ? [{ key: 'screens', label: 'Team screens' }] : []),
+  ];
+}
+
+/**
+ * What revoking a screenshot does, which is the one thing about this screen
+ * nobody would guess. One sentence per mode, because the consequence differs:
+ * a bingo tile comes back off a count, a territory place changes hands.
+ */
+const EVIDENCE_RULE = {
+  battleships: 'There is nothing to approve — attaching the required number is what lets a team fire. '
+    + 'This is for settling a dispute, or catching one.',
+  bingo: 'There is nothing to approve — attaching the required number is what completes a tile. '
+    + 'Revoking one can take a tile back off a team’s count.',
+  snakes: 'There is nothing to approve — attaching what the tile asks for is what completes it. '
+    + 'Revoking one can take a tile back off a team.',
+  territory: 'There is nothing to approve — the screenshot that meets a task is what captures the place. '
+    + 'Revoking one can hand a place back.',
+};
+
+function ConfigTabs({ tab, onPick, badge, tabs = CONFIG_TABS, label = 'Configure' }) {
   return (
-    <div className="tabs config-tabs" role="tablist" aria-label="Configure">
+    <div className="tabs config-tabs" role="tablist" aria-label={label}>
       {tabs.map((t) => {
-        const n = badge(t.key);
+        const n = badge ? badge(t.key) : 0;
         return (
           <button
             key={t.key}
@@ -2075,6 +2117,25 @@ function ConfigTabs({ tab, onPick, badge, tabs = CONFIG_TABS }) {
         );
       })}
     </div>
+  );
+}
+
+/**
+ * Every screenshot in one game.
+ *
+ * One component for what used to be four near-identical copies, one per mode,
+ * differing only in the sentence about what revoking does.
+ */
+function EvidenceCard({ gameId, mode }) {
+  return (
+    <section className="card">
+      <CardHead
+        title="Evidence"
+        lead="Every screenshot submitted, newest first, with who submitted it."
+        more={EVIDENCE_RULE[mode]}
+      />
+      <EvidenceReview gameId={gameId} mode={mode} />
+    </section>
   );
 }
 
@@ -2656,11 +2717,13 @@ function Accounts({ profiles, busy, confirm, onReset, onDelete, resets, deletion
 
   return (
     <section className="card">
-      <h2>Accounts</h2>
-      <p className="muted">
-        Reset a player’s password directly, or remove an account entirely —
-        useful for a troll signup with no place in a game.
-      </p>
+      <CardHead
+        title="Accounts"
+        lead="Reset a player’s password, or remove an account entirely."
+        more={'Deleting takes their profile, their team membership and any locked-in tiles with it, and it '
+          + 'cannot be undone — which is what it is for: a troll signup with no place in a game. The confirm '
+          + 'asks you to type the name before it will go through.'}
+      />
 
       <input
         type="search"
@@ -2678,7 +2741,7 @@ function Accounts({ profiles, busy, confirm, onReset, onDelete, resets, deletion
                 Reset password
               </button>
               <button
-                className="danger"
+                className="danger ghost"
                 disabled={busy}
                 onClick={async () => {
                   // Same guard as deleting a game: hold the confirm button
@@ -2786,15 +2849,18 @@ function ModeratorRoles({ profiles, moderators, busy, confirm, onSave }) {
 
   return (
     <section className="card">
-      <h2>Who runs what</h2>
-      <p className="muted">
-        A moderator runs events of the modes you tick: making them, starting
-        them, judging the evidence and ending them, with the same console you
-        are looking at. They hold the <em>mode</em> rather than one event, so
-        ticking Challenge hands them every challenge on the site, including
-        ones somebody else set up. Wiping a game’s progress, the suggestion
-        queue and this screen stay yours.
-      </p>
+      <CardHead
+        title="Who runs what"
+        lead="A moderator runs events of the modes you tick, with the same console you are looking at."
+        more={(
+          <>
+            Making them, starting them, judging the evidence and ending them. They
+            hold the <em>mode</em> rather than one event, so ticking Challenge hands
+            them every challenge on the site, including ones somebody else set up.
+            Wiping a game’s progress, the suggestion queue and this screen stay yours.
+          </>
+        )}
+      />
 
       <ul className="role-list">
         {rows.map((row) => (

@@ -5907,3 +5907,63 @@ label.choice:has(input:disabled) { cursor: default; opacity: .5; }
 }
 
 .shot-add button { justify-self: start; }
+
+/* ---- Admin console card heads (components/CardHead.jsx) ----
+
+   Every card in Configure, Track, Accounts and Suggestions opened with a
+   paragraph before the thing you came for: what the screen is, then the rule
+   behind it. The lead line stays. The rule goes one level down, shut, because
+   the people who need it need it once. */
+
+.card-head { margin-bottom: var(--s-4); }
+
+/* `.card > h2` zeroed the top margin, and the heading is no longer a direct
+   child of the card. */
+.card-head h2 { margin: 0 0 var(--s-2); }
+
+.card-lead { margin: 0; max-width: 68ch; line-height: var(--lh-body); }
+
+.card-more { margin-top: var(--s-2); }
+
+.card-more summary {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  font-size: var(--t-footnote);
+  color: var(--label-3);
+  cursor: pointer;
+  list-style: none;
+}
+
+/* Both of these, or Safari keeps drawing its own triangle beside ours. */
+.card-more summary::-webkit-details-marker { display: none; }
+
+.card-more summary::before {
+  content: '\203A';
+  display: inline-block;
+  transition: transform .2s var(--ease-out);
+}
+
+.card-more[open] summary::before { transform: rotate(90deg); }
+.card-more summary:hover { color: var(--gold); }
+
+.card-more > p {
+  margin: var(--s-2) 0 0;
+  max-width: 68ch;
+  font-size: var(--t-footnote);
+  line-height: var(--lh-body);
+}
+
+/* An empty queue is this pane's normal state, not a shortfall -- it used to be
+   one muted line under a paragraph explaining a job there was none of. */
+.suggestion-empty {
+  margin: 0;
+  padding: var(--s-8) 0;
+  text-align: center;
+  font-size: var(--t-subhead);
+  color: var(--label-3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-more summary::before { transition: none; }
+}
