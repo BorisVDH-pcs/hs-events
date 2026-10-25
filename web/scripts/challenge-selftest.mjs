@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  MAX_EVIDENCE, MAX_FIGURE, WOM_METRICS,
-  challengeEventText, figureLabel, figureToStored, metricLabel, rankedLabel,
-  storedToInput, womLabel,
+  MAX_EVIDENCE, MAX_FIGURE, METRIC_GROUPS, WOM_METRICS,
+  challengeEventText, figureLabel, figureToStored, isKnownMetric, metricLabel,
+  rankedLabel, storedToInput, womLabel,
 } from '../src/lib/challenge.js';
 import { PER_MILLION } from '../src/lib/millions.js';
 
@@ -57,6 +57,28 @@ assert.equal(new Set(WOM_METRICS.map((m) => m.value)).size, WOM_METRICS.length,
   'no metric is listed twice');
 for (const m of WOM_METRICS) {
   assert.match(m.value, /^[a-z0-9_]+$/, `${m.value} is spelled the way WOM spells it`);
+  assert.ok(METRIC_GROUPS.includes(m.group), `${m.value} is in a group the picker shows`);
+  assert.ok(m.name && m.label, `${m.value} has something to show in both places`);
+}
+assert.ok(isKnownMetric('zulrah') && !isKnownMetric('not_a_boss'));
+
+// The list used to hold six bosses and six skills, so Boss of the Week could
+// not name most bosses and Skill of the Week could not name most skills. It
+// is generated from the live API now; these are the counts that WOM serves,
+// and a regeneration that quietly drops half of them should fail here.
+const byGroup = (g) => WOM_METRICS.filter((m) => m.group === g);
+assert.equal(byGroup('Skills').length, 25, 'every skill, not a handful');
+assert.ok(byGroup('Bosses').length >= 60, 'the bosses, not a handful');
+assert.equal(byGroup('Clues').length, 7, 'all tiers plus the total');
+assert.equal(byGroup('Raids').length, 6, 'three raids, normal and hard');
+for (const g of METRIC_GROUPS) {
+  assert.ok(byGroup(g).length > 0, `${g} is not an empty heading`);
+  assert.equal(new Set(byGroup(g).map((m) => m.name)).size, byGroup(g).length,
+    `no two options read the same under ${g}`);
+}
+// The ones an organiser reaches for, by the names this project calls them.
+for (const v of ['overall', 'slayer', 'zulrah', 'chambers_of_xeric', 'clue_scrolls_all', 'ehb']) {
+  assert.ok(isKnownMetric(v), `${v} is pickable`);
 }
 
 // Which figure the ladder is sorted on, in words.
