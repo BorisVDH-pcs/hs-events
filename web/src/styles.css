@@ -5646,3 +5646,135 @@ label.choice:has(input:disabled) { cursor: default; opacity: .5; }
 }
 
 .wizard-foot button:disabled { opacity: .45; cursor: default; }
+
+/* ---- Challenge evidence (challenge/ChallengeGame.jsx) ----
+
+   This was one undifferentiated run of fields: the number, its button, two
+   bare <h4> lists, and a four-control row whose first control was a
+   Start/Finish dropdown. The dropdown is gone -- each phase has its own box
+   and adds to itself -- and what is left is grouped into the three things a
+   player is actually doing here. Same scales as Home and the setup wizard. */
+
+.declare-box,
+.shot-box {
+  padding: var(--s-4);
+  background: var(--fill-3);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+}
+
+.declare-box { margin: var(--s-4) 0; }
+
+.declare-head,
+.shot-box-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-2);
+  margin-bottom: var(--s-3);
+}
+
+.declare-head h4,
+.shot-box-head h4 {
+  margin: 0;
+  font-size: var(--t-subhead);
+  letter-spacing: var(--tr-body);
+  color: var(--text);
+}
+
+/* The number as it stands, beside its own heading rather than squashed
+   against the button that changes it. */
+.declare-now {
+  font-size: var(--t-body);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--gold);
+}
+
+/* minmax(0, …) on neither track by design: the input gets a readable measure
+   and the button takes what it needs, and at a phone width they wrap. */
+.declare-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--s-3);
+}
+
+.declare-field label {
+  display: grid;
+  gap: var(--s-1);
+  font-size: var(--t-footnote);
+}
+
+/* A three-character value does not want the width of the whole card. */
+.declare-field input { width: 9rem; }
+
+.shots-head { margin: var(--s-6) 0 var(--s-2); }
+.shots-intro { margin: 0 0 var(--s-4); font-size: var(--t-footnote); }
+
+/* auto-fit, not auto-fill: there are exactly two, and they should share the
+   width rather than leave an empty track beside them. */
+.shot-boxes {
+  display: grid;
+  gap: var(--s-3);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+  align-items: start;
+}
+
+.shot-box-count {
+  font-size: var(--t-caption);
+  font-variant-numeric: tabular-nums;
+  color: var(--label-2);
+}
+
+.shot-box-hint {
+  margin: 0 0 var(--s-3);
+  font-size: var(--t-footnote);
+  line-height: var(--lh-body);
+}
+
+.shot-box-empty,
+.shot-box-full {
+  margin: 0;
+  font-size: var(--t-footnote);
+}
+
+.shot-list {
+  list-style: none;
+  margin: 0 0 var(--s-3);
+  padding: 0;
+  display: grid;
+  gap: var(--s-2);
+}
+
+.shot-list li {
+  font-size: var(--t-footnote);
+  line-height: var(--lh-snug);
+}
+
+/* A browser-default link in the middle of a dark panel reads as a mistake,
+   and this one did: blue, purple once visited, underlined. */
+.shot-list a {
+  color: var(--gold);
+  text-decoration: none;
+  border-bottom: 1px solid var(--gold-dim);
+}
+
+.shot-list a:hover { border-bottom-color: var(--gold); }
+
+.shot-add {
+  display: grid;
+  gap: var(--s-2);
+  margin-top: var(--s-3);
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--hairline);
+}
+
+.shot-add label {
+  display: grid;
+  gap: var(--s-1);
+  font-size: var(--t-footnote);
+}
+
+.shot-add button { justify-self: start; }
