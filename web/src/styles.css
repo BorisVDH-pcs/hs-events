@@ -1973,7 +1973,6 @@ label {
 .config-pane { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.5rem; }
 .tabs.config-tabs { margin: 0; }
 .config-tabs .admin-nav-badge { margin-left: .4rem; }
-.checklist .what button.link { font: inherit; color: var(--text); text-decoration: underline; text-underline-offset: .15em; }
 
 /* Sticky: which section you are in, and which game every section is about,
    should still be on screen at the bottom of a long pane. */
@@ -3209,39 +3208,111 @@ button.cell.picked:not(.hit):not(.miss) { background: rgba(242, 193, 78, .14); }
    not the people who built it and there is no written runbook, so this is the
    runbook: every requirement on screen at once, each unmet one naming the panel
    that satisfies it. Deliberately plain — a status list, not a dashboard. */
-.checklist { margin: .2rem 0 .9rem; }
-.checklist ul { list-style: none; margin: 0 0 .5rem; padding: 0; }
-.checklist li {
+/* ---- Setup checklist (Admin.jsx -> SetupChecklist) ----
+
+   The score leads now. It used to be one sentence under the list, which put
+   the single fact an organiser opens this pane for at the bottom of it. */
+
+.checklist { margin: var(--s-2) 0 var(--s-5); }
+
+.checklist-head { display: grid; gap: var(--s-2); margin-bottom: var(--s-5); }
+
+.checklist-score {
+  margin: 0;
+  font-family: var(--display);
+  font-size: var(--t-title3);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--tr-title);
+  font-variant-numeric: tabular-nums;
+  color: var(--label-2);
+}
+
+.checklist-score strong { color: var(--gold); }
+
+.checklist-bar {
+  height: .375rem;
+  border-radius: var(--r-pill);
+  background: var(--fill-2);
+  overflow: hidden;
+}
+
+.checklist-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--gold);
+  transition: width .3s var(--ease-out);
+}
+
+.checklist-say { margin: 0; font-size: var(--t-footnote); color: var(--label-2); }
+
+.check-group { margin-bottom: var(--s-5); }
+.check-group:last-child { margin-bottom: 0; }
+
+.check-group > h4 {
+  margin: 0 0 var(--s-2);
+  font-size: var(--t-caption);
+  letter-spacing: var(--tr-caps);
+  text-transform: uppercase;
+  color: var(--label-3);
+}
+
+/* Reference rather than work: still readable, but it should not compete with
+   the group that still needs doing. */
+.check-group.quiet { opacity: .68; }
+
+.check-group ul { list-style: none; margin: 0; padding: 0; }
+
+/* minmax(0, 1fr) on the label, not a fixed 9.5rem: a long check label used to
+   be held at a width that pushed the count off the row instead of wrapping. */
+.check-group li {
   display: grid;
-  grid-template-columns: 1.1rem 9.5rem auto;
-  gap: .1rem .6rem;
+  grid-template-columns: 1.1rem minmax(0, 1fr) auto auto;
+  gap: var(--s-1) var(--s-3);
   align-items: baseline;
-  padding: .3rem 0;
+  padding: var(--s-2) 0;
   border-bottom: 1px solid var(--hairline);
 }
-.checklist li:last-child { border-bottom: 0; }
-.checklist .tick { font-weight: 600; text-align: center; }
-.checklist li.ok       .tick { color: var(--strike); }
-.checklist li.todo     .tick { color: var(--hit-lit); }
-.checklist li.optional .tick { color: var(--label-3); }
-.checklist .what   { color: var(--text); }
-.checklist .detail { color: var(--label-2); font-variant-numeric: tabular-nums; }
-/* The fix drops to its own line under the label, so a long one does not squeeze
-   the columns and the eye still runs straight down the ticks. */
-/* Secondary, not tinted: the red tick already says this one is blocking, and
-   gold here would read as something to press. */
-.checklist .fix {
+
+.check-group li:last-child { border-bottom: 0; }
+
+.check-group .tick { font-weight: 600; text-align: center; }
+.check-group li.ok       .tick { color: var(--strike); }
+.check-group li.todo     .tick { color: var(--gold-dim); }
+.check-group li.optional .tick { color: var(--label-3); }
+
+.check-group .what   { color: var(--text); font-size: var(--t-subhead); }
+.check-group .detail { color: var(--label-2); font-variant-numeric: tabular-nums; font-size: var(--t-footnote); }
+
+/* The line that used to say "on the Board tab" is a button that goes there. */
+.check-go {
+  padding: var(--s-1) var(--s-2);
+  font-size: var(--t-caption);
+  white-space: nowrap;
+}
+
+/* The fix drops to its own line under the label, so a long one does not
+   squeeze the columns and the eye still runs straight down the ticks. */
+.check-group .fix {
   grid-column: 2 / -1;
   color: var(--label-2);
-  font-size: .875rem;
-  line-height: 1.4;
+  font-size: var(--t-footnote);
+  line-height: var(--lh-body);
 }
-.checklist li.optional .fix { color: var(--label-3); }
+
+.check-group li.optional .fix { color: var(--label-3); }
+
+/* A gold button on an optional row would be the loudest thing on the pane
+   after Open preparation, which is the one control that should be. Gold is
+   for the rows that are still work. */
+.check-group li.optional .check-go { color: var(--label-2); }
+.check-group li.optional .check-go:hover:not(:disabled) { color: var(--gold); }
 
 @media (max-width: 34rem) {
-  .checklist li { grid-template-columns: 1.1rem auto; }
-  .checklist .detail { grid-column: 2 / -1; }
-  .checklist .fix    { grid-column: 2 / -1; }
+  .check-group li { grid-template-columns: 1.1rem minmax(0, 1fr); }
+  .check-group .detail,
+  .check-group .fix { grid-column: 2 / -1; }
+  .check-go { grid-column: 2 / -1; justify-self: start; }
 }
 
 /* A set inside the "?" panel: its name and how many of it are in, then its
