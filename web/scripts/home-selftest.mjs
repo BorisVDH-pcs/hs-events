@@ -232,4 +232,35 @@ assert.equal(modeLabel(null), 'Event', 'and an unknown mode says something rathe
     'the App harness renders the real App, not a stand-in');
 }
 
+// ---- Home's cards can actually shrink ----
+//
+// `grid-template-columns: 1fr auto` is really `minmax(auto, 1fr) auto`, and an
+// `auto` minimum refuses to go below its own content width. With a nowrap
+// status label in the second column, that made the card wider than a phone
+// viewport: the label sat off the right edge and the whole page scrolled
+// sideways, while every test passed and the desktop width looked perfect.
+// `minmax(0, 1fr)` is what lets the first column give way.
+//
+// That is the third grid track to misbehave on this screen -- the header's
+// `.who` block and the organiser console were both auto-placement -- so it is
+// asserted here rather than remembered.
+{
+  const sheet = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
+  const fromCard = sheet.slice(sheet.indexOf('.home-game {'));
+  const cardRule = fromCard.slice(0, fromCard.indexOf('}'));
+  assert.ok(
+    cardRule.includes('minmax(0, 1fr)'),
+    '.home-game needs minmax(0, 1fr) so the name column can shrink on a phone'
+  );
+
+  // The scales exist, and Home is built on them rather than on hand-picked
+  // values. 107 distinct padding values is what this guards against returning.
+  for (const token of ['--s-4:', '--t-body:', '--tr-large:', '--lh-tight:']) {
+    assert.ok(sheet.includes(token), `the design scales still define ${token}`);
+  }
+  const home = sheet.slice(sheet.indexOf('/* ---- Home (Home.jsx) ----'));
+  assert.ok(home.includes('var(--s-'), 'Home draws its spacing from the scale');
+  assert.ok(home.includes('var(--t-'), 'Home draws its type sizes from the scale');
+}
+
 console.log('home-selftest: ok');
