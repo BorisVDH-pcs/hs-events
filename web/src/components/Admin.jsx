@@ -614,28 +614,28 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
       ok: tiles.length === needTiles,
       detail: `${tiles.length} of ${needTiles}`,
       fix: tiles.length === 0
-        ? 'Build the card on the Board tab.'
-        : `${needTiles - tiles.length} still empty — fill them in on the Board tab.`,
+        ? 'Nothing on the card yet.'
+        : `${needTiles - tiles.length} still empty.`,
     },
     {
       key: 'teams', label: 'Teams', required: true,
       ok: gameTeams.length > 0,
       detail: `${gameTeams.length}`,
-      fix: 'Add at least one team on the Teams tab.',
+      fix: 'This game needs at least one team.',
     },
     {
       key: 'roster', label: 'Players', required: true,
       ok: gameTeams.length > 0 && teamsWithoutPlayers.length === 0,
       detail: `${rosterCount} assigned`,
       fix: teamsWithoutPlayers.length
-        ? `${teamsWithoutPlayers.map((t) => t.name).join(', ')} — add players on the Teams tab.`
-        : 'Add players on the Teams tab.',
+        ? `Nobody yet on ${teamsWithoutPlayers.map((t) => t.name).join(', ')}.`
+        : 'Nobody assigned yet.',
     },
     {
       key: 'discord', label: 'Discord', required: false,
       ok: webhooks.length > 0,
       detail: webhooks.length ? `${webhooks.length} configured` : 'none',
-      fix: 'Optional. With none set, this game posts nothing to Discord.',
+      fix: 'With none set, this game posts nothing to Discord.',
     },
   ] : null;
 
@@ -652,15 +652,15 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
       detail: jumps.length
         ? `${ladderCount} ladder${ladderCount === 1 ? '' : 's'}, ${jumps.length - ladderCount} snake${jumps.length - ladderCount === 1 ? '' : 's'}`
         : 'none',
-      fix: 'Place them on the Board tab, before filling the board — their squares need no task.',
+      fix: 'Place these before filling the board — their squares need no task.',
     },
     {
       key: 'tiles', label: 'Tiles', required: true,
       ok: snakesFilled === snakesNeed,
       detail: `${snakesFilled} of ${snakesNeed}`,
       fix: snakesFilled === 0
-        ? 'Build the board on the Board tab.'
-        : `${snakesNeed - snakesFilled} still empty — fill them in on the Board tab.`,
+        ? 'Nothing on the board yet.'
+        : `${snakesNeed - snakesFilled} still empty.`,
     },
     ...cardChecks.filter((c) => c.key !== 'tiles'),
   ] : null;
@@ -678,14 +678,14 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
       ok: territoryFilled === territoryNeed,
       detail: `${territoryFilled} of ${territoryNeed}`,
       fix: territoryFilled === 0
-        ? 'Give the places their tasks on the Board tab: at random, from a saved board, or one by one.'
-        : `${territoryNeed - territoryFilled} places still have no task — fill them in on the Board tab.`,
+        ? 'No tasks set yet: at random, from a saved board, or one by one.'
+        : `${territoryNeed - territoryFilled} places still have no task.`,
     },
     {
       key: 'homes', label: 'Homes', required: true,
       ok: gameTeams.length > 0 && !homesIssue,
       detail: gameTeams.length ? `${gameTeams.length} set` : 'no teams',
-      fix: homesIssue ?? 'Add teams first; each gets a home on the Board tab.',
+      fix: homesIssue ?? 'Add teams first; each one then gets a home.',
     },
     ...cardChecks.filter((c) => c.key !== 'tiles'),
   ] : null;
@@ -727,7 +727,7 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
       key: 'discord', label: 'Discord', required: false,
       ok: webhooks.length > 0,
       detail: webhooks.length ? `${webhooks.length} configured` : 'none',
-      fix: 'Optional. With none set, this event posts nothing to Discord.',
+      fix: 'With none set, this event posts nothing to Discord.',
     },
   ] : null;
 
@@ -737,8 +737,8 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
       ok: tiles.length === needTiles,
       detail: `${tiles.length} of ${needTiles}`,
       fix: tiles.length === 0
-        ? 'Build the board on the Board tab.'
-        : `${needTiles - tiles.length} still empty — fill them in on the Board tab.`,
+        ? 'Nothing on the board yet.'
+        : `${needTiles - tiles.length} still empty.`,
     },
     {
       key: 'teams', label: 'Teams', required: true,
@@ -753,8 +753,8 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
       // The one that used to fail silently: no captain means no player can
       // place that team's fleet, and nothing anywhere said so.
       fix: teamsWithoutCaptain.length
-        ? `${teamsWithoutCaptain.map((t) => t.name).join(' and ')} — set a captain on the Teams tab, `
-          + 'or nobody on that team can place its fleet.'
+        ? `${teamsWithoutCaptain.map((t) => t.name).join(' and ')} — without a captain, `
+          + 'nobody on that team can place its fleet.'
         : '',
     },
     {
@@ -763,10 +763,11 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
       key: 'roster', label: 'Players', required: true,
       ok: gameTeams.length === 2 && gameTeams.every((t) => members.some((m) => m.team_id === t.id)),
       detail: `${rosterCount} assigned`,
-      fix: `Both teams need at least one player — ${
+      fix: `Both teams need at least one player${
         gameTeams.filter((t) => !members.some((m) => m.team_id === t.id)).map((t) => t.name).join(' and ')
-        || 'add them'
-      } on the Teams tab.`,
+          ? ` — nobody yet on ${gameTeams.filter((t) => !members.some((m) => m.team_id === t.id)).map((t) => t.name).join(' and ')}`
+          : ''
+      }.`,
     },
     {
       key: 'fleets', label: 'Fleets placed', required: true,
@@ -783,7 +784,7 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
       detail: webhooks.length ? `${webhooks.length} configured` : 'none',
       // Optional, and worth saying so loudly: since 0042 a game with no webhook
       // posts nothing at all, and silence is easy to mistake for a fault.
-      fix: 'Optional. With none set, this game posts nothing to Discord.',
+      fix: 'With none set, this game posts nothing to Discord.',
     },
   ];
 
@@ -2077,36 +2078,90 @@ function ConfigTabs({ tab, onPick, badge, tabs = CONFIG_TABS }) {
   );
 }
 
+/**
+ * What is left before an event can start.
+ *
+ * WHAT IT REPLACES. A flat run of six rows, each a tick, a label, a count and
+ * a line of prose -- and five red crosses on a freshly created event, which
+ * reads as five things gone wrong rather than five things not done yet. The
+ * count of what was outstanding came last, under the list, so the one fact an
+ * organiser opens this pane for was the last thing they reached.
+ *
+ * So: the score leads, the steps are grouped by whether they are work or
+ * reference, and every line whose prose used to say "on the Board tab" now
+ * carries a button that goes there. A step not taken is a hollow circle, not
+ * a cross; nothing here has failed.
+ */
 function SetupChecklist({ checks, status, onGo }) {
   if (status !== 'setup' && status !== 'placement') return null;
 
-  const outstanding = checks.filter((c) => c.required && !c.ok);
+  const required = checks.filter((c) => c.required);
+  const done = required.filter((c) => c.ok);
+  const todo = required.filter((c) => !c.ok);
+  const optional = checks.filter((c) => !c.required);
+  // Guard the empty case rather than dividing by it: a mode could define no
+  // required checks at all, and a NaN width is an invisible bar.
+  const pct = required.length ? Math.round((done.length / required.length) * 100) : 100;
 
   return (
     <div className="checklist">
-      <ul>
-        {checks.map((c) => (
-          <li key={c.key} className={c.ok ? 'ok' : (c.required ? 'todo' : 'optional')}>
-            <span className="tick" aria-hidden="true">{c.ok ? '✓' : (c.required ? '✗' : '–')}</span>
-            <span className="what">
-              {/* Each line opens the tab where it is fixed. Fleets have none:
-                  captains place them on their own screens. */}
-              {CHECK_TAB[c.key] && onGo
-                ? <button type="button" className="link" onClick={() => onGo(c.key)}>{c.label}</button>
-                : c.label}
-              {!c.required && <span className="muted"> (optional)</span>}
-            </span>
-            <span className="detail">{c.detail}</span>
-            {!c.ok && c.fix && <span className="fix">{c.fix}</span>}
-          </li>
-        ))}
-      </ul>
-      <p className="muted">
-        {outstanding.length === 0
-          ? 'Everything needed is in place.'
-          : `${outstanding.length} thing${outstanding.length === 1 ? '' : 's'} still to do before this game can start.`}
-      </p>
+      <header className="checklist-head">
+        <p className="checklist-score">
+          <strong>{done.length}</strong> of {required.length} done
+        </p>
+        <div
+          className="checklist-bar"
+          role="img"
+          aria-label={`${done.length} of ${required.length} steps done`}
+        >
+          <span style={{ width: `${pct}%` }} />
+        </div>
+        <p className="checklist-say">
+          {todo.length === 0
+            ? 'Everything needed is in place.'
+            : `${todo.length} thing${todo.length === 1 ? '' : 's'} still to do before this game can start.`}
+        </p>
+      </header>
+
+      {todo.length > 0 && <CheckGroup title="Still to do" items={todo} onGo={onGo} />}
+      {done.length > 0 && <CheckGroup title="Done" items={done} onGo={onGo} quiet />}
+      {optional.length > 0 && <CheckGroup title="Optional" items={optional} onGo={onGo} />}
     </div>
+  );
+}
+
+/**
+ * One group of steps.
+ *
+ * `quiet` is the finished group: still worth showing, because an organiser
+ * wants to know the roster really is in, but it is reference rather than work
+ * and should not compete with the group that is.
+ */
+function CheckGroup({ title, items, onGo, quiet = false }) {
+  return (
+    <section className={`check-group${quiet ? ' quiet' : ''}`}>
+      <h4>{title}</h4>
+      <ul>
+        {items.map((c) => {
+          // Fleets have no tab -- captains place them on their own screens --
+          // so that row gets prose and no button, which is the honest answer.
+          const where = CONFIG_TABS.find((t) => t.key === CHECK_TAB[c.key])?.label ?? null;
+          return (
+            <li key={c.key} className={c.ok ? 'ok' : (c.required ? 'todo' : 'optional')}>
+              <span className="tick" aria-hidden="true">{c.ok ? '✓' : (c.required ? '○' : '–')}</span>
+              <span className="what">{c.label}</span>
+              <span className="detail">{c.detail}</span>
+              {where && onGo && !c.ok ? (
+                <button type="button" className="ghost check-go" onClick={() => onGo(c.key)}>
+                  {where} →
+                </button>
+              ) : <span />}
+              {!c.ok && c.fix && <span className="fix">{c.fix}</span>}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 
