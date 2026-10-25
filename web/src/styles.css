@@ -5404,9 +5404,11 @@ label.choice:has(input:disabled) { cursor: default; opacity: .5; }
 
 .home-games > li { display: grid; }
 
-/* The one to open spans the row, so it reads as the obvious target rather
-   than merely the first of five near-identical bars. */
-.home-games > li.lead { grid-column: 1 / -1; }
+/* The one to open used to span the row. That turned it back into the very
+   thing this grid exists to remove: a bar with its name at the far left, its
+   status at the far right and 700px of nothing in between. Its ring, its
+   padding and its larger name mark it out instead, and all three work at
+   card width. */
 
 .home-game {
   display: grid;
