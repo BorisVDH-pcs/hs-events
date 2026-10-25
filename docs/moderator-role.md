@@ -144,7 +144,99 @@ of the four points above has a guard behind it that refuses the call anyway.
 
 ## Testing
 
-The SQL cannot be checked locally; there is no local Postgres. Make a throwaway
-game of a mode the test moderator holds, and one of a mode they do not, and walk
-the console with both accounts. `scripts/rollback-moderator-role.sql` undoes the
-foundation; drop the sweep migration first if it has been applied.
+There is one Supabase project and no staging one, so this is tested against the
+live database or not at all. Everything below is reversible and touches nothing
+a player can see.
+
+### 1. Apply the migration through CI, not by hand
+
+`db-push.yml` has a `workflow_dispatch` trigger. Actions -> "Push database
+migrations" -> Run workflow -> branch `feat/moderator-sweep`. The dry-run step
+prints the pending migrations before the real push, so the log shows what is
+about to happen before it happens.
+
+Do not paste the migration into the SQL editor instead. `supabase db push`
+records what it applied in `supabase_migrations.schema_migrations`; the SQL
+editor does not. A sweep applied by hand would be run again by CI on merge, and
+the second run finds zero copies of the standard guard, raises, and aborts --
+a red run on `main` for no reason, since the guards were already swapped.
+
+### 2. Set up a moderator and two throwaway games
+
+Sign up an ordinary account on the site the way a player does; it needs no
+special treatment. As an admin, create two throwaway games: one bingo, one
+battleships. Note both ids.
+
+Then grant the account **bingo only**, with the snippet from
+`supabase/admin/moderators.sql`, so battleships is the mode it must be refused.
+Check it took:
+
+```sql
+select p.display_name, array_agg(m.mode order by m.mode) as modes
+  from moderator_modes m
+  join profiles p on p.id = m.profile_id
+ group by p.display_name;
+```
+
+### 3. Test the guards, with no console in the way
+
+This is the part that matters. The console is a courtesy; the functions are the
+control, so test them directly. In the SQL editor, become the moderator for the
+length of one transaction and call them. `auth.uid()` reads
+`request.jwt.claims`, which is why setting it is enough. Everything is rolled
+back, so a guard that wrongly lets something through still changes nothing.
+
+```sql
+begin;
+set local request.jwt.claims = '{"sub":"<moderator profile id>","role":"authenticated"}';
+set local role authenticated;
+
+select is_admin()                  as expect_false;
+select is_moderator()              as expect_true;
+select may_run_mode('bingo')       as expect_true;
+select may_run_mode('battleships') as expect_false;
+
+select may_manage_game('<bingo game id>')       as expect_true;
+select may_manage_game('<battleships game id>') as expect_false;
+
+-- expect: ERROR Not your game
+select admin_end_game('<battleships game id>');
+
+rollback;
+```
+
+Then run the same block with an admin's id in place of the moderator's. Every
+line should come back true and `admin_end_game` should be accepted: the sweep
+must not have taken anything away from an admin. This is the half that is easy
+to forget and the half a user would notice.
+
+### 4. Test the console
+
+A pull request does not deploy -- the `deploy` job in `deploy.yml` only runs on
+a push to `main` -- so run the branch locally against the same database:
+
+```
+cd web
+npm run build && npm run preview
+```
+
+`vite build` runs in production mode, so it reads the `VITE_SUPABASE_*` values
+already in `.env.production` and no new file is needed. For iterating instead,
+a gitignored `web/.env.local` holding those same two values makes `npm run dev`
+work.
+
+Signed in as the moderator, expect: a console at all; Games listing the bingo
+game and not the battleships one; New game offering bingo alone and starting on
+it; no Suggestions and no Accounts tab; a Library that still works but has no
+"Delete from the catalogue". Signed in as an admin, expect everything exactly
+as it was.
+
+### Undoing it
+
+`scripts/rollback-moderator-sweep.sql` puts every guard back. One wrinkle: it
+leaves `supabase_migrations.schema_migrations` alone, so `supabase db push`
+goes on considering the sweep applied and will skip it. Delete the row for
+`20261025130000` as well if the sweep should be able to go on again afterwards.
+
+`scripts/rollback-moderator-role.sql` then undoes the foundation, if even that
+should go.
