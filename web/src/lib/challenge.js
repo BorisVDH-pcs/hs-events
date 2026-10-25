@@ -253,6 +253,24 @@ export function rankedLabel(setup) {
 export const WOM_PULSE_MS = 60000;
 
 /**
+ * Where a competition lives on wiseoldman.net.
+ *
+ * Their own routes, from the app this talks to: `/competitions/[id]` is the
+ * standings and `/competitions/[id]/participants` is who is actually in it --
+ * which is the page that answers whether a latecomer was really added, so it
+ * is worth linking in its own right rather than leaving someone to find it.
+ *
+ * Null for a null id, which is what challenge_wom_competition answers while
+ * the create request is still in flight -- and for zero, which is no more a
+ * competition than null is: their ids start at one, and /competitions/0
+ * answers COMPETITION_NOT_FOUND.
+ */
+export function womCompetitionUrl(id, page = null) {
+  if (!id) return null;
+  return `https://wiseoldman.net/competitions/${id}${page ? `/${page}` : ''}`;
+}
+
+/**
  * The feed lines a challenge writes, worded here rather than in EventFeed.
  *
  * Same hand-off snakes and territory use: answer null for anything that is not

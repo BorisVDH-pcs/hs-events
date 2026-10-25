@@ -5047,6 +5047,11 @@ body.dragging-jump * { cursor: grabbing !important; user-select: none; }
 
 .challenge-figure { font-size: 1.05rem; margin: .5rem 0; }
 
+/* Its own line under the metric, not trailing the sentence: two links reading
+   as part of the prose would be read as part of the prose. */
+.challenge-wom-link { display: flex; flex-wrap: wrap; gap: .1rem .9rem; margin-top: .2rem; }
+.challenge-wom-link a { font-size: .8125rem; }
+
 /* The column that decides the winner, in both ladders. The other figure is
    still there -- Boss of the Week is kills and loot at once -- so the one that
    settles it has to look different from the one that does not. */

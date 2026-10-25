@@ -188,11 +188,27 @@ export const myModeratorModes = () => rpc('my_moderator_modes');
  */
 export const challengeList = () => rpc('challenge_list');
 
-/** Sign up. `rsn` defaults server-side to the name on the profile. */
+/**
+ * Sign up, or correct the name on an entry.
+ *
+ * Open for as long as the event runs: a latecomer is added to the live WOM
+ * competition rather than turned away. Queued, not sent, so this answering
+ * does not mean WOM took the name — `wom_added` on challengeMine is what says
+ * that, and it is false until the competition has actually confirmed it.
+ */
 export async function challengeJoin(gameId, rsn = null) {
   assertWritable();
   return rpc('challenge_join', { p_game_id: gameId, p_rsn: rsn });
 }
+
+/**
+ * The WOM competition's id, or null while the create request is still in
+ * flight. The id only — the verification code beside it in challenge_wom is
+ * the credential that lets anyone edit the competition, and no client may read
+ * it. `womCompetitionUrl` turns this into a link.
+ */
+export const challengeWomCompetition = (gameId) =>
+  rpc('challenge_wom_competition', { p_game_id: gameId });
 
 /** Withdraw. Only before the event starts; after that it is an organiser's job. */
 export async function challengeLeave(gameId) {
