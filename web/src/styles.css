@@ -4133,6 +4133,11 @@ button.bingo-cell.clickable:active { transform: scale(.95); transition-duration:
 .row.new-game-fields > .field-size { width: 12rem; }
 .row.new-game-fields > .field-team { width: 15rem; }
 .row.new-game-fields > .field-time { width: 15rem; }
+/* Wider than a name field: the longest option is "Thermonuclear Smoke Devil",
+   and a list box that truncates its own options is no better than the
+   datalist it replaced. */
+.row.new-game-fields > .field-metric { width: 17rem; }
+.row.new-game-fields > .field-metric select { width: 100%; }
 .new-game-note { margin: .5rem 0 0; }
 
 /* The organiser's cards sit inside a .card, which already blurs -- a second

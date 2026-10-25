@@ -1,5 +1,8 @@
 import { useState } from 'react';
-import { WOM_METRICS } from '../../lib/challenge.js';
+import { METRIC_GROUPS, WOM_METRICS } from '../../lib/challenge.js';
+
+/** The list box's escape hatch. Not a metric, so it can never be one. */
+const OTHER = '\u0000other';
 
 /**
  * The New game form, for a challenge.
@@ -27,6 +30,9 @@ export default function ChallengeNewGame({ busy, onCreate }) {
 
   const [useWom, setUseWom] = useState(true);
   const [metric, setMetric] = useState('clue_scrolls_all');
+  // Typing one by hand is a deliberate choice, so it survives a metric the
+  // list does happen to know being typed into the box.
+  const [typed, setTyped] = useState(false);
   const [useDeclared, setUseDeclared] = useState(false);
   const [declaredLabel, setDeclaredLabel] = useState('');
   const [declaredUnit, setDeclaredUnit] = useState('gp');
@@ -35,11 +41,14 @@ export default function ChallengeNewGame({ busy, onCreate }) {
   const filled = teamNames.map((n) => n.trim()).filter(Boolean);
   const duplicate = new Set(filled.map((n) => n.toLowerCase())).size !== filled.length;
   const both = useWom && useDeclared;
+  // The shape every WOM metric has. Checked only for one typed by hand; the
+  // list box cannot produce anything else.
+  const metricOk = /^[a-z0-9_]+$/.test(metric);
 
   const ready = name.trim()
     && endsAt
     && (useWom || useDeclared)
-    && (!useWom || metric.trim())
+    && (!useWom || metricOk)
     && (!useDeclared || declaredLabel.trim())
     && (solo || (filled.length >= 1 && !duplicate));
 
@@ -140,22 +149,55 @@ export default function ChallengeNewGame({ busy, onCreate }) {
           <span>From the hiscores <span className="muted">(Wise Old Man counts it)</span></span>
         </label>
         {useWom && (
-          <div className="row new-game-fields choice-detail">
-            <label className="field-name">Which metric
-              <input
-                list="challenge-metrics"
-                value={metric}
-                onChange={(e) => setMetric(e.target.value.trim())}
-                placeholder="zulrah"
-                disabled={busy}
-              />
-            </label>
-            {/* A list, not a closed set: WOM adds bosses faster than this file
-                gets edited, and an event refused for a metric that exists
-                would be our fault, not the organiser's. */}
-            <datalist id="challenge-metrics">
-              {WOM_METRICS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
-            </datalist>
+          <div className="choice-detail">
+            <div className="row new-game-fields">
+              {/* A list box, not an `input list=`. A datalist filters its
+                  suggestions against whatever is already typed, so a field
+                  arriving with a complete metric in it offered that metric
+                  and nothing else -- 113 of them were unreachable without
+                  clearing the box first, which nothing on screen said to do. */}
+              <label className="field-metric">Which metric
+                <select
+                  value={typed ? OTHER : metric}
+                  disabled={busy}
+                  onChange={(e) => {
+                    if (e.target.value === OTHER) { setTyped(true); return; }
+                    setTyped(false);
+                    setMetric(e.target.value);
+                  }}
+                >
+                  {METRIC_GROUPS.map((g) => (
+                    <optgroup key={g} label={g}>
+                      {WOM_METRICS.filter((m) => m.group === g).map((m) => (
+                        <option key={m.value} value={m.value}>{m.name}</option>
+                      ))}
+                    </optgroup>
+                  ))}
+                  {/* Still an open set: WOM adds bosses faster than this file
+                      is regenerated, and an event refused for a metric that
+                      exists would be our fault, not the organiser's. */}
+                  <option value={OTHER}>Something else — type it</option>
+                </select>
+              </label>
+              {typed && (
+                <label className="field-name">Its Wise Old Man name
+                  <input
+                    value={metric}
+                    onChange={(e) => setMetric(e.target.value.trim())}
+                    placeholder="araxxor"
+                    disabled={busy}
+                    autoFocus
+                  />
+                </label>
+              )}
+            </div>
+            {typed && (
+              <p className="muted new-game-note">
+                Spelled the way Wise Old Man spells it, in lower case with
+                underscores. Their competition is created from this, so a name
+                they do not know is refused when the event starts.
+              </p>
+            )}
           </div>
         )}
 
