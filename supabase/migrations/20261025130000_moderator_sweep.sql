@@ -218,8 +218,9 @@ begin
        'if not is_admin\(\) and not exists \(',
        'if not may_manage_team(p_team_id) and not exists ('),
 
-      -- The x-act-as-team header. v is the team id the caller sent: answering
-      -- only for a team they may manage is tighter than the old is_admin().
+      -- The x-act-as-team header. v is the team id the caller sent. Wider than
+      -- the old is_admin(), not tighter: an admin still answers for any team,
+      -- and a moderator is added for the teams they may manage.
       ('acting_as_team()',
        'if not is_admin\(\) then\s+return null;',
        'if not (is_admin() or may_manage_team(v::uuid)) then return null;')
