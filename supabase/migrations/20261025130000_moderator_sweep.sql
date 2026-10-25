@@ -112,7 +112,7 @@ begin
   -- own transaction, which is also what takes every swap back on a failure.
   create temp table swap_list(fn text, gate text, msg text) on commit drop;
   insert into swap_list (fn, gate, msg) values
-      -- ---- handed a game id: 24 functions ----------------------------------
+      -- ---- handed a game id: 26 functions ----------------------------------
       ('admin_add_team(uuid, text)',                          'may_manage_game(p_game_id)', 'Not your game'),
       ('admin_apply_board_preset(uuid, uuid)',                'may_manage_game(p_game_id)', 'Not your game'),
       ('admin_autofill_board(uuid)',                          'may_manage_game(p_game_id)', 'Not your game'),
@@ -150,7 +150,7 @@ begin
       ('admin_snakes_punish(uuid)',                           'may_manage_team(p_team_id)', 'Not your game'),
       ('admin_snakes_uncomplete_tile(uuid, integer)',         'may_manage_team(p_team_id)', 'Not your game'),
 
-      -- ---- handed some other row: 4 functions -------------------------------
+      -- ---- handed some other row: 5 functions -------------------------------
       ('admin_release_claim(uuid)',                           'may_manage_claim(p_claim_id)',        'Not your game'),
       ('admin_revoke_evidence(uuid, boolean)',                'may_manage_evidence(p_evidence_id)',  'Not your game'),
       ('admin_test_tile(uuid, jsonb)',                        'may_manage_tile(p_tile_id)',          'Not your game'),
