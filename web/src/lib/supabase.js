@@ -549,6 +549,25 @@ export const adminDeleteAccount = (profileId) =>
 export const adminListAccountDeletions = (limit = 20) =>
   rpc('admin_list_account_deletions', { p_limit: limit });
 
+// ---- who runs what (20261025120000) ----
+//
+// A moderator holds MODES, not games. Grant 'challenge' and they run every
+// challenge there is, including ones somebody else set up: may_manage_game
+// joins moderator_modes to the game's mode, and nothing narrows it to whoever
+// created the game. That is the tier's design, not an oversight.
+
+/** Everyone holding at least one mode, with their modes and when granted. */
+export const adminListModerators = () => rpc('admin_list_moderators');
+
+/**
+ * Replace one account's whole grant in a single call — the console sends what
+ * its tick boxes say, so there is no per-mode add and remove to drift apart.
+ * An empty array demotes them to an ordinary player. Refused outright on an
+ * admin, who already outranks every mode.
+ */
+export const adminSetModeratorModes = (profileId, modes) =>
+  rpc('admin_set_moderator_modes', { p_profile_id: profileId, p_modes: modes });
+
 // ---- tile suggestions: players propose, an organiser reviews ----
 //
 // `tile` is the same payload `adminSaveLibraryTile` takes (payloadFromDraft),

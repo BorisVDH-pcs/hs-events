@@ -135,6 +135,16 @@ and the player screen now asks that instead; the eight of them are one-line
 swaps. `isAdmin` itself survives, because `Admin.jsx` still needs to tell the
 two apart.
 
+Accounts carries the grant itself: a "Who runs what" section under the
+account list, one row per moderator with a tick box per mode and a Save, over
+`admin_list_moderators` and `admin_set_moderator_modes`. A player is picked
+from a dropdown of everyone who holds nothing yet; unticking a moderator's last
+mode is a demotion, so it asks first. Admins never appear in either list,
+because `admin_set_moderator_modes` refuses them and `is_admin` already covers
+every mode. `supabase/admin/moderators.sql` stays for the case the screen
+cannot cover: the first admin, since nothing in the schema sets
+`profiles.is_admin`.
+
 `Admin.jsx` takes `isAdmin` and `modes`, and for a moderator:
 
 - the Games list is filtered to the modes they run, so it is the list of games

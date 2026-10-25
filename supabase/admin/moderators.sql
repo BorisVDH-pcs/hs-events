@@ -1,9 +1,10 @@
 -- HS Events — admin snippets for moderator modes
 --
 -- Run these in the Supabase SQL Editor (service role), the same way as
--- player-accounts.sql. The console does the same thing through
--- admin_set_moderator_modes once the Accounts screen offers it; these snippets
--- are the way in before that, and the way in when nobody can reach the console.
+-- player-accounts.sql. The Accounts screen now does the same thing through
+-- admin_set_moderator_modes, so these snippets are the way in when nobody can
+-- reach the console yet -- above all the first admin, whose profiles.is_admin
+-- no function will set.
 --
 -- A moderator holds MODES, not games: 'battleships', 'bingo', 'snakes',
 -- 'territory'. They may create and run games of those modes and nothing else.

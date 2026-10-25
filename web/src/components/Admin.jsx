@@ -9,6 +9,8 @@ import {
   adminSetTile, adminClearTile, adminSwapTiles, adminAutofillBoard, adminShuffleBoard,
   adminClearBoard, adminGameReadiness, adminResetPassword, adminListPasswordResets,
   adminListAccountDeletions,
+  adminListModerators,
+  adminSetModeratorModes,
   adminSaveBoardPreset, adminApplyBoardPreset, adminDeleteBoardPreset,
   adminNewGame, adminAddTeam, adminDeleteTeam, adminSetEndTime, adminEndGame,
   listBoardJumps, adminSetSnakes, adminSetTerritoryHomes, snakesStandings, adminSnakesEndGame,
@@ -261,6 +263,7 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
   // needs to know who has ever had their password reset or account deleted.
   const [passwordResets, setPasswordResets] = useState([]);
   const [accountDeletions, setAccountDeletions] = useState([]);
+  const [moderators, setModerators] = useState([]);
   const [gameId, setGameId] = useState(null);
   // Which section is on screen. The console used to be one long scroll of eight
   // cards, so finding Roster meant paging past the whole board overview.
@@ -460,11 +463,20 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
     }
   }, []);
 
+  const loadModerators = useCallback(async () => {
+    try {
+      setModerators((await adminListModerators()) ?? []);
+    } catch {
+      setModerators([]);
+    }
+  }, []);
+
   useEffect(() => { loadGames(); }, [loadGames]);
   useEffect(() => { loadGameDetail(gameId); }, [gameId, loadGameDetail]);
   useEffect(() => { loadChallenge(gameId, game?.mode); }, [gameId, game?.mode, loadChallenge]);
   useEffect(() => { loadLibrary(); }, [loadLibrary]);
   useEffect(() => { loadSuggestions(); }, [loadSuggestions]);
+  useEffect(() => { if (isAdmin) loadModerators(); }, [isAdmin, loadModerators]);
 
   // Suggestions write no game_event, so nothing pushes them here. Re-reading
   // when the tab comes back is how a new one reaches the badge.
@@ -1083,6 +1095,26 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
               { refresh: ['games'] }
             );
             if (worked(result)) loadAccountDeletions();
+            return result;
+          }}
+        />
+      )}
+
+      {activePane === 'accounts' && (
+        <ModeratorRoles
+          profiles={profiles}
+          moderators={moderators}
+          busy={busy}
+          confirm={confirm}
+          onSave={async (profileId, picked, name) => {
+            const result = await run(
+              () => adminSetModeratorModes(profileId, picked),
+              picked.length
+                ? `${name} runs ${picked.map(labelOfMode).join(', ')}.`
+                : `${name} is an ordinary player again.`,
+              { refresh: [] }
+            );
+            if (worked(result)) loadModerators();
             return result;
           }}
         />
@@ -2086,6 +2118,9 @@ const MODES = [
   { key: 'challenge', label: 'Challenge', blurb: 'A short event with no board: Clue, Boss, Raid or Skill of the Week. Everyone signs up, Wise Old Man counts the hiscores, players declare what it cannot see, and the ladder sorts it out.' },
 ];
 
+/** The screen name of a mode, for a sentence that has only its key. */
+const labelOfMode = (key) => MODES.find((m) => m.key === key)?.label ?? key;
+
 /**
  * Create a game of either mode.
  *
@@ -2543,6 +2578,132 @@ function Accounts({ profiles, busy, confirm, onReset, onDelete, resets, deletion
           }}
         />
       )}
+    </section>
+  );
+}
+
+/**
+ * Hand an account the modes it may run.
+ *
+ * A moderator holds modes, not games: tick Challenge and they run every
+ * challenge on the site, including ones another organiser set up. There is no
+ * narrower grant to offer — `may_manage_game` joins `moderator_modes` to the
+ * game's mode and stops there — so the screen says so rather than implying a
+ * per-event permission that does not exist.
+ *
+ * Admins are not listed. `admin_set_moderator_modes` refuses them, because
+ * `is_admin()` already covers every mode and unticking a box for one would
+ * read as taking something away while taking nothing away.
+ */
+function ModeratorRoles({ profiles, moderators, busy, confirm, onSave }) {
+  // Rows the admin has touched but not saved. A player picked from the list
+  // below starts here with nothing ticked; an existing moderator's row lands
+  // here the moment a box changes, and leaves again once Save goes through.
+  const [draft, setDraft] = useState({});
+
+  const saved = new Map(moderators.map((m) => [m.profile_id, m.modes ?? []]));
+  const nameOf = (id) => profiles.find((p) => p.id === id)?.display_name
+    ?? moderators.find((m) => m.profile_id === id)?.display_name
+    ?? 'unknown';
+
+  const rows = [...new Set([...saved.keys(), ...Object.keys(draft)])]
+    .map((id) => ({
+      id,
+      name: nameOf(id),
+      was: saved.get(id) ?? [],
+      now: draft[id] ?? saved.get(id) ?? [],
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  // An admin has nothing to be granted, and anyone already on screen is not a
+  // candidate twice over.
+  const candidates = profiles
+    .filter((p) => !p.is_admin && !saved.has(p.id) && !draft[p.id])
+    .sort((a, b) => a.display_name.localeCompare(b.display_name));
+
+  const toggle = (row, key, on) => setDraft((d) => ({
+    ...d,
+    [row.id]: on ? [...row.now, key] : row.now.filter((k) => k !== key),
+  }));
+
+  const forget = (id) => setDraft(({ [id]: _dropped, ...rest }) => rest);
+
+  const changed = (row) => row.now.length !== row.was.length
+    || row.now.some((k) => !row.was.includes(k));
+
+  return (
+    <section className="card">
+      <h2>Who runs what</h2>
+      <p className="muted">
+        A moderator runs events of the modes you tick: making them, starting
+        them, judging the evidence and ending them, with the same console you
+        are looking at. They hold the <em>mode</em> rather than one event, so
+        ticking Challenge hands them every challenge on the site, including
+        ones somebody else set up. Wiping a game’s progress, the suggestion
+        queue and this screen stay yours.
+      </p>
+
+      <ul className="role-list">
+        {rows.map((row) => (
+          <li key={row.id}>
+            <span className="role-name">{row.name}</span>
+            <span className="role-modes">
+              {MODES.map((m) => (
+                <label key={m.key}>
+                  <input
+                    type="checkbox"
+                    checked={row.now.includes(m.key)}
+                    disabled={busy}
+                    onChange={(e) => toggle(row, m.key, e.target.checked)}
+                  />
+                  {m.label}
+                </label>
+              ))}
+            </span>
+            {row.was.length === 0 && row.now.length === 0 ? (
+              // Picked by mistake. Nothing has been sent, so this is a way off
+              // the screen rather than an action.
+              <button className="ghost" disabled={busy} onClick={() => forget(row.id)}>
+                Remove
+              </button>
+            ) : (
+              <button
+                disabled={busy || !changed(row)}
+                onClick={async () => {
+                  // Unticking the last box demotes them, and the row then
+                  // vanishes — worth asking first, because nothing left on
+                  // screen would say what had happened.
+                  if (row.now.length === 0 && !(await confirm(
+                    `${row.name} goes back to being an ordinary player and loses the console.`,
+                    { title: `Take every mode from ${row.name}?`, confirmLabel: 'Take them', danger: true }
+                  ))) return;
+                  const result = await onSave(row.id, row.now, row.name);
+                  if (worked(result)) forget(row.id);
+                }}
+              >
+                Save
+              </button>
+            )}
+          </li>
+        ))}
+        {rows.length === 0 && (
+          <li className="muted">Nobody runs anything yet — every event is an admin’s to run.</li>
+        )}
+      </ul>
+
+      <label className="role-add">
+        Add a moderator
+        <select
+          value=""
+          disabled={busy || candidates.length === 0}
+          onChange={(e) => { if (e.target.value) setDraft((d) => ({ ...d, [e.target.value]: [] })); }}
+        >
+          <option value="">Pick an account…</option>
+          {candidates.map((p) => (
+            <option key={p.id} value={p.id}>{p.display_name}</option>
+          ))}
+        </select>
+      </label>
     </section>
   );
 }
