@@ -56,6 +56,10 @@ export default function App() {
   // unless the organiser chooses to act for the team.
   // { gameId, teamId, teamName, role, acting } while one is open, otherwise null.
   const [viewAs, setViewAs] = useState(null);
+  // An organiser who has stepped out of the console into their own game.
+  // Not persisted: a reload puts them back in the console, which is the
+  // job, and is what an organiser who never touches this still gets.
+  const [playing, setPlaying] = useState(false);
   // The View-as bar's secondary buttons, folded behind "More" on a phone.
   const [viewMore, setViewMore] = useState(false);
   // Which board is on screen. The two used to sit side by side, which cost
@@ -202,7 +206,7 @@ export default function App() {
   useEffect(() => {
     // Signed out, or swapped for another player on a shared phone: drop the
     // previous roster rather than briefly offering it to whoever is next.
-    if (!uid) { setMyGames([]); setGameId(null); setViewAs(null); return; }
+    if (!uid) { setMyGames([]); setGameId(null); setViewAs(null); setPlaying(false); return; }
     loadGames();
   }, [uid, loadGames]);
 
@@ -247,10 +251,20 @@ export default function App() {
   // anyone else -- and checked here too, so a value left over from an
   // organiser's session can never put a player's screen into it.
   const viewing = isOrganiser && Boolean(viewAs);
-  // The player screen: for players, and for an organiser viewing a team.
-  const playerScreen = !isOrganiser || viewing;
-  // The game on that screen. An organiser's own `gameId` is the featured one
-  // (see loadGames); a team being viewed brings its own.
+  // An organiser is also a person who plays. Running the bingo should not cost
+  // them their own board in the raid, so they can step out of the console into
+  // the games they are rostered on -- their own screen, their own team, no
+  // view-only guard and no x-act-as-team header, because they are not acting
+  // for anyone. Only offered when they are actually on a roster somewhere.
+  const canPlay = isOrganiser && myGames.length > 0;
+  const playingOwn = canPlay && playing && !viewing;
+  // The player screen: for players, for an organiser viewing a team, and for
+  // an organiser who has stepped into their own game.
+  const playerScreen = !isOrganiser || viewing || playingOwn;
+  // The game on that screen. A team being viewed brings its own; otherwise it
+  // is whatever loadGames settled on, which is one of their own games when
+  // they are rostered and the featured one when they are not -- so an
+  // organiser who plays steps straight into their game, not the featured one.
   const boardGameId = viewing ? viewAs.gameId : gameId;
 
   // Set while rendering rather than in an effect, so the guard is up before
@@ -294,7 +308,7 @@ export default function App() {
 
   // The tab names the game a player is in, or just the platform. Organisers
   // move between games in the console, so theirs stays on the platform name.
-  const titleGame = session && !isOrganiser ? game.game?.name ?? null : null;
+  const titleGame = session && (!isOrganiser || playingOwn) ? game.game?.name ?? null : null;
   // And how much happened while the tab was in the background: "(2) Game".
   // A player's own feed only -- not an organiser looking in on a team.
   const unseen = useUnseenEvents(
@@ -420,6 +434,7 @@ export default function App() {
   // Always in read only: acting is chosen on the team's screen, every time.
   function enterView(next) {
     resetBoardState();
+    setPlaying(false);
     setViewAs({ ...next, acting: false });
     window.scrollTo({ top: 0 });
   }
@@ -504,7 +519,7 @@ export default function App() {
       <header className="top" id="app-header">
         {/* The subtitle follows the game on screen; the console is every game. */}
         <Wordmark mode={playerScreen ? game.game?.mode ?? null : null} />
-        {!isOrganiser && game.game && (!waitingScreen || myGames.length > 1) && (
+        {(!isOrganiser || playingOwn) && game.game && (!waitingScreen || myGames.length > 1) && (
           <p className="status header-status">
             <GamePicker
               games={myGames}
@@ -535,6 +550,17 @@ export default function App() {
         )}
         <div className="who">
           <span className="name">{displayName || 'Signed in'}</span>
+          {/* Only with a roster to go to, and never while a team is open --
+              that has its own way out, and two ways back would be two. */}
+          {canPlay && !viewing && (
+            <button
+              className="link"
+              onClick={() => { resetBoardState(); setPlaying((v) => !v); window.scrollTo({ top: 0 }); }}
+              aria-pressed={playingOwn}
+            >
+              {playingOwn ? '🛠 Back to the console' : '🎮 Play my game'}
+            </button>
+          )}
           {/* Beside the sign-out, not buried in the guide: the moment someone
               wants this is the moment a cannon has just gone off in an office,
               and it has to be reachable without reading anything. Outside the
@@ -594,7 +620,7 @@ export default function App() {
           ("View as team"). The console stays mounted while one is open, only
           hidden, so coming back finds it on the game and pane it was left on. */}
       {isOrganiser && (
-        <div hidden={viewing}>
+        <div hidden={viewing || playingOwn}>
           <Admin onViewAs={enterView} isAdmin={isAdmin} modes={modModes} />
         </div>
       )}
