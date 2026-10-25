@@ -316,6 +316,25 @@ export const previewGames = { rows: [] };
 export const challengeList = () => Promise.resolve(previewGames.rows);
 
 /**
+ * What the challenge harness fills in before it renders.
+ *
+ * Empty here, which is deliberate: the App smoke test imports this same
+ * module and gets exactly the inert answers it always had. Only a harness
+ * that sets `entry` turns the player's half of a challenge into something
+ * that can be clicked.
+ *
+ * The writes below replace `entry` rather than mutating it, because the
+ * component re-reads it through challengeMine() after every action and a
+ * mutation in place would not survive React's own equality checks.
+ */
+export const challengeFixtures = {
+  entry: null,
+  standings: [],
+  entryAccounts: [],
+  womId: null,
+};
+
+/**
  * The rest of lib/supabase.js's surface, so the whole App tree can be
  * imported. A missing name here is not a soft failure -- an ESM named import
  * that does not resolve kills the module graph before anything renders, which
@@ -331,10 +350,10 @@ const noop = () => Promise.reject(new Error('Not available in the harness.'));
 const none = () => Promise.resolve([]);
 const nothing = () => Promise.resolve(null);
 
-export const challengeMine = nothing;
-export const challengeStandings = none;
-export const challengeMyAccounts = none;
-export const challengeWomCompetition = nothing;
+export const challengeMine = () => Promise.resolve(challengeFixtures.entry);
+export const challengeStandings = () => Promise.resolve(challengeFixtures.standings);
+export const challengeMyAccounts = () => Promise.resolve(challengeFixtures.entryAccounts);
+export const challengeWomCompetition = () => Promise.resolve(challengeFixtures.womId);
 export const adminChallengeEntries = none;
 export const myTileSubmissions = none;
 export const myModeratorModes = none;
@@ -349,8 +368,6 @@ export const adminChallengeWom = noop;
 export const adminChallengeWomLink = noop;
 export const adminChallengeWomRetry = noop;
 export const adminNewChallenge = noop;
-export const challengeAddEvidence = noop;
-export const challengeDeclare = noop;
 export const challengeJoin = noop;
 export const challengeLeave = noop;
 export const challengeStart = noop;
@@ -361,6 +378,29 @@ export const spendPetJar = noop;
 export const submitTile = noop;
 export const updateTileSubmission = noop;
 export const withdrawTileSubmission = noop;
+/**
+ * The two writes the evidence screen is made of. They refuse with no fixture
+ * loaded, exactly as every other write here does, so the App smoke test still
+ * tests what it says it tests.
+ */
+let shotSeq = 0;
+
+export const challengeDeclare = (_gameId, value) => {
+  if (!challengeFixtures.entry) return noop();
+  challengeFixtures.entry = { ...challengeFixtures.entry, declared: value };
+  return Promise.resolve(null);
+};
+
+export const challengeAddEvidence = (_gameId, phase, url, note) => {
+  const entry = challengeFixtures.entry;
+  if (!entry) return noop();
+  challengeFixtures.entry = {
+    ...entry,
+    evidence: [...(entry.evidence ?? []), { id: `shot-${++shotSeq}`, phase, url, note }],
+  };
+  return Promise.resolve(null);
+};
+
 // Fire-and-forget in the real client, so it answers rather than refusing:
 // the pulse runs on a timer and a rejection every minute is just noise.
 export const womPulse = () => Promise.resolve(null);

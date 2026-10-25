@@ -50,9 +50,6 @@ export default function ChallengeGame({
 
   const [rsn, setRsn] = useState('');
   const [figure, setFigure] = useState('');
-  const [shotUrl, setShotUrl] = useState('');
-  const [shotPhase, setShotPhase] = useState('finish');
-  const [shotNote, setShotNote] = useState('');
 
   const isOpen = game.status === 'setup' || game.status === 'placement';
   const isActive = game.status === 'active';
@@ -164,9 +161,13 @@ export default function ChallengeGame({
   const winner = isFinished ? standings.find((s) => s.place === 1) : null;
   const typed = figureToStored(figure, unit);
   const unchanged = typed !== null && typed === (mine?.declared ?? null);
+  const addShot = (phase, url, note) => run(
+    () => challengeAddEvidence(game.id, phase, url, note),
+    phase === 'start' ? 'Start shot added.' : 'Finish shot added.',
+  );
+
   const startShots = (mine?.evidence ?? []).filter((e) => e.phase === 'start');
   const finishShots = (mine?.evidence ?? []).filter((e) => e.phase === 'finish');
-  const shotsFull = (shotPhase === 'start' ? startShots : finishShots).length >= MAX_EVIDENCE;
 
   return (
     <div className="challenge-layout">
@@ -445,104 +446,88 @@ export default function ChallengeGame({
 
             {setup?.declared_label && (
               <>
-                <label className="field-name">
-                  <span>
-                    {setup.declared_label}
-                    {setup.declared_unit === 'gp' && <span className="muted"> (in millions)</span>}
-                  </span>
-                  <input
-                    value={figure}
-                    onChange={(e) => setFigure(e.target.value)}
-                    inputMode="decimal"
-                    placeholder={setup.declared_unit === 'gp' ? '250, or 0.5' : '12'}
-                    disabled={busy || isFinished || mine.verified}
-                  />
-                </label>
-                {figure.trim() !== '' && typed === null && (
-                  <p className="error">
-                    {setup.declared_unit === 'gp'
-                      ? 'A number of millions, at most one decimal — 250, 0.5, 1250.'
-                      : 'A whole number.'}
-                  </p>
-                )}
-                {mine.verified && (
-                  <p className="muted">
-                    An organiser has checked this number, so it is theirs to change
-                    now. Ask them.
-                  </p>
-                )}
-                <div className="row">
-                  <button
-                    disabled={busy || isFinished || mine.verified || typed === null || unchanged}
-                    onClick={() => run(
-                      () => challengeDeclare(game.id, typed),
-                      `${setup.declared_label} saved as ${figureLabel(typed, unit)}.`,
+                {/* The number, in a box of its own. It used to be a
+                    full-card-width input for a three-character value, with
+                    its button and its current reading colliding underneath. */}
+                <section className="declare-box">
+                  <header className="declare-head">
+                    <h4>{setup.declared_label}</h4>
+                    {mine.declared !== null && mine.declared !== undefined && (
+                      <span className="declare-now">
+                        {figureLabel(mine.declared, unit)}
+                        {mine.altered && <span className="muted"> · set by an organiser</span>}
+                      </span>
                     )}
-                  >
-                    {mine.declared === null || mine.declared === undefined ? 'Send it in' : 'Update it'}
-                  </button>
-                  {mine.declared !== null && mine.declared !== undefined && (
-                    <span className="muted">
-                      Currently {figureLabel(mine.declared, unit)}
-                      {mine.altered && ' — set by an organiser'}
-                    </span>
-                  )}
-                </div>
+                  </header>
 
-                <h3>The shots behind it</h3>
-                <p className="muted">
-                  One from the start, one from the finish. The site cannot read a
-                  screenshot, so these are what make the number checkable — paste
-                  the link to an uploaded image, anywhere an organiser can open it.
-                </p>
-                <ShotList label="Start" shots={startShots} />
-                <ShotList label="Finish" shots={finishShots} />
-
-                {!isFinished && (
-                  <div className="row challenge-shot-form">
-                    <label className="field-size">Which
-                      <select
-                        value={shotPhase}
-                        onChange={(e) => setShotPhase(e.target.value)}
-                        disabled={busy}
-                      >
-                        <option value="start">Start</option>
-                        <option value="finish">Finish</option>
-                      </select>
-                    </label>
-                    <label className="field-name">Link to the picture
+                  <div className="declare-field">
+                    <label>
+                      <span className="muted">
+                        {setup.declared_unit === 'gp' ? 'In millions' : 'A whole number'}
+                      </span>
                       <input
-                        value={shotUrl}
-                        onChange={(e) => setShotUrl(e.target.value)}
-                        placeholder="https://…"
-                        disabled={busy}
-                      />
-                    </label>
-                    <label className="field-name"><span>Note <span className="muted">(optional)</span></span>
-                      <input
-                        value={shotNote}
-                        onChange={(e) => setShotNote(e.target.value)}
-                        placeholder="What it shows"
-                        disabled={busy}
+                        value={figure}
+                        onChange={(e) => setFigure(e.target.value)}
+                        inputMode="decimal"
+                        placeholder={setup.declared_unit === 'gp' ? '250, or 0.5' : '12'}
+                        disabled={busy || isFinished || mine.verified}
                       />
                     </label>
                     <button
-                      disabled={busy || !shotUrl.trim() || shotsFull}
-                      title={shotsFull ? `That is ${MAX_EVIDENCE} ${shotPhase} shots already.` : undefined}
-                      onClick={async () => {
-                        const ok = await run(
-                          () => challengeAddEvidence(
-                            game.id, shotPhase, shotUrl.trim(), shotNote.trim() || null,
-                          ),
-                          'Shot added.',
-                        );
-                        if (ok) { setShotUrl(''); setShotNote(''); }
-                      }}
+                      disabled={busy || isFinished || mine.verified || typed === null || unchanged}
+                      onClick={() => run(
+                        () => challengeDeclare(game.id, typed),
+                        `${setup.declared_label} saved as ${figureLabel(typed, unit)}.`,
+                      )}
                     >
-                      Add it
+                      {mine.declared === null || mine.declared === undefined ? 'Send it in' : 'Update it'}
                     </button>
                   </div>
-                )}
+
+                  {figure.trim() !== '' && typed === null && (
+                    <p className="error">
+                      {setup.declared_unit === 'gp'
+                        ? 'A number of millions, at most one decimal — 250, 0.5, 1250.'
+                        : 'A whole number.'}
+                    </p>
+                  )}
+                  {mine.verified && (
+                    <p className="muted">
+                      An organiser has checked this number, so it is theirs to change
+                      now. Ask them.
+                    </p>
+                  )}
+                </section>
+
+                <h3 className="shots-head">The shots behind it</h3>
+                <p className="muted shots-intro">
+                  The site cannot read a screenshot, so these are what make the
+                  number checkable. Paste the link to an uploaded image —
+                  anywhere an organiser can open it.
+                </p>
+
+                <div className="shot-boxes">
+                  <ShotBox
+                    phase="start"
+                    title="Before you started"
+                    hint="Whatever the number is counted from — the bank, the log, the collection."
+                    shots={startShots}
+                    max={MAX_EVIDENCE}
+                    busy={busy}
+                    closed={isFinished}
+                    onAdd={addShot}
+                  />
+                  <ShotBox
+                    phase="finish"
+                    title="When you finished"
+                    hint="The same thing at the end. The difference between the two is what gets checked."
+                    shots={finishShots}
+                    max={MAX_EVIDENCE}
+                    busy={busy}
+                    closed={isFinished}
+                    onAdd={addShot}
+                  />
+                </div>
               </>
             )}
           </section>
@@ -563,23 +548,77 @@ export default function ChallengeGame({
   );
 }
 
-/** The shots for one phase. Links, not images: they live wherever they were uploaded. */
-function ShotList({ label, shots }) {
+/**
+ * One phase's shots: what is already up, and the box to add to it.
+ *
+ * WHY TWO OF THESE, rather than the one form with a Start/Finish dropdown
+ * that this replaces. The dropdown existed only because a single form served
+ * two lists, so adding a finish shot meant setting a mode, typing a link, and
+ * then working out which of two lists further up the page had grown by one. A
+ * box per phase deletes the control and the hunt together: what you add turns
+ * up in the box you added it to.
+ */
+function ShotBox({ phase, title, hint, shots, max, busy, closed, onAdd }) {
+  const [url, setUrl] = useState('');
+  const [note, setNote] = useState('');
+  const full = shots.length >= max;
+
   return (
-    <div className="challenge-shots">
-      <h4>{label}</h4>
+    <section className="shot-box">
+      <header className="shot-box-head">
+        <h4>{title}</h4>
+        <span className="shot-box-count">{shots.length} of {max}</span>
+      </header>
+      <p className="muted shot-box-hint">{hint}</p>
+
+      {/* Numbered, not named after whoever uploaded them: these are all one
+          player's own shots, so a name on each would say nothing. */}
       {shots.length === 0 ? (
-        <p className="muted">None yet.</p>
+        <p className="muted shot-box-empty">Nothing here yet.</p>
       ) : (
-        <ul>
+        <ol className="shot-list">
           {shots.map((s, i) => (
             <li key={s.id}>
-              <a href={s.url} target="_blank" rel="noreferrer">{label} shot {i + 1}</a>
+              <a href={s.url} target="_blank" rel="noreferrer">Shot {i + 1}</a>
               {s.note && <span className="muted"> — {s.note}</span>}
             </li>
           ))}
-        </ul>
+        </ol>
       )}
-    </div>
+
+      {!closed && (full ? (
+        <p className="muted shot-box-full">That is {max} already, which is as many as this takes.</p>
+      ) : (
+        <div className="shot-add">
+          <label>
+            <span>Link to the picture</span>
+            <input
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://…"
+              disabled={busy}
+            />
+          </label>
+          <label>
+            <span>Note <span className="muted">(optional)</span></span>
+            <input
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="What it shows"
+              disabled={busy}
+            />
+          </label>
+          <button
+            disabled={busy || !url.trim()}
+            onClick={async () => {
+              const ok = await onAdd(phase, url.trim(), note.trim() || null);
+              if (ok) { setUrl(''); setNote(''); }
+            }}
+          >
+            Add it
+          </button>
+        </div>
+      ))}
+    </section>
   );
 }
