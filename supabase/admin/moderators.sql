@@ -26,15 +26,30 @@ select p.display_name,
 -- ============================================================
 -- Make someone a moderator of one or more modes
 -- ============================================================
--- Replaces their whole grant, so list every mode they should end up with.
+-- Replaces their whole grant, so list every mode they should end up with --
+-- the same as admin_set_moderator_modes, which the Accounts screen will call.
+-- Run the two statements together: the delete on its own leaves a player.
 -- The username is matched the way the player typed it at sign-up.
+--
+-- Never grant an admin: they already outrank every mode, so taking the modes
+-- away later would look like it took something away when it did not.
+-- admin_set_moderator_modes refuses outright; here the is_admin test does it.
+
+begin;
+
+delete from moderator_modes m
+ using profiles p
+ where m.profile_id = p.id
+   and lower(p.display_name) = lower('REPLACE WITH USERNAME');
 
 insert into moderator_modes (profile_id, mode)
 select p.id, m
   from profiles p
  cross join unnest(array['bingo', 'snakes']::game_mode[]) as m
  where lower(p.display_name) = lower('REPLACE WITH USERNAME')
-on conflict (profile_id, mode) do nothing;
+   and not p.is_admin;
+
+commit;
 
 
 -- ============================================================

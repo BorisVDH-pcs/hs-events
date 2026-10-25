@@ -170,6 +170,13 @@ export async function settleTerritory(gameId) {
   return data;
 }
 
+/**
+ * The game modes this account may run as a moderator: empty for a player,
+ * and for an admin, who outranks every mode anyway. Answers only about the
+ * caller, so unlike the admin_* calls it needs no gate.
+ */
+export const myModeratorModes = () => rpc('my_moderator_modes');
+
 // ---- Admin API -----------------------------------------------------------
 // Every one of these re-checks is_admin() server-side, so hiding the admin tab
 // in the UI is a convenience, never the control.
