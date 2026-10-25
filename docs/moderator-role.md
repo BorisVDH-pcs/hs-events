@@ -117,19 +117,30 @@ That was before the `fire_tile` precedent turned up; the migration is 290 lines.
 
 ### The console
 
-`App.jsx` reads one boolean today:
+`App.jsx` read one boolean. It now reads two things — `profiles.is_admin` and
+`my_moderator_modes()` — and derives `isOrganiser = isAdmin || modModes.length > 0`.
+Every place that used to ask "is this an admin?" to decide between the console
+and the player screen now asks that instead; the eight of them are one-line
+swaps. `isAdmin` itself survives, because `Admin.jsx` still needs to tell the
+two apart.
 
-```js
-.select('is_admin').then(({ data }) => setIsAdmin(Boolean(data?.is_admin)))
-```
+`Admin.jsx` takes `isAdmin` and `modes`, and for a moderator:
 
-That becomes a role: admin, moderator with modes, or player. Then in `Admin.jsx`
-(2,310 lines) the Games list filters to the modes held, and the Accounts,
-Library and Submissions tabs are admin-only.
+- the Games list is filtered to the modes they run, so it is the list of games
+  they can actually work on;
+- New game offers only those modes, and starts on the first one they hold
+  rather than always on battleships;
+- Suggestions and Accounts are dropped from the tab strip, and a pane
+  remembered from an admin session in the same browser falls back to Games;
+- the Library stays — a moderator builds boards, so `admin_list_library` and
+  `admin_save_library_tile` take `is_admin() or is_moderator()` — but
+  "Delete from the catalogue" is not rendered for them, because the catalogue
+  is shared with every other organiser.
 
 The console is **not** the security boundary and must not be treated as one —
 `App.jsx` already says so: *"is_admin() server-side, so faking this flag buys
-nothing."* Hiding a tab is a courtesy to the moderator, not a lock.
+nothing."* Hiding a tab is a courtesy to the moderator, not a lock. Every one
+of the four points above has a guard behind it that refuses the call anyway.
 
 ## Testing
 

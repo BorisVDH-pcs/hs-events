@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Guide from './components/Guide.jsx';
 import NextMove from './components/NextMove.jsx';
-import { supabase, isSupabaseConfigured, claimTile, spendPetJar } from './lib/supabase.js';
+import {
+  supabase, isSupabaseConfigured, claimTile, spendPetJar, myModeratorModes,
+} from './lib/supabase.js';
 import { useGame } from './hooks/useGame.js';
 import { subscribeToGameEvents } from './lib/gameEvents.js';
 import { coordLabel, fromPosition } from './lib/board.js';
@@ -47,6 +49,9 @@ export default function App() {
   const [shotResult, setShotResult] = useState(null);
   const [busyTileId, setBusyTileId] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  // The modes a moderator runs. Empty for a player, and for an admin, whose
+  // is_admin already covers every mode.
+  const [modModes, setModModes] = useState([]);
   // "View as team": the console's way into a team's player screen, read only
   // unless the organiser chooses to act for the team.
   // { gameId, teamId, teamName, role, acting } while one is open, otherwise null.
@@ -217,24 +222,33 @@ export default function App() {
     };
   }, [uid, loadGames]);
 
-  // Whether to offer the admin tab. Cosmetic only — every admin RPC re-checks
-  // is_admin() server-side, so faking this flag buys nothing.
+  // Whether to offer the console, and for which modes. Cosmetic only — every
+  // admin RPC re-checks is_admin() or may_manage_game() server-side, so faking
+  // either of these buys nothing.
   useEffect(() => {
-    if (!supabase || !session) { setIsAdmin(false); return; }
+    if (!supabase || !session) { setIsAdmin(false); setModModes([]); return; }
     supabase
       .from('profiles')
       .select('is_admin')
       .eq('id', session.user.id)
       .maybeSingle()
       .then(({ data }) => setIsAdmin(Boolean(data?.is_admin)));
+    // Fails soft to no modes: a console that cannot read them shows the player
+    // screen, which is the safe way round.
+    myModeratorModes()
+      .then((modes) => setModModes(modes ?? []))
+      .catch(() => setModModes([]));
   }, [session]);
+
+  // An organiser is an admin, or a moderator of at least one mode.
+  const isOrganiser = isAdmin || modModes.length > 0;
 
   // Only ever for an organiser -- the server refuses admin_board_for_team to
   // anyone else -- and checked here too, so a value left over from an
   // organiser's session can never put a player's screen into it.
-  const viewing = isAdmin && Boolean(viewAs);
+  const viewing = isOrganiser && Boolean(viewAs);
   // The player screen: for players, and for an organiser viewing a team.
-  const playerScreen = !isAdmin || viewing;
+  const playerScreen = !isOrganiser || viewing;
   // The game on that screen. An organiser's own `gameId` is the featured one
   // (see loadGames); a team being viewed brings its own.
   const boardGameId = viewing ? viewAs.gameId : gameId;
@@ -280,7 +294,7 @@ export default function App() {
 
   // The tab names the game a player is in, or just the platform. Organisers
   // move between games in the console, so theirs stays on the platform name.
-  const titleGame = session && !isAdmin ? game.game?.name ?? null : null;
+  const titleGame = session && !isOrganiser ? game.game?.name ?? null : null;
   // And how much happened while the tab was in the background: "(2) Game".
   // A player's own feed only -- not an organiser looking in on a team.
   const unseen = useUnseenEvents(
@@ -490,7 +504,7 @@ export default function App() {
       <header className="top" id="app-header">
         {/* The subtitle follows the game on screen; the console is every game. */}
         <Wordmark mode={playerScreen ? game.game?.mode ?? null : null} />
-        {!isAdmin && game.game && (!waitingScreen || myGames.length > 1) && (
+        {!isOrganiser && game.game && (!waitingScreen || myGames.length > 1) && (
           <p className="status header-status">
             <GamePicker
               games={myGames}
@@ -543,7 +557,7 @@ export default function App() {
           )}
           {/* Players only: an organiser adds to the catalogue directly, and
               reviews these in the console's Suggestions pane. */}
-          {!isAdmin && (
+          {!isOrganiser && (
             <button
               className="link"
               aria-pressed={suggesting}
@@ -579,9 +593,9 @@ export default function App() {
           console instead -- and from it, any team's own screen, read only
           ("View as team"). The console stays mounted while one is open, only
           hidden, so coming back finds it on the game and pane it was left on. */}
-      {isAdmin && (
+      {isOrganiser && (
         <div hidden={viewing}>
-          <Admin onViewAs={enterView} />
+          <Admin onViewAs={enterView} isAdmin={isAdmin} modes={modModes} />
         </div>
       )}
 
@@ -590,14 +604,14 @@ export default function App() {
           anyone else. */}
       <FireEffect shot={shot} muted={muted} />
 
-      {!isAdmin && suggesting && <TileSuggestions onClose={() => setSuggesting(false)} />}
+      {!isOrganiser && suggesting && <TileSuggestions onClose={() => setSuggesting(false)} />}
 
       {/* Hidden, not unmounted, while suggesting: the game hooks above keep
           running either way, and the board should be exactly where it was —
           same tab, same open tile — when the player comes back to it. Only a
           real player can be suggesting; an organiser viewing a team has no
           button for it, so `suggesting` never hides their view. */}
-      {playerScreen && <div hidden={!isAdmin && suggesting} className="game-body">
+      {playerScreen && <div hidden={!isOrganiser && suggesting} className="game-body">
       {loading && <p>Loading game…</p>}
       {error && <p className="error">{error}</p>}
       {notice && <p className="error">{notice}</p>}

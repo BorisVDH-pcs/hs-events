@@ -86,6 +86,9 @@ const isBingoGame = (g) => g?.mode === 'bingo';
 const isSnakesGame = (g) => g?.mode === 'snakes';
 const isTerritoryGame = (g) => g?.mode === 'territory';
 const NO_JUMPS = [];
+// Same reason as NO_JUMPS: a fresh [] every render would be a new
+// dependency every render, and loadGames below is keyed on it.
+const NO_MODES = [];
 
 /**
  * What `run` resolves to when the action was refused.
@@ -194,7 +197,10 @@ function dealShortfall(r) {
       : '');
 }
 
-export default function Admin({ onViewAs } = {}) {
+// isAdmin and modes come from App: an admin gets the whole console, a
+// moderator the games of the modes they run. Hiding a pane is a courtesy,
+// not a lock -- the database refuses the call either way.
+export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {}) {
   const [games, setGames] = useState([]);
   const [teams, setTeams] = useState([]);
   const [profiles, setProfiles] = useState([]);
@@ -263,7 +269,9 @@ export default function Admin({ onViewAs } = {}) {
       supabase.from('profiles').select('id, display_name, is_admin').order('display_name'),
       supabase.from('team_members').select('team_id, profile_id, role'),
     ]);
-    setGames(g ?? []);
+    // A moderator sees only the modes they run. Hidden rather than greyed
+    // out, so the Games list is the list of games they can work on.
+    setGames((g ?? []).filter((x) => isAdmin || modes.includes(x.mode)));
     setTeams(t ?? []);
     setProfiles(p ?? []);
     setMembers(m ?? []);
@@ -287,7 +295,9 @@ export default function Admin({ onViewAs } = {}) {
     } catch {
       setJumpsByGame({});
     }
-  }, []);
+    // Keyed on the role: App resolves is_admin and the moderator modes in two
+    // separate calls, so whichever lands second must re-filter the list.
+  }, [isAdmin, modes]);
 
   /**
    * The tiles alone.
@@ -682,7 +692,12 @@ export default function Admin({ onViewAs } = {}) {
   // Accounts is the third exception, alongside Games itself: resetting a
   // password has nothing to do with which game is open.
   const GAME_INDEPENDENT_PANES = ['games', 'suggestions', 'accounts'];
-  const activePane = !game && !GAME_INDEPENDENT_PANES.includes(pane) ? 'games' : pane;
+  // Both of these reach past one game: the suggestion queue is site-wide and
+  // Accounts is every player. A moderator gets neither, and a pane remembered
+  // from an admin session on the same browser falls back to Games.
+  const ADMIN_ONLY_PANES = ['suggestions', 'accounts'];
+  const allowedPane = isAdmin || !ADMIN_ONLY_PANES.includes(pane) ? pane : 'games';
+  const activePane = !game && !GAME_INDEPENDENT_PANES.includes(allowedPane) ? 'games' : allowedPane;
 
   const configTab = (game && configTabs[game.id]) || 'game';
   const openConfigTab = (key) => {
@@ -718,7 +733,7 @@ export default function Admin({ onViewAs } = {}) {
       key: 'accounts', label: 'Accounts', badge: 0, enabled: true,
       hint: 'Reset a player’s password',
     },
-  ];
+  ].filter((s) => isAdmin || !ADMIN_ONLY_PANES.includes(s.key));
 
   return (
     <div className="admin-split">
@@ -773,7 +788,10 @@ export default function Admin({ onViewAs } = {}) {
       )}
 
       {activePane === 'games' && <>
-      <NewGame busy={busy} onCreate={({ name, mode, teams: teamList, gridSize, startsAt, endsAt }) =>
+      <NewGame
+        busy={busy}
+        modeChoices={isAdmin ? MODES : MODES.filter((m) => modes.includes(m.key))}
+        onCreate={({ name, mode, teams: teamList, gridSize, startsAt, endsAt }) =>
         run(async () => {
           // Battleships still goes through the call it always has; the new one
           // delegates to it anyway, and this keeps a console ahead of its
@@ -1358,7 +1376,7 @@ export default function Admin({ onViewAs } = {}) {
                   { refresh: ['library'] })
                 .then((result) => (worked(result) ? result : null))
             }
-            onDeleteLibraryTile={(entry) =>
+            onDeleteLibraryTile={!isAdmin ? undefined : (entry) =>
               confirm(
                 entry.times_used > 0
                   ? `It is on ${entry.times_used} square${entry.times_used === 1 ? '' : 's'} across past boards.\n`
@@ -1798,8 +1816,12 @@ const MODES = [
  * because "how many teams" is exactly the question a bingo organiser is
  * answering here, and a count field followed by N names is two steps for one.
  */
-function NewGame({ busy, onCreate }) {
-  const [mode, setMode] = useState('battleships');
+function NewGame({ busy, onCreate, modeChoices = MODES }) {
+  // Battleships unless the organiser cannot run it, in which case the first
+  // mode they can: a radio group with nothing selected has no sensible save.
+  const [mode, setMode] = useState(
+    modeChoices.some((m) => m.key === 'battleships') ? 'battleships' : modeChoices[0]?.key,
+  );
   const [name, setName] = useState('');
   const [teamNames, setTeamNames] = useState(['', '']);
   const [gridSize, setGridSize] = useState(5);
@@ -1825,7 +1847,7 @@ function NewGame({ busy, onCreate }) {
     <section className="card">
       <h2>New game</h2>
       <div className="mode-picker" role="radiogroup" aria-label="Game mode">
-        {MODES.map((m) => (
+        {modeChoices.map((m) => (
           <label key={m.key} className={`mode-option${mode === m.key ? ' on' : ''}`}>
             <input
               type="radio" name="game-mode" value={m.key}

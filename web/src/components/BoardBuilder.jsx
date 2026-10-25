@@ -1346,15 +1346,19 @@ export default function BoardBuilder({
                         the entry it removes is named above and spelled out in
                         front of you, and the console's confirm dialog still
                         asks before anything goes. */}
-                    <button
-                      className="ghost danger"
-                      disabled={busy}
-                      onClick={async () => {
-                        if (await onDeleteLibraryTile(editing.from)) setEditing(null);
-                      }}
-                    >
-                      Delete from the catalogue
-                    </button>
+                    {/* Only an admin curates the shared catalogue, so a
+                        moderator is handed no onDeleteLibraryTile at all. */}
+                    {onDeleteLibraryTile ? (
+                      <button
+                        className="ghost danger"
+                        disabled={busy}
+                        onClick={async () => {
+                          if (await onDeleteLibraryTile(editing.from)) setEditing(null);
+                        }}
+                      >
+                        Delete from the catalogue
+                      </button>
+                    ) : null}
                   </>
                 ) : null}
               />
