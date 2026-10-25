@@ -1,0 +1,34 @@
+# Line endings: LF in the repository AND LF in the working tree.
+#
+# Until this file existed there was nothing here at all, so every checkout on
+# Windows took core.autocrlf=true and wrote CRLF, while anything that rewrote a
+# file from a script wrote LF. Git then saw the whole file as changed. A
+# 27-line addition to styles.css came out as 10,823 changed lines, and eleven
+# files had drifted to CRLF in the repository itself.
+#
+# `eol=lf` rather than `text=auto` alone is the part that matters: text=auto
+# normalises what is STORED but still hands Windows a CRLF working tree, so a
+# script's LF output would keep producing the same phantom diff. With eol=lf
+# the working tree is LF too, and what a tool writes is what git already has.
+* text=auto eol=lf
+
+# tileParser.js holds a literal NUL as a map-key separator — deliberate, and
+# explained at `const key`. Git's own heuristic reads that NUL and calls the
+# file binary, so until now it refused to diff it and showed "Binary files
+# differ" for every change. It is ordinary source; say so.
+web/src/lib/tileParser.js text eol=lf diff
+
+# Assets, so neither the heuristic nor the rule above can touch their bytes.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.webp binary
+*.svg  text eol=lf
+*.ico  binary
+*.mp3  binary
+*.wav  binary
+*.ogg  binary
+*.woff  binary
+*.woff2 binary
+*.pdf  binary
