@@ -762,3 +762,32 @@ export const adminResetPassword = () => fail('Passwords are not available in the
 export const adminListPasswordResets = () => wait([]);
 export const adminDeleteAccount = () => fail('Accounts are not available in the harness.');
 export const adminListAccountDeletions = () => wait([]);
+
+// ---- who runs what ----
+//
+// Real state, unlike the two above: granting a mode is the one account action
+// that is reversible, says nothing secret and is worth clicking through.
+// Seeded with one moderator so the screen does not open empty.
+const grants = new Map([[profiles[1].id, ['bingo']]]);
+
+export const adminListModerators = () => wait(
+  [...grants.entries()]
+    .filter(([, modes]) => modes.length)
+    .map(([profile_id, modes]) => ({
+      profile_id,
+      display_name: profiles.find((p) => p.id === profile_id)?.display_name,
+      modes: [...modes].sort(),
+      granted_at: now(),
+    }))
+    .sort((a, b) => a.display_name.localeCompare(b.display_name))
+);
+
+export function adminSetModeratorModes(profileId, modes) {
+  const p = profiles.find((x) => x.id === profileId);
+  if (!p) return fail('No such account');
+  // The same refusal the function raises, so the harness shows what an admin
+  // would actually meet rather than quietly accepting it.
+  if (p.is_admin) return fail('That account is an admin, which already covers every mode');
+  grants.set(profileId, [...new Set(modes ?? [])]);
+  return wait(null);
+}

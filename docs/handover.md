@@ -139,7 +139,8 @@ An admin can read every tile's task and both fleets. An account that both ran th
 event and played in it could see its own team's answers. So:
 
 - `profiles.is_admin`, granted only by SQL; the `profiles_self` policy blocks
-  self-promotion
+  self-promotion. The mode-scoped moderator tier below it IS grantable from the
+  console, on Accounts -> Who runs what; admin itself is not
 - admin accounts are hidden from the roster picker
 - admins get the console only, never the player board
 
