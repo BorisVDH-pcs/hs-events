@@ -192,4 +192,30 @@ assert.equal(modeLabel(null), 'Event', 'and an unknown mode says something rathe
   assert.ok(css.includes('minmax(170px, 210px)'), `the rail is still ${RAIL}px at its widest`);
 }
 
+// ---- The rail's game is read AFTER `game` exists ----
+//
+// `inGame` reads `game`, which is a const declared by useGame further down
+// App's body. Putting the derivation up with the other flags reads tidily and
+// throws: a const read above its own declaration in the same scope is a
+// temporal dead zone error. It shipped once, as "Cannot access 'V' before
+// initialization" after minification, and it took the whole site down --
+// including for signed-out visitors, because App derives all of this above
+// its own `if (!session)` return.
+//
+// A build does not catch it and no helper test can reach it, so the order is
+// asserted here and the App harness (preview-app.html) renders the real
+// component body, which is the only thing that would have caught it.
+{
+  const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  const declared = app.indexOf('const game = useGame(');
+  const used = app.indexOf('const inGame = game.game');
+  assert.ok(declared !== -1, 'App still gets its game from useGame');
+  assert.ok(used !== -1, "App still derives the rail's game");
+  assert.ok(declared < used, '`inGame` must be derived below `const game`, not above it');
+
+  const harness = readFileSync(new URL('../src/preview/app-main.jsx', import.meta.url), 'utf8');
+  assert.ok(harness.includes("import App from '../App.jsx'"),
+    'the App harness renders the real App, not a stand-in');
+}
+
 console.log('home-selftest: ok');
