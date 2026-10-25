@@ -30,6 +30,7 @@ import GamePicker from './components/GamePicker.jsx';
 import BingoGame from './components/bingo/BingoGame.jsx';
 import SnakesGame from './components/snakes/SnakesGame.jsx';
 import TerritoryLive from './components/territory/TerritoryLive.jsx';
+import ChallengeGame from './components/challenge/ChallengeGame.jsx';
 import { listMyGames, readGamePick, writeGamePick } from './lib/games.js';
 import { readMuted, writeMuted } from './lib/sound.js';
 import { REVEAL_DELAY_MS, SHOT_RESULT_DURATION_MS } from './lib/fireEffect.js';
@@ -291,8 +292,13 @@ export default function App() {
   // Signed up, but no captain has picked them yet. Showing the board here would
   // be a game they cannot touch, with the reason buried in a grey clause — so
   // they get a waiting room instead.
+  // A challenge is the exception, and the reason the mode is checked here
+  // rather than below with the others: nobody is picked for one. Players sign
+  // themselves up, a solo event has no teams at all, and the screen that lets
+  // them do it is the one this would replace with "please await orders".
   const waitingForTeam =
-    playerScreen && !game.loading && Boolean(game.game) && !game.myTeamId;
+    playerScreen && !game.loading && Boolean(game.game)
+    && game.game.mode !== 'challenge' && !game.myTeamId;
 
   // Rostered ahead of time, but nothing to do yet: preparation may not even
   // be open, or it is open but placing the fleet is the captain's job, not
@@ -473,8 +479,10 @@ export default function App() {
   const isBingo = game.game?.mode === 'bingo';
   const isSnakes = game.game?.mode === 'snakes';
   const isTerritory = game.game?.mode === 'territory';
+  const isChallenge = game.game?.mode === 'challenge';
   // Everything written for battleships alone: the guide, its board, its slots.
-  const isBattleships = Boolean(game.game) && !isBingo && !isSnakes && !isTerritory;
+  const isBattleships = Boolean(game.game)
+    && !isBingo && !isSnakes && !isTerritory && !isChallenge;
   const guideMode = isSnakes ? 'snakes' : isTerritory ? 'territory' : 'battleships';
   // Matches the column's own default, set to 3 by migration 0031. It was 2
   // here long after the database moved, which is the kind of disagreement that
@@ -575,8 +583,9 @@ export default function App() {
             {muted ? '🔇' : '🔊'}
             <span className="sound-toggle-label">{muted ? 'Sound off' : 'Sound on'}</span>
           </button>
-          {/* Battleships, Snakes and Territory have a guide; bingo has no written rules yet. */}
-          {playerScreen && !isBingo && (
+          {/* Battleships, Snakes and Territory have a guide; bingo and
+              challenge have no written rules yet. */}
+          {playerScreen && !isBingo && !isChallenge && (
             <button className="link" onClick={() => guideRef.current?.openWelcome()}>
               📖 How to Play
             </button>
@@ -596,7 +605,7 @@ export default function App() {
         </div>
       </header>
 
-      {playerScreen && !isBingo && (
+      {playerScreen && !isBingo && !isChallenge && (
         <Guide
           ref={guideRef}
           // Re-mounted per mode, so a game switch never shows the other's steps.
@@ -693,6 +702,16 @@ export default function App() {
           territory={game.territory}
           events={events}
           evidence={evidence}
+          onRefresh={game.refresh}
+        />
+      )}
+
+      {game.game && !waitingScreen && isChallenge && (
+        <ChallengeGame
+          game={game.game}
+          teams={teams}
+          events={events}
+          profileId={session?.user?.id ?? null}
           onRefresh={game.refresh}
         />
       )}

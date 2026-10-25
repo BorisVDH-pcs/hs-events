@@ -19,6 +19,7 @@ const MODE_TITLES = {
   bingo: { text: 'Bingo' },
   snakes: { text: 'Snakes & Ladders' },
   territory: { text: 'Territory' },
+  challenge: { text: 'Challenge' },
 };
 
 export function modeTitle(mode) {

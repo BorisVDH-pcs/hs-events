@@ -5007,3 +5007,66 @@ body.dragging-jump * { cursor: grabbing !important; user-select: none; }
 }
 
 .harness-tools { margin-top: .6rem; }
+
+/* ---- challenge: short events with no board ----
+   Two columns, not the board layout's three: there is no board to put in the
+   middle, so what a player does sits on the left and the feed keeps the side
+   it has in every other mode. */
+
+.challenge-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 2.2fr) minmax(260px, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+.challenge-main, .challenge-side { min-width: 0; }
+.challenge-main { display: grid; gap: 1.1rem; align-content: start; }
+@media (max-width: 900px) {
+  .challenge-layout { grid-template-columns: 1fr; }
+  .challenge-side { order: 2; }
+}
+
+/* The clock is the shape of a short event, so it is set like a score rather
+   than like a line of text. */
+.challenge-clock {
+  font-size: 1.6rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.02em;
+  margin: .4rem 0;
+}
+.challenge-clock .muted { font-size: .875rem; font-weight: 400; letter-spacing: 0; }
+
+.challenge-asks { list-style: none; margin: .6rem 0 0; padding: 0; display: grid; gap: .4rem; }
+.challenge-asks li { font-size: .875rem; }
+
+.challenge-figure { font-size: 1.05rem; margin: .5rem 0; }
+
+/* The column that decides the winner, in both ladders. The other figure is
+   still there -- Boss of the Week is kills and loot at once -- so the one that
+   settles it has to look different from the one that does not. */
+.challenge-ladder th.ranked, .challenge-ladder td.ranked { color: var(--gold); font-weight: 600; }
+.challenge-ladder .stats-table th[scope="row"] { font-weight: 600; }
+.challenge-ladder tr.mine th[scope="row"] { color: var(--gold-lit); }
+
+.challenge-shots { margin: .4rem 0; font-size: .8125rem; }
+.challenge-shots h4 { margin: 0 0 .15rem; font-size: .8125rem; color: var(--label-2); font-weight: 600; }
+.challenge-shots ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .15rem; }
+.challenge-shot-form { align-items: end; }
+
+/* The organiser's review list: one entrant per row, everything needed to
+   check a number against the pictures behind it without leaving the pane. */
+.challenge-entry-list { list-style: none; margin: .6rem 0 0; padding: 0; display: grid; gap: .7rem; }
+.challenge-entry-list > li {
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-md);
+  padding: .7rem .8rem;
+  display: grid;
+  gap: .4rem;
+}
+.challenge-entry-list > li.checked { border-color: rgba(242, 193, 78, .45); }
+.challenge-entry-head { display: flex; align-items: end; gap: .8rem; flex-wrap: wrap; }
+.challenge-entry-figures { display: flex; gap: 1.2rem; flex-wrap: wrap; font-size: .875rem; }
+.challenge-entry-shots { display: flex; gap: 1.2rem; flex-wrap: wrap; font-size: .8125rem; }
+.challenge-entry-shots a { margin-right: .35rem; }
+.challenge-entry-actions { align-items: end; }

@@ -28,7 +28,7 @@ export default function GamePicker({ games, gameId, onPick, fallbackName }) {
     >
       {games.map((g) => (
         <option key={g.gameId} value={g.gameId}>
-          {g.gameName} — {g.teamName}
+          {g.gameName}{g.teamName ? ` — ${g.teamName}` : ''}
         </option>
       ))}
     </select>
