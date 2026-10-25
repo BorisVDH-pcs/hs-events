@@ -30,6 +30,10 @@ export default function ChallengeNewGame({ busy, onCreate }) {
 
   const [useWom, setUseWom] = useState(true);
   const [metric, setMetric] = useState('clue_scrolls_all');
+  // One account per person unless the organiser says otherwise: that is the
+  // rule the weekly events run on, and the one the schema has enforced since
+  // the mode existed.
+  const [allAccounts, setAllAccounts] = useState(false);
   // Typing one by hand is a deliberate choice, so it survives a metric the
   // list does happen to know being typed into the box.
   const [typed, setTyped] = useState(false);
@@ -198,6 +202,33 @@ export default function ChallengeNewGame({ busy, onCreate }) {
                 they do not know is refused when the event starts.
               </p>
             )}
+
+            {/* HOW MANY ACCOUNTS COUNT PER PERSON. Off is the rule a weekly
+                XP or kill-count event wants: one account each, or somebody
+                with two can grind both and the ladder stops meaning anything.
+                On is for a bingo, where switching to an alt mid-event is
+                normal and should not cost the drop.
+
+                Under the metric rather than beside the name, because it only
+                means anything for a hiscores figure — admin_new_challenge
+                refuses it without one rather than quietly ignoring it. */}
+            <label className="choice">
+              <input
+                type="checkbox" checked={allAccounts} disabled={busy}
+                onChange={(e) => setAllAccounts(e.target.checked)}
+              />
+              <span>
+                Count every account a player has{' '}
+                <span className="muted">(their whole My accounts list, added together)</span>
+              </span>
+            </label>
+            <p className="muted new-game-note">
+              {allAccounts
+                ? 'Every account on an entrant’s list goes on the competition and their '
+                  + 'figures are added up. For a bingo, where people play alts.'
+                : 'One account each — the one they pick when they sign up. For a weekly '
+                  + 'event, where two accounts would be two chances at the same ladder.'}
+            </p>
           </div>
         )}
 
@@ -284,10 +315,14 @@ export default function ChallengeNewGame({ busy, onCreate }) {
               declaredUnit: useDeclared ? declaredUnit : null,
               rankedBy: both ? rankedBy : (useWom ? 'wom' : 'declared'),
               teams: solo ? [] : filled,
+              // Only ever true alongside a metric: the server refuses the
+              // combination rather than ignoring it, so it is cleared here
+              // instead of being sent to be rejected.
+              allAccounts: useWom && allAccounts,
             });
             if (result) {
               setName(''); setEndsAt(''); setTeamNames(['', '']);
-              setDeclaredLabel('');
+              setDeclaredLabel(''); setAllAccounts(false);
             }
           }}
         >

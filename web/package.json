@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "npm run test:all",
-    "test:all": "npm run test:board && npm run test:auth && npm run test:tile-rules && npm run test:tile-draft && npm run test:bingo && npm run test:snakes && npm run test:territory && npm run test:challenge",
+    "test:all": "npm run test:board && npm run test:auth && npm run test:tile-rules && npm run test:tile-draft && npm run test:bingo && npm run test:snakes && npm run test:territory && npm run test:challenge && npm run test:accounts",
     "test:board": "node scripts/board-selftest.mjs",
     "test:auth": "node scripts/auth-selftest.mjs",
     "test:tile-rules": "node scripts/tile-rules-selftest.mjs",
@@ -18,7 +18,8 @@
     "test:bingo": "node scripts/bingo-selftest.mjs",
     "test:snakes": "node scripts/snakes-selftest.mjs",
     "test:territory": "node scripts/territory-selftest.mjs",
-    "test:challenge": "node scripts/challenge-selftest.mjs"
+    "test:challenge": "node scripts/challenge-selftest.mjs",
+    "test:accounts": "node scripts/accounts-selftest.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.58.0",

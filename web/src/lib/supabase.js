@@ -189,6 +189,57 @@ export const myModeratorModes = () => rpc('my_moderator_modes');
 export const challengeList = () => rpc('challenge_list');
 
 /**
+ * The accounts this player's entry is being scored on.
+ *
+ * Empty for a normal event, where the entry carries one name and that name is
+ * on the entry itself. Only an all_accounts event has rows here.
+ */
+export const challengeMyAccounts = (gameId) =>
+  rpc('challenge_my_accounts', { p_game_id: gameId });
+
+// ---- My Account (20261026130000) --------------------------------------------
+//
+// NO assertWritable ON THESE. That guard is about "view as team": an organiser
+// looking at a team's screen must not act for them. These four only ever touch
+// the signed-in player's OWN rows — RLS pins every one of them to auth.uid() —
+// so an organiser editing their own accounts while a team is open is doing
+// exactly what it looks like, and blocking it would be the bug.
+
+/** This player's declared accounts, with whatever WOM last said about each. */
+export const myAccounts = () => rpc('my_accounts');
+
+/**
+ * Add one. The first account added becomes the primary whether or not it was
+ * asked for, and the primary is what lands in profiles.rsn — which is the name
+ * every challenge sign-up box starts from.
+ */
+export async function addAccount(profileId, rsn, label = null) {
+  const { data, error } = await supabase
+    .from('profile_accounts')
+    .insert({ profile_id: profileId, rsn, label })
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+/** Make one the primary. The trigger unmarks whichever was. */
+export async function setPrimaryAccount(id) {
+  const { error } = await supabase
+    .from('profile_accounts').update({ is_primary: true }).eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
+/**
+ * Remove one. Deleting the primary promotes the oldest of what is left, so a
+ * list is never left with accounts and no primary.
+ */
+export async function removeAccount(id) {
+  const { error } = await supabase.from('profile_accounts').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
+/**
  * Sign up, or correct the name on an entry.
  *
  * Open for as long as the event runs: a latecomer is added to the live WOM
@@ -276,11 +327,12 @@ export async function womPulse(gameId) {
 export const adminNewChallenge = ({
   name, endsAt, solo = true, womMetric = null,
   declaredLabel = null, declaredUnit = null, rankedBy = null, teams = [],
+  allAccounts = false,
 }) =>
   rpc('admin_new_challenge', {
     p_name: name, p_ends_at: endsAt, p_solo: solo, p_wom_metric: womMetric,
     p_declared_label: declaredLabel, p_declared_unit: declaredUnit,
-    p_ranked_by: rankedBy, p_teams: teams,
+    p_ranked_by: rankedBy, p_teams: teams, p_all_accounts: allAccounts,
   });
 
 /** Every entry with its figures and every screenshot behind them. */
