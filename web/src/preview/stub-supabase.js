@@ -285,3 +285,82 @@ export const DEMO_URLS = Object.fromEntries(
  */
 export const accountFixtures = [];
 export const myAccounts = () => Promise.resolve(accountFixtures);
+
+/**
+ * Enough of an auth surface to boot the real App (app-main.jsx).
+ *
+ * `previewSession` is set by the harness before it renders. null is the
+ * signed-out screen; an object is a signed-in one. Nothing here authenticates
+ * anything -- it exists so the component tree can be rendered at all, which
+ * until now nothing in this repo could do without a live project.
+ */
+export const preview = { session: null };
+
+const authListeners = new Set();
+
+supabase.auth = {
+  getSession: () => Promise.resolve({ data: { session: preview.session } }),
+  onAuthStateChange(cb) {
+    authListeners.add(cb);
+    return { data: { subscription: { unsubscribe: () => authListeners.delete(cb) } } };
+  },
+  signOut() {
+    preview.session = null;
+    authListeners.forEach((cb) => cb('SIGNED_OUT', null));
+    return Promise.resolve({ error: null });
+  },
+};
+
+/** The games list, for the App harness. */
+export const previewGames = { rows: [] };
+export const challengeList = () => Promise.resolve(previewGames.rows);
+
+/**
+ * The rest of lib/supabase.js's surface, so the whole App tree can be
+ * imported. A missing name here is not a soft failure -- an ESM named import
+ * that does not resolve kills the module graph before anything renders, which
+ * is why these exist at all.
+ *
+ * Reads answer empty; writes refuse. The App harness is a smoke test for
+ * "does it render", and a harness that silently accepted a write would be
+ * claiming to test something it does not.
+ */
+export const isSupabaseConfigured = true;
+
+const noop = () => Promise.reject(new Error('Not available in the harness.'));
+const none = () => Promise.resolve([]);
+const nothing = () => Promise.resolve(null);
+
+export const challengeMine = nothing;
+export const challengeStandings = none;
+export const challengeMyAccounts = none;
+export const challengeWomCompetition = nothing;
+export const adminChallengeEntries = none;
+export const myTileSubmissions = none;
+export const myModeratorModes = none;
+
+export const addAccount = noop;
+export const setPrimaryAccount = noop;
+export const removeAccount = noop;
+export const adminChallengeSetFigure = noop;
+export const adminChallengeSetTeam = noop;
+export const adminChallengeVerify = noop;
+export const adminChallengeWom = noop;
+export const adminChallengeWomLink = noop;
+export const adminChallengeWomRetry = noop;
+export const adminNewChallenge = noop;
+export const challengeAddEvidence = noop;
+export const challengeDeclare = noop;
+export const challengeJoin = noop;
+export const challengeLeave = noop;
+export const challengeStart = noop;
+export const claimTile = noop;
+export const fireTile = noop;
+export const placeFleet = noop;
+export const spendPetJar = noop;
+export const submitTile = noop;
+export const updateTileSubmission = noop;
+export const withdrawTileSubmission = noop;
+// Fire-and-forget in the real client, so it answers rather than refusing:
+// the pulse runs on a timer and a rejection every minute is just noise.
+export const womPulse = () => Promise.resolve(null);

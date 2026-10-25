@@ -273,14 +273,6 @@ export default function App() {
   // asking which of two sidebars moves you.
   const consoleScreen = isOrganiser && !home && !viewing && !playingOwn;
 
-  // The game the rail offers a way back into. Normally the loaded one. On
-  // Home it is usually loaded too -- goHome keeps gameId on purpose -- but on
-  // a cold open it is not yet, and the roster row already has the name, so
-  // the rail can say which game it means before the board has arrived.
-  const picked = gameId ? myGames.find((g) => g.gameId === gameId) ?? null : null;
-  const inGame = game.game
-    ? { name: game.game.name, mode: game.game.mode }
-    : picked ? { name: picked.gameName, mode: picked.mode } : null;
   // The game on that screen. A team being viewed brings its own; otherwise it
   // is whatever loadGames settled on, which is one of their own games when
   // they are rostered and the featured one when they are not -- so an
@@ -294,6 +286,22 @@ export default function App() {
   setViewOnly(viewing ? viewAs.teamName : null, acting ? viewAs.teamId : null);
 
   const game = useGame(boardGameId, session, viewing ? viewAs : null);
+
+  // The game the rail offers a way back into. Normally the loaded one. On
+  // Home it is usually loaded too -- goHome keeps gameId on purpose -- but on
+  // a cold open it is not yet, and the roster row already has the name, so
+  // the rail can say which game it means before the board has arrived.
+  //
+  // BELOW `game`, NOT ABOVE IT. This sat above with the other derived flags,
+  // which reads tidily and throws: `game` is a const, so reading it earlier
+  // in the same scope is a temporal dead zone error, and minified that is
+  // "Cannot access 'V' before initialization" on a player's screen. The other
+  // flags up there read state and props only, which is why they are fine
+  // where they are and this is not.
+  const picked = gameId ? myGames.find((g) => g.gameId === gameId) ?? null : null;
+  const inGame = game.game
+    ? { name: game.game.name, mode: game.game.mode }
+    : picked ? { name: picked.gameName, mode: picked.mode } : null;
 
   // A cannon fire is not a private event — every `shot_fired` row is
   // world-readable (see 0039's `events_read` policy), so anyone with the

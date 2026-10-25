@@ -307,10 +307,24 @@ export const tableFixtures = {};
 export function adminFrom(table) {
   const filters = [];
   let max = Infinity;
+  const rowsNow = () => {
+    const rows = tableFixtures[table] ?? TABLES[table]?.() ?? [];
+    return structuredClone(rows.filter((r) => filters.every((f) => f(r))).slice(0, max));
+  };
   const q = {
     select: () => q, order: () => q, eq: () => q,
     in: (col, values) => { filters.push((r) => values.includes(r[col])); return q; },
     limit: (n) => { max = n; return q; },
+    // PostgREST's one-row forms. Added for the App harness (app-main.jsx),
+    // which boots the real App: it reads its own profile row this way, and a
+    // builder without them fails inside an effect rather than at the call.
+    maybeSingle: () => Promise.resolve({ data: rowsNow()[0] ?? null, error: null }),
+    single: () => {
+      const row = rowsNow()[0] ?? null;
+      return Promise.resolve(row
+        ? { data: row, error: null }
+        : { data: null, error: { message: 'no rows' } });
+    },
     then: (resolve) => {
       const rows = tableFixtures[table] ?? TABLES[table]?.() ?? [];
       const data = rows.filter((r) => filters.every((f) => f(r))).slice(0, max);
