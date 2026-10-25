@@ -644,12 +644,12 @@ export default function App() {
               {suggesting ? '← Back to the game' : '💡 Suggest a tile'}
             </button>
           )}
-          {/* Beside Sign out, on every screen. The reason somebody comes
-              looking for this is that the hiscores are not finding them, and
-              that can be discovered from any of the five modes. */}
-          <button className="link" onClick={() => setAccountsOpen(true)}>
-            🧑 My accounts
-          </button>
+          {/* NO "My accounts" BUTTON. It sat here, beside Sign out, while the
+              only way to the list was a button on the chrome. Home carries it
+              now, and so does the challenge sign-up field -- which is the
+              better of the two, because it stands next to the warning that
+              says the name is not being found, rather than standing neutrally
+              on four modes that never look a name up at all. */}
           <button className="link" onClick={() => supabase.auth.signOut()}>Sign out</button>
         </div>
       </header>

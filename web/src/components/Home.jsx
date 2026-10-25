@@ -88,10 +88,11 @@ export default function Home({
       )}
 
       {/* ---- Your account ----
-          A summary, with the real editing behind the same dialog the header
-          opens. Two ways in, one screen: the header button is for the moment
-          somebody discovers mid-event that the hiscores are not finding them,
-          and this is for the moment they are looking at their own page. */}
+          A summary, with the real editing behind the same dialog the
+          challenge sign-up field opens. Two ways in, one screen: that one is
+          for the moment somebody discovers mid-event that the hiscores are
+          not finding them, and this is for the moment they are looking at
+          their own page. */}
 
       <h3>Your accounts</h3>
 
