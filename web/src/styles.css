@@ -350,7 +350,13 @@ h1, h2, h3 { font-family: var(--display); }
   }
 }
 
+/* Pinned to the LAST column, not left to auto-placement. `.top` is
+   `auto 1fr auto`, and the middle item -- the name of the game you are in --
+   is not rendered on Home. With only two children, auto-placement put this
+   cluster in the empty 1fr middle column, so on Home it bunched up against
+   the wordmark instead of sitting at the right edge where it belongs. */
 .who {
+  grid-column: 3;
   display: flex; gap: .75rem; align-items: baseline;
   color: var(--label-2); font-size: .875rem;
 }
@@ -5168,6 +5174,103 @@ label.choice:has(input:disabled) { cursor: default; opacity: .5; }
 }
 
 .rsn-add { margin-top: 1rem; display: grid; gap: .5rem; }
+
+/* ---- the side rail (SideNav.jsx) ----
+ *
+ * Home, the game you are in, and the two screens that are not a game, down
+ * the left of a wide window. It exists because that space was empty: the page
+ * is capped so prose does not run to an unreadable line length, and on a wide
+ * monitor the cap leaves a margin doing nothing.
+ *
+ * BELOW 1400px THERE IS NO RAIL. `display: contents` makes the wrapper vanish
+ * from the layout entirely, so the page below that width is exactly the page
+ * that was there before it existed, and the header links are the way around.
+ *
+ * 1400 AND NOT 1100, which is the breakpoint everything else here uses. The
+ * board strip (.board-layout) goes to three columns above 1100px, and it
+ * measures the WINDOW, not the space it has been given. Put a 210px rail and
+ * a 1.5rem gap beside it at 1100 and the strip still believes it is wide: it
+ * stays in three columns and takes the 234px out of the board, which on a
+ * 1280px laptop is the board going from about 700px to about 470px. The rail
+ * is worth a margin nobody was using; it is not worth a third of the board.
+ *
+ * 1400 is the width at which the rail can be taken out and the strip still
+ * has its 1100 (1400 - 48 padding - 234 rail = 1118). A screen between the
+ * two keeps the layout it has today.
+ */
+.app-split { display: contents; }
+.side-nav { display: none; }
+
+@media (min-width: 1400px) {
+  .app-split {
+    display: grid;
+    /* minmax(0, 1fr) and not 1fr: a grid item's automatic minimum is its
+       content, and the board grids inside would otherwise stretch this
+       column and push the whole page sideways instead of scrolling. The
+       admin console learned this the same way -- see .admin-split. */
+    grid-template-columns: minmax(170px, 210px) minmax(0, 1fr);
+    gap: 1.5rem;
+    align-items: start;
+  }
+
+  .side-nav {
+    position: sticky;
+    top: 1rem;
+    display: grid;
+    gap: .15rem;
+    padding: .7rem;
+    background: var(--panel);
+    backdrop-filter: blur(30px) saturate(180%);
+    -webkit-backdrop-filter: blur(30px) saturate(180%);
+    border: 1px solid var(--hairline);
+    border-radius: var(--r-xl);
+    box-shadow: var(--shadow-sm);
+  }
+
+  /* The rail comes out of the margin, not out of the reading column. Without
+     this the content would simply be 200px narrower on exactly the screens
+     that have room to spare -- which is the opposite of the point. The same
+     trick, and the same reasoning, as .app:has(.admin-split). */
+  .app:has(.side-nav) { max-width: 1680px; }
+}
+
+.side-nav button {
+  display: grid; grid-template-columns: 1.1rem minmax(0, 1fr);
+  gap: .5rem; align-items: start;
+  width: 100%;
+  text-align: left;
+  padding: .5rem .55rem;
+  border: none; border-radius: var(--r-sm);
+  background: none;
+  color: var(--label-2);
+  font-family: var(--body); font-size: .9375rem; font-weight: 600;
+  letter-spacing: -.008em;
+  transition: background .25s var(--ease-out), color .25s var(--ease-out);
+}
+.side-nav button:hover:not(:disabled) { background: var(--fill-3); color: var(--text); filter: none; }
+.side-nav button:active:not(:disabled) { transform: none; }
+.side-nav button.on { background: var(--fill); color: var(--text); }
+.side-nav-icon { font-size: .9375rem; line-height: 1.4; }
+.side-nav-text { display: grid; gap: .1rem; min-width: 0; }
+
+/* The game's name can be anything an organiser typed, and the rail is 210px
+   at its widest. Wrapping to three lines would push everything below it
+   down the screen, so it gets two lines and then an ellipsis. */
+.side-nav-name {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.25;
+}
+.side-nav-sub {
+  font-size: .75rem; font-weight: 400; line-height: 1.3;
+  color: var(--label-3);
+}
+.side-nav button.on .side-nav-sub { color: var(--label-2); }
+
+.side-nav-rule {
+  height: 1px; border: none; margin: .45rem .55rem;
+  background: var(--hairline);
+}
 
 /* ---- Home (Home.jsx) ----
 

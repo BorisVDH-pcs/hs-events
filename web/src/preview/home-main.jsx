@@ -15,6 +15,7 @@ import { StrictMode, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import Home from '../components/Home.jsx';
 import Wordmark from '../components/Wordmark.jsx';
+import SideNav from '../components/SideNav.jsx';
 import { accountFixtures } from './stub-supabase.js';
 import '../styles.css';
 
@@ -66,6 +67,7 @@ const ACCOUNTS = {
 function Harness() {
   const [games, setGames] = useState('season');
   const [accounts, setAccounts] = useState('typical');
+  const [rail, setRail] = useState(true);
   // Home reads its accounts once, on mount, so the switch has to remount it.
   accountFixtures.length = 0;
   accountFixtures.push(...ACCOUNTS[accounts]);
@@ -74,9 +76,6 @@ function Harness() {
     <main className="app game-app">
       <header className="top" id="app-header">
         <Wordmark mode={null} />
-        <p className="status header-status">
-          <strong>Home — harness</strong>
-        </p>
         <div className="who">
           <span className="name">Zezima</span>
           <select value={games} onChange={(e) => setGames(e.target.value)}>
@@ -86,6 +85,9 @@ function Harness() {
             <option value="invitesOnly">Invitations only</option>
             <option value="nothing">In nothing at all</option>
           </select>
+          <button className="link" onClick={() => setRail((v) => !v)}>
+            {rail ? 'Rail: in a game' : 'Rail: no game'}
+          </button>
           <select value={accounts} onChange={(e) => setAccounts(e.target.value)}>
             <option value="typical">Accounts: found</option>
             <option value="broken">Accounts: one never found</option>
@@ -93,6 +95,18 @@ function Harness() {
           </select>
         </div>
       </header>
+      <div className="app-split">
+        <SideNav
+          atHome
+          gameName={rail ? 'Clan Bingo IX' : null}
+          gameMode="bingo"
+          onHome={() => {}}
+          onGame={() => window.alert('Would open the game')}
+          onAccounts={() => window.alert('Would open My accounts')}
+          onConsole={() => window.alert('Would open the console')}
+          isOrganiser
+        />
+        <div className="app-body">
       <Home
         key={`${games}-${accounts}`}
         games={GAMES[games]}
@@ -102,6 +116,8 @@ function Harness() {
         onConsole={() => window.alert('Would open the console')}
         onOpenAccounts={() => window.alert('Would open My accounts')}
       />
+        </div>
+      </div>
     </main>
   );
 }

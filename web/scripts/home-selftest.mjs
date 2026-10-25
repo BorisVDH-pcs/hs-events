@@ -155,4 +155,41 @@ assert.equal(modeLabel(null), 'Event', 'and an unknown mode says something rathe
   assert.ok(app.includes('const [home, setHome] = useState(true)'), 'home starts true');
 }
 
+// ---- The rail, and the room it takes ----
+//
+// SideNav is hidden below 1400px and the page is what it always was. The
+// number is not a taste call: .board-layout goes to three columns above
+// 1100px and measures the WINDOW rather than the space it was given, so a
+// rail shown at 1100 would keep the strip in three columns and take its
+// 234px (210 rail + 1.5rem gap) out of the board instead. 1400 is the width
+// at which the rail comes out and the strip still has its 1100.
+{
+  const css = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
+  const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+
+  assert.ok(app.includes('<SideNav'), 'App mounts the rail');
+  assert.ok(app.includes('!consoleScreen && ('),
+    'and stands it down for the console, which has a sidebar of its own');
+
+  assert.ok(css.includes('.app-split { display: contents; }'),
+    'the wrapper leaves the layout entirely when there is no rail');
+  assert.ok(css.includes('.side-nav { display: none; }'), 'and the rail is hidden by default');
+
+  const RAIL_BREAKPOINT = 1400;
+  assert.ok(css.includes(`@media (min-width: ${RAIL_BREAKPOINT}px) {`),
+    `the rail appears at ${RAIL_BREAKPOINT}px`);
+
+  // The arithmetic the breakpoint rests on, asserted rather than trusted to
+  // a comment: page padding is 1.5rem each side, the rail is at most 210px,
+  // and the gap is 1.5rem.
+  const PADDING = 24 * 2;
+  const RAIL = 210;
+  const GAP = 24;
+  assert.ok(
+    RAIL_BREAKPOINT - PADDING - RAIL - GAP >= 1100,
+    'a rail at this width still leaves .board-layout the 1100px it wants'
+  );
+  assert.ok(css.includes('minmax(170px, 210px)'), `the rail is still ${RAIL}px at its widest`);
+}
+
 console.log('home-selftest: ok');
