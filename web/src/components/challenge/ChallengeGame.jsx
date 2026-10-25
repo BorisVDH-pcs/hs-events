@@ -318,12 +318,24 @@ export default function ChallengeGame({ game, teams = [], events = [], profileId
                 finding out at the end of the week that they were never the
                 same, so it is said here, in red, while there is time to fix
                 it. Null means there is no competition to be missing from. */}
+            {/* The worse of the two, and the one that looks fine: WOM takes any
+                name of the right shape and invents a player for it, so a typo
+                is accepted and then scores nothing for a week. This is what
+                says so. */}
+            {mine.wom_found === false && (
+              <p className="error">
+                Wise Old Man has <strong>{mine.rsn}</strong> on the competition,
+                but has never found that name on the hiscores — so it is being
+                counted as zero. Either it is spelled differently in game, or
+                the account is too new to be ranked. Correct it below and it
+                will be swapped over.
+              </p>
+            )}
+
             {mine.wom_added === false && (
               <p className="error">
                 Wise Old Man has not taken {mine.rsn} yet, so nothing is being
-                counted for you. It is tried again every minute. If this is still
-                here in a few minutes, the name is probably not spelled the way
-                the hiscores spell it.
+                counted for you. It is tried again every minute.
               </p>
             )}
 
