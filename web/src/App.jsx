@@ -27,12 +27,12 @@ import StatsPanel from './components/StatsPanel.jsx';
 import NoTeamWaiting from './components/NoTeamWaiting.jsx';
 import TileSuggestions from './components/TileSuggestions.jsx';
 import { useConfirm } from './components/ConfirmDialog.jsx';
-import GamePicker from './components/GamePicker.jsx';
+import Home from './components/Home.jsx';
 import BingoGame from './components/bingo/BingoGame.jsx';
 import SnakesGame from './components/snakes/SnakesGame.jsx';
 import TerritoryLive from './components/territory/TerritoryLive.jsx';
 import ChallengeGame from './components/challenge/ChallengeGame.jsx';
-import { listMyGames, readGamePick, writeGamePick } from './lib/games.js';
+import { listMyGames } from './lib/games.js';
 import { readMuted, writeMuted } from './lib/sound.js';
 import { REVEAL_DELAY_MS, SHOT_RESULT_DURATION_MS } from './lib/fireEffect.js';
 import { tileProgressText } from './lib/tileProgress.js';
@@ -130,6 +130,12 @@ export default function App() {
   // would have to live somewhere different on five different screens.
   const [accountsOpen, setAccountsOpen] = useState(false);
 
+  // Home, and the landing. True on sign-in, always: landing used to depend on
+  // a localStorage pick nobody could see, so the same player got a different
+  // screen on their phone and their PC. One screen, every time, and the game
+  // is a press away from it.
+  const [home, setHome] = useState(true);
+
   // The chosen game, mirrored so the roster refresh can read it without taking
   // it as a dependency -- which would rebuild the refresh on every switch.
   const gameIdRef = useRef(null);
@@ -169,51 +175,38 @@ export default function App() {
     try {
       mine = await listMyGames(uid);
     } catch {
-      // A failed roster read should not black out the board. Fall through to
-      // the newest-game query, which is what this page did before the picker.
+      // A failed roster read should not black out the screen. Home draws fine
+      // with an empty list -- it says so in words -- which is a better answer
+      // than the board this used to fall through to.
       mine = [];
     }
     if (seq !== gamesSeq.current) return;
     setMyGames(mine);
 
-    if (mine.length > 0) {
-      // Re-runs must not move a player who is already somewhere valid. This is
-      // the guard that makes the refresh below safe to fire on every alt-tab,
-      // and it is what keeps a player put when localStorage is unavailable --
-      // in a private window `readGamePick` always returns null, so without it
-      // every refresh would snap them back to the newest game mid-match.
-      if (mine.some((g) => g.gameId === gameIdRef.current)) return;
-
-      // A stored pick can name a game since deleted from the admin console, so
-      // it is only honoured if it is still in the list.
-      const saved = readGamePick(uid);
-      const pick = mine.some((g) => g.gameId === saved) ? saved : mine[0].gameId;
-      writeGamePick(uid, pick);
-      setGameId(pick);
-      return;
+    // NOTHING IS AUTO-SELECTED ANY MORE. This used to pick a game here: a
+    // stored localStorage pick, else a ranked mine[0], else the featured game,
+    // else the newest game in the whole database -- which meant a player who
+    // was in nothing at all was shown a stranger's game, with nothing on
+    // screen to say so. Landing is Home now, and a game is something the
+    // player chooses off it. The stored pick went with it: it existed only to
+    // decide this, and a value written for nobody to read is worse than no
+    // value at all.
+    //
+    // What is still needed is the other half of the old guard: a player whose
+    // game has been deleted under them must not be left pointing at it.
+    if (gameIdRef.current && !mine.some((g) => g.gameId === gameIdRef.current)) {
+      setGameId(null);
+      setHome(true);
     }
-
-    const { data: featured } = await supabase
-      .from('games')
-      .select('id')
-      .eq('is_featured', true)
-      .limit(1);
-    if (seq !== gamesSeq.current) return;
-    if (featured?.[0]?.id) { setGameId(featured[0].id); return; }
-
-    const { data } = await supabase
-      .from('games')
-      .select('id')
-      .order('created_at', { ascending: false })
-      .limit(1);
-    if (seq !== gamesSeq.current) return;
-    setGameId(data?.[0]?.id ?? null);
   }, [uid]);
 
   useEffect(() => {
     // Signed out, or swapped for another player on a shared phone: drop the
     // previous roster rather than briefly offering it to whoever is next.
-    if (!uid) { setMyGames([]); setGameId(null); setViewAs(null); setPlaying(false); return; }
+    if (!uid) {
+      setMyGames([]); setGameId(null); setViewAs(null); setPlaying(false); setHome(true);
+      return;
+    }
     loadGames();
   }, [uid, loadGames]);
 
@@ -268,6 +261,12 @@ export default function App() {
   // The player screen: for players, for an organiser viewing a team, and for
   // an organiser who has stepped into their own game.
   const playerScreen = !isOrganiser || viewing || playingOwn;
+  // The board itself. `playerScreen` stays a statement about WHO this is --
+  // the unseen-event counter in the tab title still wants it while somebody
+  // sits on Home, because they are still in the event. This is a statement
+  // about WHAT is on screen, and on Home the answer is no board, no waiting
+  // countdown and no guide.
+  const showBoard = playerScreen && !home;
   // The game on that screen. A team being viewed brings its own; otherwise it
   // is whatever loadGames settled on, which is one of their own games when
   // they are rostered and the featured one when they are not -- so an
@@ -434,10 +433,37 @@ export default function App() {
   // useGame needs no help: `load` is keyed on gameId and the channel cleanup
   // clears its pending reveal timers.
   function switchGame(nextId) {
-    if (!nextId || nextId === gameId) return;
+    if (!nextId) return;
+    // A card on Home promises that game, and for an organiser the default
+    // screen is the console -- so picking one has to step them into it the
+    // way the "Play my game" button does, or the press lands on the console
+    // with nothing to say why. Leaving a team's view goes with it: a card is
+    // their own screen, not somebody else's.
+    setPlaying(true);
+    setViewAs(null);
+    // Picking the game already loaded still has to leave Home -- that is the
+    // commonest press on the screen, somebody going back into the event they
+    // were already in.
+    if (nextId === gameId) { setHome(false); window.scrollTo({ top: 0 }); return; }
     resetBoardState();
-    writeGamePick(uid, nextId);
     setGameId(nextId);
+    setHome(false);
+    window.scrollTo({ top: 0 });
+  }
+
+  /**
+   * Back to Home, from anywhere.
+   *
+   * The game is left exactly as it was -- `gameId` is not cleared -- so the
+   * card for it is still on Home and going back in costs one press and no
+   * reload. Only the per-board transients go, because they describe a board
+   * nobody is looking at: the same reasoning as a game switch.
+   */
+  function goHome() {
+    resetBoardState();
+    setViewAs(null);
+    setHome(true);
+    window.scrollTo({ top: 0 });
   }
 
   // Into a team's screen from the console, and back out. The same per-board
@@ -529,26 +555,31 @@ export default function App() {
   const openTile = tiles.find((t) => t.id === openTileId && t.revealed) ?? null;
 
   return (
-    <main className={`app game-app${waitingScreen ? ' waiting-app' : ''}`}>
+    <main className={`app game-app${!home && waitingScreen ? ' waiting-app' : ''}`}>
       <header className="top" id="app-header">
-        {/* The subtitle follows the game on screen; the console is every game. */}
-        <Wordmark mode={playerScreen ? game.game?.mode ?? null : null} />
-        {(!isOrganiser || playingOwn) && game.game && (!waitingScreen || myGames.length > 1) && (
+        {/* The wordmark is the way home, which is the web's own convention and
+            costs no chrome. A real button, not a clickable <h1>, so it is
+            reachable by keyboard and announced as what it is -- and never on
+            Home itself, where it would lead nowhere.
+
+            The subtitle still follows the game on screen; the console is every
+            game, and Home is none of them. */}
+        {home ? (
+          <Wordmark mode={null} />
+        ) : (
+          <button type="button" className="home-link" onClick={goHome} aria-label="Home">
+            <Wordmark mode={showBoard ? game.game?.mode ?? null : null} />
+          </button>
+        )}
+        {/* THE GAME PICKER HAS MOVED. It used to live here as a <select>, and
+            its job is Home's now, where there is room to say which game is
+            running, which is finished, and which is an invitation rather than
+            a game at all. What is left here is the name of the game you are
+            in, and the one thing a header has to be able to shout. */}
+        {(!isOrganiser || playingOwn) && !home && game.game && (
           <p className="status header-status">
-            <GamePicker
-              games={myGames}
-              gameId={gameId}
-              onPick={switchGame}
-              fallbackName={game.game.name}
-            />
-            {/* GamePicker's own dropdown already prints "name — team" per
-                option once there is more than one game (GamePicker.jsx), so
-                repeating the team out here would just say the same thing
-                twice. With exactly one game, GamePicker renders a bare name
-                and this is the only place the team appears. Status (active /
-                finished / preparing) used to print here too; dropped as not
-                telling a player anything they act on. */}
-            {myGames.length <= 1 && myTeamId && (
+            <strong>{game.game.name}</strong>
+            {myTeamId && (
               ` — you play for ${teams.find((t) => t.id === myTeamId)?.name}`
             )}
             {/* Only when something is wrong. A board that is working says so by
@@ -564,6 +595,12 @@ export default function App() {
         )}
         <div className="who">
           <span className="name">{displayName || 'Signed in'}</span>
+          {/* Beside the wordmark's silent version of the same thing: a
+              clickable logo is a convention, not an instruction, and nobody
+              should have to know it to find their way back. */}
+          {!home && (
+            <button className="link" onClick={goHome}>🏠 Home</button>
+          )}
           {/* Only with a roster to go to, and never while a team is open --
               that has its own way out, and two ways back would be two. */}
           {canPlay && !viewing && (
@@ -591,7 +628,7 @@ export default function App() {
           </button>
           {/* Battleships, Snakes and Territory have a guide; bingo and
               challenge have no written rules yet. */}
-          {playerScreen && !isBingo && !isChallenge && (
+          {showBoard && !isBingo && !isChallenge && (
             <button className="link" onClick={() => guideRef.current?.openWelcome()}>
               📖 How to Play
             </button>
@@ -621,7 +658,20 @@ export default function App() {
         <MyAccount profileId={uid} onClose={() => setAccountsOpen(false)} />
       )}
 
-      {playerScreen && !isBingo && !isChallenge && (
+      {home && (
+        <Home
+          games={myGames}
+          onPick={switchGame}
+          displayName={displayName}
+          isOrganiser={isOrganiser}
+          // The console is the screen Home replaced for an organiser, so it
+          // needs a way back that is not a game card.
+          onConsole={() => { setPlaying(false); setHome(false); window.scrollTo({ top: 0 }); }}
+          onOpenAccounts={() => setAccountsOpen(true)}
+        />
+      )}
+
+      {showBoard && !isBingo && !isChallenge && (
         <Guide
           ref={guideRef}
           // Re-mounted per mode, so a game switch never shows the other's steps.
@@ -645,7 +695,7 @@ export default function App() {
           ("View as team"). The console stays mounted while one is open, only
           hidden, so coming back finds it on the game and pane it was left on. */}
       {isOrganiser && (
-        <div hidden={viewing || playingOwn}>
+        <div hidden={viewing || playingOwn || home}>
           <Admin onViewAs={enterView} isAdmin={isAdmin} modes={modModes} />
         </div>
       )}
@@ -655,14 +705,14 @@ export default function App() {
           anyone else. */}
       <FireEffect shot={shot} muted={muted} />
 
-      {!isOrganiser && suggesting && <TileSuggestions onClose={() => setSuggesting(false)} />}
+      {!home && !isOrganiser && suggesting && <TileSuggestions onClose={() => setSuggesting(false)} />}
 
       {/* Hidden, not unmounted, while suggesting: the game hooks above keep
           running either way, and the board should be exactly where it was —
           same tab, same open tile — when the player comes back to it. Only a
           real player can be suggesting; an organiser viewing a team has no
           button for it, so `suggesting` never hides their view. */}
-      {playerScreen && <div hidden={!isOrganiser && suggesting} className="game-body">
+      {showBoard && <div hidden={!isOrganiser && suggesting} className="game-body">
       {loading && <p>Loading game…</p>}
       {error && <p className="error">{error}</p>}
       {notice && <p className="error">{notice}</p>}
@@ -739,7 +789,7 @@ export default function App() {
       {game.game && !waitingScreen && isBattleships && (
         <>
           {/* The name/status/team line and its "reconnecting" warning moved up
-              into the sticky header (#app-header) — see the GamePicker there. */}
+              into the sticky header (#app-header). */}
 
           {game.game.status === 'finished' && (
             <p className="banner">

@@ -20,6 +20,9 @@ async function listMyChallenges() {
     return (rows ?? []).map((c) => ({
       gameId: c.game_id,
       gameName: c.name,
+      // challenge_list only ever answers with challenges, so the mode is not
+      // in the payload and does not need to be.
+      mode: 'challenge',
       status: c.status,
       createdAt: c.created_at,
       // A challenge has no team of this player's to name. A team event does
@@ -58,7 +61,7 @@ export async function listMyGames(uid) {
     // games.winner_team_id -> teams.id added after teams existed (0001) -- so
     // an unqualified embed is ambiguous and PostgREST rejects the whole query
     // with PGRST201. Verified against the live schema, not assumed.
-    .select('teams!inner(id, name, game_id, games!teams_game_id_fkey!inner(id, name, status, created_at))')
+    .select('teams!inner(id, name, game_id, games!teams_game_id_fkey!inner(id, name, mode, status, created_at))')
     .eq('profile_id', uid);
 
   if (error) throw new Error(error.message);
@@ -82,6 +85,9 @@ export async function listMyGames(uid) {
     byGame.set(game.id, {
       gameId: game.id,
       gameName: game.name,
+      // Home names the mode on every card; the old header dropdown showed the
+      // game name alone and never needed it.
+      mode: game.mode,
       status: game.status,
       createdAt: game.created_at,
       teamId: team.id,
@@ -93,35 +99,12 @@ export async function listMyGames(uid) {
   const challenges = (await listMyChallenges()).filter((c) => !byGame.has(c.gameId));
 
   // Rostered games first, then challenges this player entered, then the ones
-  // merely open. The order is not cosmetic: App picks `mine[0]` for anyone
-  // with no stored choice, so sorting the whole list by date alone would move
-  // every player off the bingo they are playing the moment an organiser
-  // creates next week's event.
+  // merely open. The order is not cosmetic: Home leads with the first card of
+  // `mine`, so sorting the whole list by date alone would push the bingo
+  // somebody is mid-way through below next week's event the moment an
+  // organiser creates it.
   const rank = (g) => (g.teamId ? 0 : g.joined ? 1 : 2);
   return [...rostered, ...challenges].sort(
     (a, b) => rank(a) - rank(b) || new Date(b.createdAt) - new Date(a.createdAt)
   );
-}
-
-// Per user: a shared browser on event night is realistic, and one player's
-// choice must not decide the next player's board.
-const pickKey = (uid) => `hs-battleships:game-pick:${uid}`;
-
-export function readGamePick(uid) {
-  if (!uid) return null;
-  try {
-    return localStorage.getItem(pickKey(uid));
-  } catch {
-    return null; // Private mode, or storage disabled. Not worth failing over.
-  }
-}
-
-export function writeGamePick(uid, gameId) {
-  if (!uid) return;
-  try {
-    if (gameId) localStorage.setItem(pickKey(uid), gameId);
-    else localStorage.removeItem(pickKey(uid));
-  } catch {
-    /* nothing to do -- the pick just will not survive the reload */
-  }
 }
