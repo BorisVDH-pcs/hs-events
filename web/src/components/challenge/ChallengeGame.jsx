@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   supabase,
-  challengeList, challengeMine, challengeStandings,
+  challengeList, challengeMine, challengeStandings, challengeWomCompetition,
   challengeJoin, challengeLeave, challengeDeclare, challengeAddEvidence, womPulse,
 } from '../../lib/supabase.js';
 import {
   MAX_EVIDENCE, WOM_PULSE_MS,
-  figureLabel, figureToStored, metricLabel, rankedLabel, storedToInput, womLabel,
+  figureLabel, figureToStored, metricLabel, rankedLabel, storedToInput,
+  womCompetitionUrl, womLabel,
 } from '../../lib/challenge.js';
 import { useCountdown, pad } from '../../lib/countdown.js';
 import EventFeed from '../EventFeed.jsx';
@@ -31,6 +32,8 @@ export default function ChallengeGame({ game, teams = [], events = [], profileId
   const [setup, setSetup] = useState(null);
   const [mine, setMine] = useState(null);
   const [standings, setStandings] = useState([]);
+  // The WOM competition's id, or null until the create request comes back.
+  const [wom, setWom] = useState(null);
   const [profileRsn, setProfileRsn] = useState('');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -52,14 +55,16 @@ export default function ChallengeGame({ game, teams = [], events = [], profileId
 
   const load = useCallback(async () => {
     try {
-      const [list, entry, rows] = await Promise.all([
+      const [list, entry, rows, womId] = await Promise.all([
         challengeList(),
         challengeMine(game.id),
         challengeStandings(game.id),
+        challengeWomCompetition(game.id),
       ]);
       setSetup((list ?? []).find((c) => c.game_id === game.id) ?? null);
       setMine(entry ?? null);
       setStandings(rows ?? []);
+      setWom(womId ?? null);
       setError(null);
     } catch (err) {
       setError(err.message);
@@ -176,6 +181,29 @@ export default function ChallengeGame({ game, teams = [], events = [], profileId
                 <span className="muted">
                   {' — counted off the hiscores by Wise Old Man. Nothing to send in.'}
                 </span>
+                {/* The competition is public, so the honest thing is to link
+                    it: this ladder is a copy of theirs, and anyone who thinks
+                    a figure is wrong should be able to go and look rather than
+                    take our word for it. Participants is its own link because
+                    it is the page that says who is actually being counted. */}
+                {wom ? (
+                  <span className="challenge-wom-link">
+                    <a href={womCompetitionUrl(wom)} target="_blank" rel="noreferrer noopener">
+                      On Wise Old Man ↗
+                    </a>
+                    <a
+                      href={womCompetitionUrl(wom, 'participants')}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                    >
+                      Who is in it ↗
+                    </a>
+                  </span>
+                ) : isOpen ? null : (
+                  <span className="muted challenge-wom-link">
+                    Waiting for Wise Old Man to create the competition.
+                  </span>
+                )}
               </li>
             )}
             {setup?.declared_label && (
@@ -191,17 +219,30 @@ export default function ChallengeGame({ game, teams = [], events = [], profileId
           </ul>
         </section>
 
-        {/* Sign-ups close when the event starts, which is a limitation and not
-            a rule anyone wanted: the Wise Old Man competition is built from
-            exactly who is in at that moment, so a latecomer would sit on this
-            ladder and not on WOM's. */}
-        {isOpen && (
+        {/* Open for as long as the event runs. A latecomer is added to the
+            live Wise Old Man competition rather than turned away; once they
+            are in, this card gives way to Your event below. */}
+        {(isOpen || (isActive && !joined)) && (
           <section className="card">
             <h2>{joined ? 'You are in' : 'Sign up'}</h2>
             <p className="muted">
-              {setup?.entrants ?? 0} signed up so far. Sign-ups close the moment an
-              organiser starts the event.
+              {setup?.entrants ?? 0} signed up so far.
+              {isActive
+                ? ' This one is already running, and you can still join it.'
+                : ' You can still join after it has started.'}
             </p>
+
+            {/* Said before they sign up rather than after: WOM measures every
+                participant from the competition's own start, so a latecomer is
+                credited with the days before they joined. Nobody should find
+                that out from the ladder. */}
+            {isActive && setup?.wom_metric && (
+              <p className="muted">
+                Your figure will cover the whole event, including the days before
+                you signed up — the hiscores are measured from when it started,
+                not from when you joined.
+              </p>
+            )}
 
             {setup?.wom_metric && (
               <>
@@ -252,12 +293,12 @@ export default function ChallengeGame({ game, teams = [], events = [], profileId
           </section>
         )}
 
-        {(isActive || isFinished) && !joined && (
+        {isFinished && !joined && (
           <section className="card">
             <h2>Not in this one</h2>
             <p className="muted">
-              Sign-ups closed when the event started. The ladder is below, and
-              the next event will be along.
+              This event is over. The ladder is below, and the next one will be
+              along.
             </p>
           </section>
         )}
@@ -271,6 +312,45 @@ export default function ChallengeGame({ game, teams = [], events = [], profileId
               {mine.verified && ' · checked by an organiser'}
               {mine.altered && !mine.verified && ' · an organiser has changed your number'}
             </p>
+
+            {/* Being on this ladder and being on WOM's competition are two
+                different things. The one unacceptable outcome is a player
+                finding out at the end of the week that they were never the
+                same, so it is said here, in red, while there is time to fix
+                it. Null means there is no competition to be missing from. */}
+            {mine.wom_added === false && (
+              <p className="error">
+                Wise Old Man has not taken {mine.rsn} yet, so nothing is being
+                counted for you. It is tried again every minute. If this is still
+                here in a few minutes, the name is probably not spelled the way
+                the hiscores spell it.
+              </p>
+            )}
+
+            {/* A name can be corrected for as long as the event runs, because
+                a wrong one is the usual reason WOM has not taken it, and
+                nobody should have to sit out a week over a typo. */}
+            {isActive && setup?.wom_metric && (
+              <>
+                <label className="field-name">Your RuneScape name
+                  <input
+                    value={rsn}
+                    onChange={(e) => setRsn(e.target.value)}
+                    placeholder="Exactly as the hiscores spell it"
+                    disabled={busy}
+                  />
+                </label>
+                <div className="row">
+                  <button
+                    className="ghost"
+                    disabled={busy || !rsn.trim() || rsn.trim() === mine.rsn}
+                    onClick={() => run(() => challengeJoin(game.id, rsn.trim()), 'Name saved.')}
+                  >
+                    Save my name
+                  </button>
+                </div>
+              </>
+            )}
 
             {setup?.wom_metric && (
               <p className="challenge-figure">

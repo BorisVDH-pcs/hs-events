@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import {
   MAX_EVIDENCE, MAX_FIGURE, METRIC_GROUPS, RAIDS, WOM_METRICS,
   challengeEventText, figureLabel, figureToStored, isKnownMetric, metricLabel,
-  rankedLabel, storedToInput, womLabel,
+  rankedLabel, storedToInput, womCompetitionUrl, womLabel,
 } from '../src/lib/challenge.js';
 import { PER_MILLION } from '../src/lib/millions.js';
 
@@ -92,6 +92,19 @@ for (const g of METRIC_GROUPS) {
 for (const v of ['overall', 'slayer', 'zulrah', 'chambers_of_xeric', 'clue_scrolls_all', 'ehb']) {
   assert.ok(isKnownMetric(v), `${v} is pickable`);
 }
+
+// The competition on wiseoldman.net. Their own routes: /competitions/:id is
+// the standings, and /participants under it is who is actually being counted,
+// which is the page that answers whether a latecomer really got added.
+assert.equal(womCompetitionUrl(162883), 'https://wiseoldman.net/competitions/162883');
+assert.equal(womCompetitionUrl(162883, 'participants'),
+  'https://wiseoldman.net/competitions/162883/participants');
+// Null until the create request comes back, and a link to nowhere is worse
+// than no link.
+assert.equal(womCompetitionUrl(null), null);
+assert.equal(womCompetitionUrl(undefined), null);
+assert.equal(womCompetitionUrl(''), null);
+assert.equal(womCompetitionUrl(0), null, 'no competition is ever id zero');
 
 // Which figure the ladder is sorted on, in words.
 assert.equal(rankedLabel({ ranked_by: 'wom', wom_metric: 'zulrah' }), 'Boss — Zulrah');
