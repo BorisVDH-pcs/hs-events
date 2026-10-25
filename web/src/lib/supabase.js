@@ -287,6 +287,16 @@ export const adminNewChallenge = ({
 export const adminChallengeEntries = (gameId) =>
   rpc('admin_challenge_entries', { p_game_id: gameId });
 
+/**
+ * The competition behind this challenge, for the organiser console: the id,
+ * and the verification code that edits it on WOM. Organisers only -- players
+ * get `challengeWomCompetition`, which is the id and nothing else. Called on a
+ * click rather than with the rest of the console, so the code is not in the
+ * page for a screenshot to catch.
+ */
+export const adminChallengeWom = (gameId, reveal = false) =>
+  rpc('admin_challenge_wom', { p_game_id: gameId, p_reveal: reveal });
+
 /** Correct a number. Records who corrected it; the old one is not kept. */
 export const adminChallengeSetFigure = (entryId, amount) =>
   rpc('admin_challenge_set_figure', { p_entry_id: entryId, p_amount: amount });

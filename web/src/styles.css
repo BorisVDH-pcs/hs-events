@@ -5052,6 +5052,17 @@ body.dragging-jump * { cursor: grabbing !important; user-select: none; }
 .challenge-wom-link { display: flex; flex-wrap: wrap; gap: .1rem .9rem; margin-top: .2rem; }
 .challenge-wom-link a { font-size: .8125rem; }
 
+/* The organiser's competition card. The code is a credential, so it is set in
+   a monospace face at a size that can be read off the screen and typed. */
+.challenge-wom-facts { display: grid; grid-template-columns: auto 1fr; gap: .2rem .8rem;
+                       margin: .7rem 0 0; font-size: .875rem; }
+.challenge-wom-facts dt { color: var(--muted); }
+.challenge-wom-facts dd { margin: 0; }
+.challenge-wom-code { margin: .7rem 0 .4rem; }
+.challenge-wom-code code { font-size: 1rem; letter-spacing: .04em; word-break: break-all;
+                           padding: .25rem .45rem; border-radius: 6px; background: var(--fill-2); }
+.challenge-wom-caution { font-size: .8125rem; margin-top: .8rem; }
+
 /* The column that decides the winner, in both ladders. The other figure is
    still there -- Boss of the Week is kills and loot at once -- so the one that
    settles it has to look different from the one that does not. */

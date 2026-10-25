@@ -15,7 +15,8 @@ import {
   territoryStandings,
   adminListTileSubmissions, adminAcceptTileSubmission, adminRefuseTileSubmission,
   adminNewChallenge, adminChallengeEntries, adminChallengeSetFigure,
-  adminChallengeVerify, adminChallengeSetTeam, challengeStart, challengeList,
+  adminChallengeVerify, adminChallengeSetTeam, adminChallengeWom,
+  challengeStart, challengeList,
   challengeStandings, womPulse,
 } from '../lib/supabase.js';
 import { LAST_TILE, isLadder } from '../lib/snakes.js';
@@ -28,6 +29,7 @@ import SnakesAdminTrack from './snakes/SnakesAdminTrack.jsx';
 import ChallengeNewGame from './challenge/ChallengeNewGame.jsx';
 import ChallengeEntries from './challenge/ChallengeEntries.jsx';
 import ChallengeLadder from './challenge/ChallengeLadder.jsx';
+import ChallengeWom from './challenge/ChallengeWom.jsx';
 import BoardBuilder from './BoardBuilder.jsx';
 import AdminOverview from './AdminOverview.jsx';
 import BingoOverview from './bingo/BingoOverview.jsx';
@@ -252,6 +254,7 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
   // The open event's entrants, with their figures and the shots behind them,
   // and the ladder those figures make.
   const [challengeEntries, setChallengeEntries] = useState([]);
+  const [challengeWom, setChallengeWom] = useState(null);
   const [challengeLadder, setChallengeLadder] = useState([]);
   // Loaded only once the Accounts pane is opened: nobody else on the console
   // needs to know who has ever had their password reset or account deleted.
@@ -365,14 +368,20 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
    * the games list changes.
    */
   const loadChallenge = useCallback(async (id, mode) => {
-    if (!id || mode !== 'challenge') { setChallengeEntries([]); setChallengeLadder([]); return; }
+    if (!id || mode !== 'challenge') {
+      setChallengeEntries([]); setChallengeLadder([]); setChallengeWom(null); return;
+    }
     try {
-      const [entries, rows] = await Promise.all([
+      // Without the reveal flag, so the verification code is not in this
+      // payload at all -- the card asks for it on a click.
+      const [entries, rows, wom] = await Promise.all([
         adminChallengeEntries(id),
         challengeStandings(id),
+        adminChallengeWom(id),
       ]);
       setChallengeEntries(entries ?? []);
       setChallengeLadder(rows ?? []);
+      setChallengeWom(wom ?? null);
     } catch (err) {
       setError(err.message);
     }
@@ -1780,6 +1789,13 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
             standings={challengeLadder}
             setup={challengeSetup}
             title={game.status === 'finished' ? 'Final ladder' : 'If it ended now'}
+          />
+
+          <ChallengeWom
+            wom={challengeWom}
+            setup={challengeSetup}
+            busy={busy}
+            onReveal={async () => (await adminChallengeWom(game.id, true))?.verification_code}
           />
 
           <ChallengeEntries
