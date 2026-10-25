@@ -48,3 +48,28 @@ export function gameUrgency(game) {
   if (game?.status === 'finished') return 2;
   return 1;
 }
+
+/**
+ * Split a player's own games into the ones still to play and the ones over.
+ *
+ * Home shows these as two tabs rather than one list. A finished event is not
+ * nothing -- the ladder is the whole point of having played it -- but it is
+ * done, and a player with a season behind them had to scroll past all of it
+ * to reach the bingo running tonight. History is a place to go and look, not
+ * something to put in front of somebody who opened the app to play.
+ *
+ * `finished` comes back newest first. That is `created_at`, not a finish time,
+ * because the row has no finish time to sort on: `games` records when an event
+ * was made and when it starts, not when it ended. For a history list the two
+ * orders only disagree when a short event is created before a long one that
+ * ends sooner, which is rare enough to be worth less than another column.
+ */
+export function splitFinished(games) {
+  const all = games ?? [];
+  return {
+    current: all.filter((g) => g?.status !== 'finished'),
+    finished: all
+      .filter((g) => g?.status === 'finished')
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)),
+  };
+}

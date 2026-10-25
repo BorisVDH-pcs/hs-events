@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { gameUrgency, groupGames } from '../src/lib/homeGames.js';
+import { gameUrgency, groupGames, splitFinished } from '../src/lib/homeGames.js';
 import { modeLabel } from '../src/lib/site.js';
 
 // ---- Which list a row belongs in ----
@@ -71,6 +71,56 @@ assert.equal(gameUrgency(undefined), 1);
   assert.equal(gameUrgency(a) - gameUrgency(b), 0);
 }
 
+// ---- Playing, and played ----
+//
+// Home splits a player's own games across two tabs. The rule is the status
+// alone, which is the part worth pinning: everything not finished is still
+// theirs to play, including a game in setup that has not opened yet.
+
+{
+  const done = { ...rostered, gameId: 'z', status: 'finished' };
+  const { current, finished } = splitFinished([rostered, entered, done]);
+  assert.deepEqual(current.map((g) => g.gameId), ['a', 'b']);
+  assert.deepEqual(finished.map((g) => g.gameId), ['z']);
+}
+
+// Not-yet-started is "playing", not history. It is the case most likely to
+// be filed wrongly, and filing it wrongly hides an event from the player
+// until the moment it starts.
+assert.equal(splitFinished([{ gameId: 'p', status: 'setup' }]).current.length, 1);
+assert.equal(splitFinished([{ gameId: 'p', status: 'prep' }]).current.length, 1);
+assert.equal(splitFinished([{ gameId: 'p', status: 'active' }]).current.length, 1);
+assert.equal(splitFinished([{ gameId: 'p', status: 'finished' }]).finished.length, 1);
+
+assert.deepEqual(splitFinished([]), { current: [], finished: [] });
+assert.deepEqual(splitFinished(null), { current: [], finished: [] });
+// A row with no status at all is still something to play rather than
+// something to file away: the tab that shows it is the one somebody is
+// looking at, and a game hidden in History is a game nobody finds.
+assert.equal(splitFinished([{ gameId: 'p' }]).current.length, 1);
+
+// History reads newest first, which is the opposite of what the rostered-vs-
+// challenge ranking in listMyGames would give it.
+{
+  const { finished } = splitFinished([
+    { gameId: 'old', status: 'finished', createdAt: '2026-01-01' },
+    { gameId: 'new', status: 'finished', createdAt: '2026-09-01' },
+    { gameId: 'mid', status: 'finished', createdAt: '2026-05-01' },
+  ]);
+  assert.deepEqual(finished.map((g) => g.gameId), ['new', 'mid', 'old']);
+}
+
+// And sorting history must not reorder the list it was given -- `mine` is
+// rendered from the same array.
+{
+  const rows = [
+    { gameId: 'old', status: 'finished', createdAt: '2026-01-01' },
+    { gameId: 'new', status: 'finished', createdAt: '2026-09-01' },
+  ];
+  splitFinished(rows);
+  assert.deepEqual(rows.map((g) => g.gameId), ['old', 'new'], 'splitFinished does not sort in place');
+}
+
 // ---- Home says which game each card is ----
 //
 // The card names the mode, which means listMyGames has to be selecting it.
@@ -103,6 +153,43 @@ assert.equal(modeLabel(null), 'Event', 'and an unknown mode says something rathe
   // The landing is unconditional. If this ever grows an `if` again it will be
   // the same invisible rule Home was built to remove.
   assert.ok(app.includes('const [home, setHome] = useState(true)'), 'home starts true');
+}
+
+// ---- The rail, and the room it takes ----
+//
+// SideNav is hidden below 1400px and the page is what it always was. The
+// number is not a taste call: .board-layout goes to three columns above
+// 1100px and measures the WINDOW rather than the space it was given, so a
+// rail shown at 1100 would keep the strip in three columns and take its
+// 234px (210 rail + 1.5rem gap) out of the board instead. 1400 is the width
+// at which the rail comes out and the strip still has its 1100.
+{
+  const css = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
+  const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+
+  assert.ok(app.includes('<SideNav'), 'App mounts the rail');
+  assert.ok(app.includes('!consoleScreen && ('),
+    'and stands it down for the console, which has a sidebar of its own');
+
+  assert.ok(css.includes('.app-split { display: contents; }'),
+    'the wrapper leaves the layout entirely when there is no rail');
+  assert.ok(css.includes('.side-nav { display: none; }'), 'and the rail is hidden by default');
+
+  const RAIL_BREAKPOINT = 1400;
+  assert.ok(css.includes(`@media (min-width: ${RAIL_BREAKPOINT}px) {`),
+    `the rail appears at ${RAIL_BREAKPOINT}px`);
+
+  // The arithmetic the breakpoint rests on, asserted rather than trusted to
+  // a comment: page padding is 1.5rem each side, the rail is at most 210px,
+  // and the gap is 1.5rem.
+  const PADDING = 24 * 2;
+  const RAIL = 210;
+  const GAP = 24;
+  assert.ok(
+    RAIL_BREAKPOINT - PADDING - RAIL - GAP >= 1100,
+    'a rail at this width still leaves .board-layout the 1100px it wants'
+  );
+  assert.ok(css.includes('minmax(170px, 210px)'), `the rail is still ${RAIL}px at its widest`);
 }
 
 console.log('home-selftest: ok');

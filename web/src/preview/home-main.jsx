@@ -15,6 +15,7 @@ import { StrictMode, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import Home from '../components/Home.jsx';
 import Wordmark from '../components/Wordmark.jsx';
+import SideNav from '../components/SideNav.jsx';
 import { accountFixtures } from './stub-supabase.js';
 import '../styles.css';
 
@@ -28,6 +29,16 @@ const GAMES = {
     { gameId: 'g4', gameName: 'Summer Raid', mode: 'territory', status: 'finished', teamId: 't4', teamName: 'The Crimson Tide', createdAt: ago(40) },
     { gameId: 'g5', gameName: 'Slayer Week 44', mode: 'challenge', status: 'active', teamId: null, teamName: null, joined: true, createdAt: ago(3) },
     { gameId: 'g6', gameName: 'Clues Week 45', mode: 'challenge', status: 'setup', teamId: null, teamName: null, joined: false, createdAt: ago(0) },
+    { gameId: 'g7', gameName: 'Spring Raid', mode: 'battleships', status: 'finished', teamId: 't1', teamName: 'The Crimson Tide', createdAt: ago(120) },
+    { gameId: 'g8', gameName: 'Clan Bingo VIII', mode: 'bingo', status: 'finished', teamId: 't2', teamName: 'Blue Watch', createdAt: ago(75) },
+  ],
+  // A season behind them and nothing running. The case the single "You are
+  // not in anything yet" used to get wrong, and the reason History had to be
+  // somewhere findable rather than just out of the way.
+  seasonOver: [
+    { gameId: 'g4', gameName: 'Summer Raid', mode: 'territory', status: 'finished', teamId: 't4', teamName: 'The Crimson Tide', createdAt: ago(40) },
+    { gameId: 'g7', gameName: 'Spring Raid', mode: 'battleships', status: 'finished', teamId: 't1', teamName: 'The Crimson Tide', createdAt: ago(120) },
+    { gameId: 'g8', gameName: 'Clan Bingo VIII', mode: 'bingo', status: 'finished', teamId: 't2', teamName: 'Blue Watch', createdAt: ago(75) },
   ],
   one: [
     { gameId: 'g2', gameName: 'Clan Bingo IX', mode: 'bingo', status: 'active', teamId: 't2', teamName: 'Blue Watch', createdAt: ago(5) },
@@ -56,6 +67,7 @@ const ACCOUNTS = {
 function Harness() {
   const [games, setGames] = useState('season');
   const [accounts, setAccounts] = useState('typical');
+  const [rail, setRail] = useState(true);
   // Home reads its accounts once, on mount, so the switch has to remount it.
   accountFixtures.length = 0;
   accountFixtures.push(...ACCOUNTS[accounts]);
@@ -64,17 +76,18 @@ function Harness() {
     <main className="app game-app">
       <header className="top" id="app-header">
         <Wordmark mode={null} />
-        <p className="status header-status">
-          <strong>Home — harness</strong>
-        </p>
         <div className="who">
           <span className="name">Zezima</span>
           <select value={games} onChange={(e) => setGames(e.target.value)}>
             <option value="season">Mid-season</option>
             <option value="one">One running game</option>
+            <option value="seasonOver">Season over, nothing running</option>
             <option value="invitesOnly">Invitations only</option>
             <option value="nothing">In nothing at all</option>
           </select>
+          <button className="link" onClick={() => setRail((v) => !v)}>
+            {rail ? 'Rail: in a game' : 'Rail: no game'}
+          </button>
           <select value={accounts} onChange={(e) => setAccounts(e.target.value)}>
             <option value="typical">Accounts: found</option>
             <option value="broken">Accounts: one never found</option>
@@ -82,6 +95,18 @@ function Harness() {
           </select>
         </div>
       </header>
+      <div className="app-split">
+        <SideNav
+          atHome
+          gameName={rail ? 'Clan Bingo IX' : null}
+          gameMode="bingo"
+          onHome={() => {}}
+          onGame={() => window.alert('Would open the game')}
+          onAccounts={() => window.alert('Would open My accounts')}
+          onConsole={() => window.alert('Would open the console')}
+          isOrganiser
+        />
+        <div className="app-body">
       <Home
         key={`${games}-${accounts}`}
         games={GAMES[games]}
@@ -91,6 +116,8 @@ function Harness() {
         onConsole={() => window.alert('Would open the console')}
         onOpenAccounts={() => window.alert('Would open My accounts')}
       />
+        </div>
+      </div>
     </main>
   );
 }

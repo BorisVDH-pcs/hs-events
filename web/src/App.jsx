@@ -28,6 +28,7 @@ import NoTeamWaiting from './components/NoTeamWaiting.jsx';
 import TileSuggestions from './components/TileSuggestions.jsx';
 import { useConfirm } from './components/ConfirmDialog.jsx';
 import Home from './components/Home.jsx';
+import SideNav from './components/SideNav.jsx';
 import BingoGame from './components/bingo/BingoGame.jsx';
 import SnakesGame from './components/snakes/SnakesGame.jsx';
 import TerritoryLive from './components/territory/TerritoryLive.jsx';
@@ -267,6 +268,19 @@ export default function App() {
   // about WHAT is on screen, and on Home the answer is no board, no waiting
   // countdown and no guide.
   const showBoard = playerScreen && !home;
+  // The organiser's console: not Home, and not a player screen. It brings its
+  // own sidebar (.admin-nav), so the rail stands down for it rather than
+  // asking which of two sidebars moves you.
+  const consoleScreen = isOrganiser && !home && !viewing && !playingOwn;
+
+  // The game the rail offers a way back into. Normally the loaded one. On
+  // Home it is usually loaded too -- goHome keeps gameId on purpose -- but on
+  // a cold open it is not yet, and the roster row already has the name, so
+  // the rail can say which game it means before the board has arrived.
+  const picked = gameId ? myGames.find((g) => g.gameId === gameId) ?? null : null;
+  const inGame = game.game
+    ? { name: game.game.name, mode: game.game.mode }
+    : picked ? { name: picked.gameName, mode: picked.mode } : null;
   // The game on that screen. A team being viewed brings its own; otherwise it
   // is whatever loadGames settled on, which is one of their own games when
   // they are rostered and the featured one when they are not -- so an
@@ -644,12 +658,12 @@ export default function App() {
               {suggesting ? '← Back to the game' : '💡 Suggest a tile'}
             </button>
           )}
-          {/* Beside Sign out, on every screen. The reason somebody comes
-              looking for this is that the hiscores are not finding them, and
-              that can be discovered from any of the five modes. */}
-          <button className="link" onClick={() => setAccountsOpen(true)}>
-            🧑 My accounts
-          </button>
+          {/* NO "My accounts" BUTTON. It sat here, beside Sign out, while the
+              only way to the list was a button on the chrome. Home carries it
+              now, and so does the challenge sign-up field -- which is the
+              better of the two, because it stands next to the warning that
+              says the name is not being found, rather than standing neutrally
+              on four modes that never look a name up at all. */}
           <button className="link" onClick={() => supabase.auth.signOut()}>Sign out</button>
         </div>
       </header>
@@ -657,6 +671,27 @@ export default function App() {
       {accountsOpen && (
         <MyAccount profileId={uid} onClose={() => setAccountsOpen(false)} />
       )}
+
+      {/* The rail and everything it points at, in one wrapper so the two can
+          be a grid on a wide screen. Below 1100px the wrapper is
+          `display: contents` and the page is exactly what it was. */}
+      <div className="app-split">
+      {!consoleScreen && (
+        <SideNav
+          atHome={home}
+          gameName={inGame?.name ?? null}
+          gameMode={inGame?.mode ?? null}
+          onHome={goHome}
+          // From Home, into the game. From the game, it is already the page
+          // you are on, so it does what pressing the current item anywhere
+          // does: takes you to the top of it.
+          onGame={() => (home ? switchGame(gameId) : window.scrollTo({ top: 0 }))}
+          onAccounts={() => setAccountsOpen(true)}
+          onConsole={() => { setPlaying(false); setViewAs(null); setHome(false); window.scrollTo({ top: 0 }); }}
+          isOrganiser={isOrganiser}
+        />
+      )}
+      <div className="app-body">
 
       {home && (
         <Home
@@ -1081,6 +1116,9 @@ export default function App() {
 
       {/* Last in the tree and fixed-position, so it sits over whichever view is
           on screen — the admin console included. */}
+      </div>
+      </div>
+
       {confirmDialog}
     </main>
   );
