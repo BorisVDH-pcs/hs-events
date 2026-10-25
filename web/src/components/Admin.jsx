@@ -16,6 +16,7 @@ import {
   adminListTileSubmissions, adminAcceptTileSubmission, adminRefuseTileSubmission,
   adminNewChallenge, adminChallengeEntries, adminChallengeSetFigure,
   adminChallengeVerify, adminChallengeSetTeam, adminChallengeWom,
+  adminChallengeWomLink, adminChallengeWomRetry,
   challengeStart, challengeList,
   challengeStandings, womPulse,
 } from '../lib/supabase.js';
@@ -1796,6 +1797,18 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
             setup={challengeSetup}
             busy={busy}
             onReveal={async () => (await adminChallengeWom(game.id, true))?.verification_code}
+            onLink={(competitionId, code) => run(
+              () => adminChallengeWomLink(game.id, competitionId, code),
+              code
+                ? 'Linked. The standings are read on the next pass.'
+                : 'Linked without a code — the standings are read, but the competition cannot be edited from here.',
+              { refresh: ['challenge'] },
+            )}
+            onRetry={() => run(
+              () => adminChallengeWomRetry(game.id),
+              'Asked Wise Old Man again. The answer lands within a minute or two.',
+              { refresh: ['challenge'] },
+            )}
           />
 
           <ChallengeEntries

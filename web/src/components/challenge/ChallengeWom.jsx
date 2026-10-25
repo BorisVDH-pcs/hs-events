@@ -15,8 +15,12 @@ import { metricLabel, womCompetitionUrl } from '../../lib/challenge.js';
  * way to issue a new code once one is out. It is not fetched until the click
  * either: `adminChallengeWom` only sends it when asked.
  */
-export default function ChallengeWom({ wom, setup, busy = false, onReveal }) {
+export default function ChallengeWom({
+  wom, setup, busy = false, onReveal, onLink, onRetry,
+}) {
   const [code, setCode] = useState(null);
+  const [compId, setCompId] = useState('');
+  const [linkCode, setLinkCode] = useState('');
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -28,6 +32,8 @@ export default function ChallengeWom({ wom, setup, busy = false, onReveal }) {
   useEffect(() => {
     setCode(null);
     setCopied(false);
+    setCompId('');
+    setLinkCode('');
     setError('');
   }, [id]);
 
@@ -121,6 +127,53 @@ export default function ChallengeWom({ wom, setup, busy = false, onReveal }) {
           Wise Old Man has been asked for a competition and has not answered
           yet. It is tried again every minute.
         </p>
+      ) : wom?.tried ? (
+        <>
+          <p className="error">
+            Wise Old Man was asked for a competition and the reply never came
+            back. It has very likely made one anyway — look for this event by
+            name on Wise Old Man before you make a second.
+          </p>
+
+          <label className="field-name">The competition number on Wise Old Man
+            <input
+              value={compId}
+              onChange={(e) => setCompId(e.target.value)}
+              placeholder="162883"
+              inputMode="numeric"
+              disabled={busy}
+            />
+          </label>
+          <label className="field-name">Verification code, if you have it
+            <input
+              value={linkCode}
+              onChange={(e) => setLinkCode(e.target.value)}
+              placeholder="Leave this empty if you do not"
+              disabled={busy}
+            />
+          </label>
+
+          <div className="row">
+            <button
+              className="ghost"
+              disabled={busy || !/^[0-9]+$/.test(compId.trim())}
+              onClick={() => onLink(Number(compId.trim()), linkCode.trim())}
+            >
+              Link that competition
+            </button>
+            <button className="ghost" disabled={busy} onClick={onRetry}>
+              Make a new one instead
+            </button>
+          </div>
+
+          <p className="muted challenge-wom-caution">
+            Without the code the standings are still read — that part of Wise
+            Old Man is public — but nobody can be added to or taken off the
+            competition afterwards. The code is only ever shown in the reply to
+            the request that made the competition, so a lost reply loses it for
+            good.
+          </p>
+        </>
       ) : (
         <p className="muted">
           No competition yet — one is made when the event starts.

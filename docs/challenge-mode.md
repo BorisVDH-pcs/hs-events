@@ -50,6 +50,18 @@ The verification code is a credential. It lives in `challenge_wom`, which has
 RLS on and **no policies at all** — the same arrangement `discord_webhooks`
 uses, for the same reason. It must never become a `VITE_` variable.
 
+Organisers can read it, on the Track pane, from a button that fetches it rather
+than a field the page already holds. Nobody else can, at any level.
+
+**That code exists in exactly one reply, and WOM will not issue another.** It
+comes back from `POST /v2/competitions` and nowhere else, so losing that reply
+loses the ability to edit the competition for good — the standings can still be
+read, since the GET is public. Test TFA lost one this way on 2026-10-25: pg_net
+timed out at its five-second default while WOM took 4.8s to answer, and WOM
+created the competition regardless. Hence `challenge_wom_timeout()`, which every
+sender now passes, and the two repairs beside it: link the competition WOM
+already made, or ask for a new one.
+
 **The RSN is the join key, and ours is not trustworthy.** `profiles.rsn` is
 typed by the player at sign-up and has never been checked against anything. WOM
 matches on the exact username. So a challenge stores the RSN **on the entry**,
