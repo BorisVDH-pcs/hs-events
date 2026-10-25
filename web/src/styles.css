@@ -5070,3 +5070,49 @@ body.dragging-jump * { cursor: grabbing !important; user-select: none; }
 .challenge-entry-shots { display: flex; gap: 1.2rem; flex-wrap: wrap; font-size: .8125rem; }
 .challenge-entry-shots a { margin-right: .35rem; }
 .challenge-entry-actions { align-items: end; }
+
+/* New event, challenge: a run of questions, not one long row of fields.
+   The shared `label { display: grid }` is the caption-above-control shape,
+   which is right for a text field and wrong for a tick box -- it stacks the
+   box on top of its own words, and `.row { align-items: end }` then bottom-
+   aligns those two-row labels against the one-row ones. `.choice` is the row
+   form instead, the same shape `.team-add-all` already uses. */
+.cnew-question { margin-top: 1.15rem; }
+.cnew-question > h4 {
+  margin: 0 0 .45rem;
+  font-size: .6875rem; font-weight: 700;
+  letter-spacing: .11em; text-transform: uppercase;
+  color: var(--label-3);
+}
+label.choice {
+  display: flex; flex-direction: row; align-items: start;
+  gap: .5rem; width: auto; max-width: 100%;
+  margin: .35rem 0;
+  font-size: .875rem; font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+}
+/* Beside the FIRST line, not centred between two: these labels wrap at phone
+   width, and a box floating halfway down its own sentence reads as belonging
+   to neither line. */
+label.choice input { flex: none; margin: .2rem 0 0; }
+label.choice .muted { font-weight: 400; }
+label.choice:has(input:disabled) { cursor: default; opacity: .5; }
+
+/* Side by side when they are alternatives, stacked when each one opens its
+   own settings underneath. */
+.choice-row { display: flex; flex-wrap: wrap; align-items: center; gap: .1rem 1.6rem; }
+
+/* What a tick switches on, set in from it and hung off a rule, so the fields
+   plainly belong to the box above rather than floating beside it. */
+.choice-detail {
+  margin: .1rem 0 .7rem 1.6rem;
+  padding-left: .9rem;
+  border-left: 1px solid var(--hairline);
+}
+.choice-detail > .new-game-note { margin-top: .4rem; }
+.cnew-create { margin-top: 1.3rem; align-items: center; }
+@media (max-width: 560px) {
+  .choice-row { gap: .1rem; flex-direction: column; align-items: start; }
+  .choice-detail { margin-left: .8rem; padding-left: .7rem; }
+}
