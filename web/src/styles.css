@@ -145,6 +145,48 @@
   --r-2xl: 22px;
   --r-pill: 999px;
 
+  /* ---- spacing ----
+     A 4px rhythm. Until this existed the stylesheet carried 107 distinct
+     hard-coded padding values, 63 margins and 45 gaps, so no two components
+     agreed on anything and the whole app read as faintly random. That is what
+     "messy" actually was: not the colours, which were already tokenised, but
+     the fact that nothing shared a measure. Every new rule uses these. */
+  --s-1:  .25rem;   /*  4 */
+  --s-2:  .5rem;    /*  8 */
+  --s-3:  .75rem;   /* 12 */
+  --s-4:  1rem;     /* 16 */
+  --s-5:  1.25rem;  /* 20 */
+  --s-6:  1.5rem;   /* 24 */
+  --s-8:  2rem;     /* 32 */
+  --s-10: 2.5rem;   /* 40 */
+  --s-12: 3rem;     /* 48 */
+
+  /* ---- type scale ----
+     Apple's text styles, which is what --body and --display already are, so
+     this finishes a system that was only half built. 56 distinct font sizes
+     were in use; these are the eight that carry meaning. */
+  --t-caption:  .75rem;    /* 12 */
+  --t-footnote: .8125rem;  /* 13 */
+  --t-subhead:  .9375rem;  /* 15 */
+  --t-body:     1.0625rem; /* 17 -- Apple's body size */
+  --t-title3:   1.25rem;   /* 20 */
+  --t-title2:   1.375rem;  /* 22 */
+  --t-title1:   1.75rem;   /* 28 */
+  --t-large:    2.125rem;  /* 34 */
+
+  /* Tracking is size-specific or it is wrong somewhere: large text reads too
+     loose and wants negative tracking, small uppercase text wants positive.
+     One letter-spacing for the whole app cannot be right at both ends. */
+  --tr-large: -.022em;
+  --tr-title: -.015em;
+  --tr-body:  -.006em;
+  --tr-caps:   .06em;
+
+  /* Leading runs inversely to size -- tight on a heading, open on body. */
+  --lh-tight: 1.1;
+  --lh-snug:  1.25;
+  --lh-body:  1.45;
+
   /* ---- type ----
      The system face, not a webfont. It already ships optical sizing, tracking
      tables and legibility tuning that no downloaded face here would match, and
@@ -5308,31 +5350,76 @@ label.choice:has(input:disabled) { cursor: default; opacity: .5; }
 
 /* ---- Home (Home.jsx) ----
 
-   The landing screen, and the one place reachable from every other. It is a
-   list of ways in, so the rules below are mostly about making each card read
-   as a target rather than as a row of facts. */
+   The landing screen, and the first one built entirely on the scales above:
+   there is not a hand-picked rem value anywhere below. It is a list of ways
+   in, so these rules are about making each card read as a target.
 
-.home { margin: 1.5rem 0; display: grid; gap: .4rem; }
-.home-greeting { margin: 0 0 .6rem; font-size: 1.5rem; letter-spacing: -.021em; }
+   Every element is placed explicitly rather than left to grid auto-placement.
+   That is deliberate. Auto-placement put the header's `.who` block into the
+   wrong column on this very screen, and later dropped the whole organiser
+   console into the side rail's 210px slot -- twice in two days, both of them
+   in production. A grid whose children are conditional needs them pinned. */
+
+.home {
+  margin: var(--s-6) 0;
+  display: grid;
+  gap: var(--s-2);
+}
+
+.home-greeting {
+  margin: 0 0 var(--s-2);
+  font-family: var(--display);
+  font-size: var(--t-title1);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--tr-large);
+}
+
+/* Section headers in the grouped-list idiom: small, uppercase, quiet, with a
+   wide gap above and a narrow one below. Proximity is what says which cards a
+   header owns -- no rule or box is needed to draw it. */
 .home h3 {
-  margin: 1.4rem 0 .2rem;
-  font-size: .8125rem; font-weight: 600;
-  text-transform: uppercase; letter-spacing: .06em;
+  margin: var(--s-8) 0 var(--s-3);
+  font-size: var(--t-footnote);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: var(--tr-caps);
   color: var(--label-2);
 }
-.home > h3:first-of-type { margin-top: .6rem; }
 
-.home-games { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
+.home > h3:first-of-type { margin-top: var(--s-4); }
 
-/* The whole card is the button, so every rule that would normally dress a
-   card has to survive being on a <button>: the UA's centred text, inherited
-   font and 2px border all have to go, or a game card renders as a grey
-   system button with its name in the middle. */
+/* Two across once there is room for two. One card stretched over 1100px is a
+   bar, not a card: the name sits alone at the left and the rest of the row is
+   empty. `auto-fill` with a 19rem floor gives the phone one column without
+   needing a media query. */
+.home-games {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--s-3);
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr));
+  align-items: start;
+}
+
+.home-games > li { display: grid; }
+
+/* The one to open spans the row, so it reads as the obvious target rather
+   than merely the first of five near-identical bars. */
+.home-games > li.lead { grid-column: 1 / -1; }
+
 .home-game {
-  display: grid; gap: .15rem;
-  width: 100%; margin: .5rem 0 0;
-  padding: .9rem 1rem;
-  text-align: left; font: inherit; color: var(--text);
+  display: grid;
+  /* minmax(0,1fr), not 1fr: a bare 1fr track is minmax(auto,1fr) and will not
+     shrink below its content, so on a phone the nowrap status label was
+     pushed off the right edge and the page scrolled sideways. */
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--s-1) var(--s-3);
+  width: 100%;
+  padding: var(--s-4);
+  text-align: left;
+  font: inherit;
+  color: var(--text);
   background: var(--panel);
   backdrop-filter: blur(30px) saturate(180%);
   -webkit-backdrop-filter: blur(30px) saturate(180%);
@@ -5340,86 +5427,131 @@ label.choice:has(input:disabled) { cursor: default; opacity: .5; }
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-sm);
   cursor: pointer;
-  transition: background .18s var(--ease-out), border-color .18s var(--ease-out);
+  transition: background .18s var(--ease-out),
+              border-color .18s var(--ease-out),
+              transform .12s var(--ease-out);
 }
-.home-games .home-game { margin: 0; }
+
 .home-game:hover { background: var(--panel-2); border-color: var(--line); }
 .home-game:focus-visible { outline: none; box-shadow: var(--glow-md); }
 
-/* The one card Home leads with: the game that is running, or about to. Bigger
-   type and a tint edge, which is the whole of the difference -- a second
-   colour here would compete with the gold the app already spends on "this is
-   live". */
+/* Feedback belongs on the press, not on the release. */
+.home-game:active { transform: scale(.985); }
+
 .home-game.lead {
-  padding: 1.1rem 1.2rem;
+  padding: var(--s-5);
   border-color: var(--gold-dim);
   border-radius: var(--r-xl);
 }
-.home-game.lead .home-game-name { font-size: 1.25rem; }
 
-/* An invitation, not a game in progress. Dimmer rather than louder: it is
-   worth seeing, and never worth more attention than the event somebody is
-   already playing. */
+.home-game.lead .home-game-name {
+  font-size: var(--t-title3);
+  letter-spacing: var(--tr-title);
+}
+
 .home-game.invite { background: var(--fill-3); box-shadow: none; }
 
 .home-game-name {
-  font-family: var(--display); font-size: 1.05rem; font-weight: 600;
-  letter-spacing: -.015em;
+  grid-area: 1 / 1 / 2 / 2;
+  font-family: var(--display);
+  font-size: var(--t-body);
+  font-weight: 600;
+  line-height: var(--lh-snug);
+  letter-spacing: var(--tr-body);
 }
-.home-game-meta { font-size: .8125rem; color: var(--label-2); }
-.home-game-go { font-size: .8125rem; color: var(--gold); margin-top: .25rem; }
 
-/* ---- the account summary ----
-   Names, not a table. The detail is one press away in the same dialog the
-   header opens, so this only has to answer "is my name on here, and is it
-   working". */
-.home-accounts { display: flex; flex-wrap: wrap; gap: .4rem; margin: .2rem 0 0; }
-/* A monospaced face at a body size, not a caption size. These are names the
-   player has to be able to CHECK rather than merely see -- the whole section
-   exists because one wrong character scores a week of play as zero, and "rn"
-   against "m" is exactly the pair a small size hides. The mono face is doing
-   the same job: it keeps 1/l and 0/O apart. */
+/* Status as a signal rather than the middle item of a run-on list. A player
+   scanning five cards wants the one that is live, and a coloured dot answers
+   that before any of the words are read. */
+.home-game-status {
+  grid-area: 1 / 2 / 2 / 3;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: var(--t-caption);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: var(--tr-caps);
+  color: var(--label-3);
+  white-space: nowrap;
+}
+
+.home-game-status::before {
+  content: "";
+  width: .5rem;
+  height: .5rem;
+  border-radius: var(--r-pill);
+  background: currentColor;
+}
+
+.home-game-status.live { color: var(--strike-lit); }
+.home-game-status.soon { color: var(--gold-dim); }
+
+.home-game-meta {
+  grid-area: 2 / 1 / 3 / -1;
+  font-size: var(--t-footnote);
+  line-height: var(--lh-body);
+  color: var(--label-2);
+}
+
+/* Only where it says something the card does not already say. "Open" under
+   every game is five copies of what the card plainly is; "Have a look" on an
+   event you have not entered is a different offer and earns its line. */
+.home-game-go {
+  grid-area: 3 / 1 / 4 / -1;
+  margin-top: var(--s-1);
+  font-size: var(--t-footnote);
+  color: var(--gold);
+}
+
+.home-accounts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin: var(--s-1) 0 0;
+}
+
 .rsn-chip {
-  font-family: var(--mono); font-size: 1rem;
-  padding: .35rem .7rem;
+  font-family: var(--mono);
+  font-size: var(--t-body);
+  padding: var(--s-2) var(--s-3);
   border-radius: var(--r-pill);
   background: var(--fill-2);
   border: 1px solid transparent;
 }
-/* Wise Old Man has never found it. Marked on the chip as well as spelled out
-   underneath, because the sentence names the account and the chip is where
-   the eye already is -- and the border carries it without relying on the red
-   alone. */
+
 .rsn-chip.bad { color: var(--hit-lit); border-color: var(--hit); background: transparent; }
 
-.home .row { margin-top: 1.2rem; }
+.home .row { margin-top: var(--s-6); }
 
-/* Tighter than the console's tabs: there the strip separates whole pages of
-   settings, here it sits between a heading and the list it filters, and the
-   console's 1.2rem margins would float it between the two belonging to
-   neither. */
-.tabs.home-tabs { margin: .5rem 0 .2rem; }
+.tabs.home-tabs { margin: var(--s-3) 0 var(--s-2); }
 
-/* How many are in each tab. NOT .admin-nav-badge, which this first reused:
-   that one is red, because in the console it counts things still to do. Four
-   finished events are not four problems. This is a count, so it is grey and
-   it follows the tab's own colour -- lit on the tab you are on, secondary on
-   the one you are not. */
 .home-tab-count {
-  margin-left: .4rem;
-  font-size: .75rem; font-weight: 600;
+  margin-left: var(--s-2);
+  font-size: var(--t-caption);
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
   color: var(--label-3);
 }
+
 .home-tabs button.on .home-tab-count { color: var(--label-2); }
 
-/* The wordmark as the way home. A real button for the keyboard, dressed as
-   nothing at all -- the logo is the affordance, and a button box drawn round
-   it would read as a second control in the corner. */
 .home-link {
-  background: none; border: none; padding: 0; margin: 0;
-  font: inherit; color: inherit; cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
   border-radius: var(--r-md);
 }
+
 .home-link:hover { filter: brightness(1.12); }
 .home-link:focus-visible { outline: none; box-shadow: var(--glow-md); }
+
+/* Reduced motion keeps the feedback and drops the movement. */
+@media (prefers-reduced-motion: reduce) {
+  .home-game { transition: background .18s linear, border-color .18s linear; }
+  .home-game:active { transform: none; }
+}

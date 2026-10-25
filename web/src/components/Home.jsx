@@ -38,8 +38,6 @@ export default function Home({
   // listMyGames' own order stands -- rostered before entered, newest first --
   // because a new event must not bury the bingo somebody is mid-way through.
   const ordered = [...current].sort((a, b) => gameUrgency(a) - gameUrgency(b));
-  const primary = ordered[0] ?? null;
-  const rest = ordered.slice(1);
 
   // One tab is not a choice, so the strip only appears once there is history
   // to go and look at. A player's first season never sees it.
@@ -100,16 +98,17 @@ export default function Home({
               : 'You are not in anything yet. When an organiser starts an event it will show up here.'}
         </p>
       ) : (
-        <>
-          {primary && <GameCard game={primary} onPick={onPick} lead />}
-          {rest.length > 0 && (
-            <ul className="home-games">
-              {rest.map((g) => (
-                <li key={g.gameId}><GameCard game={g} onPick={onPick} /></li>
-              ))}
-            </ul>
-          )}
-        </>
+        /* One list, not a lead card sitting beside a list. The lead has to be
+           an item of the same grid as the others for it to span the row; as a
+           sibling of the <ul> it could only ever be full width by accident,
+           which is the auto-placement trap that bit twice already. */
+        <ul className="home-games">
+          {ordered.map((g, i) => (
+            <li key={g.gameId} className={i === 0 ? 'lead' : undefined}>
+              <GameCard game={g} onPick={onPick} lead={i === 0} />
+            </li>
+          ))}
+        </ul>
       )}
 
       {/* ---- Open to join ----
@@ -185,9 +184,15 @@ export default function Home({
  */
 function GameCard({ game, onPick, lead = false, invite = false }) {
   const text = modeLabel(game.mode ?? null);
-  const status = game.status === 'active' ? 'Running now'
-    : game.status === 'finished' ? 'Finished'
-      : 'Not started yet';
+  const live = game.status === 'active';
+  const finished = game.status === 'finished';
+  const status = live ? 'Running' : finished ? 'Finished' : 'Not started';
+
+  // "Open →" under every card is five copies of what the card already is --
+  // the whole card is the button. The two lines that survive say something it
+  // does not: an event nobody has entered is an offer rather than a way back
+  // in, and a finished one leads to a ladder rather than to a game.
+  const go = invite ? 'Have a look →' : finished ? 'See the ladder →' : null;
 
   return (
     <button
@@ -196,14 +201,17 @@ function GameCard({ game, onPick, lead = false, invite = false }) {
       onClick={() => onPick(game.gameId)}
     >
       <span className="home-game-name">{game.gameName}</span>
+      {/* Lifted out of the middle of the meta line. Somebody scanning five
+          cards is looking for the live one, and a coloured dot answers that
+          faster than a word buried between two middle dots. */}
+      <span className={`home-game-status${live ? ' live' : finished ? '' : ' soon'}`}>
+        {status}
+      </span>
       <span className="home-game-meta">
         {text}
-        {' · '}{status}
         {game.teamName && <> · {game.teamName}</>}
       </span>
-      <span className="home-game-go">
-        {invite ? 'Have a look →' : game.status === 'finished' ? 'See the ladder →' : 'Open →'}
-      </span>
+      {go && <span className="home-game-go">{go}</span>}
     </button>
   );
 }
