@@ -5655,7 +5655,8 @@ label.choice:has(input:disabled) { cursor: default; opacity: .5; }
    and adds to itself -- and what is left is grouped into the three things a
    player is actually doing here. Same scales as Home and the setup wizard. */
 
-.declare-box,
+.entry-box,
+.figure-box,
 .shot-box {
   padding: var(--s-4);
   background: var(--fill-3);
@@ -5663,9 +5664,48 @@ label.choice:has(input:disabled) { cursor: default; opacity: .5; }
   border-radius: var(--r-lg);
 }
 
-.declare-box { margin: var(--s-4) 0; }
+.entry-box { margin: var(--s-4) 0; }
 
-.declare-head,
+/* Two figures, or one -- auto-fit so a lone figure takes the row rather than
+   sitting next to an empty track. */
+.figure-boxes {
+  display: grid;
+  gap: var(--s-3);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+  align-items: start;
+  margin-bottom: var(--s-4);
+}
+
+/* The one the ladder is sorted on. A ring rather than a different background:
+   these are siblings, and only one fact separates them. */
+.figure-box.decides { border-color: var(--gold-dim); }
+
+.figure-decides {
+  font-size: var(--t-caption);
+  letter-spacing: var(--tr-caps);
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+.figure-value {
+  margin: 0 0 var(--s-1);
+  font-family: var(--display);
+  font-size: var(--t-title2);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--tr-title);
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+/* The value carries the weight, so the sentence under it should not. */
+.figure-note {
+  margin: 0;
+  font-size: var(--t-footnote);
+  line-height: var(--lh-body);
+}
+
+.entry-head,
+.figure-head,
 .shot-box-head {
   display: flex;
   flex-wrap: wrap;
@@ -5675,7 +5715,8 @@ label.choice:has(input:disabled) { cursor: default; opacity: .5; }
   margin-bottom: var(--s-3);
 }
 
-.declare-head h4,
+.entry-head h4,
+.figure-head h4,
 .shot-box-head h4 {
   margin: 0;
   font-size: var(--t-subhead);
@@ -5683,14 +5724,31 @@ label.choice:has(input:disabled) { cursor: default; opacity: .5; }
   color: var(--text);
 }
 
-/* The number as it stands, beside its own heading rather than squashed
-   against the button that changes it. */
-.declare-now {
-  font-size: var(--t-body);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: var(--gold);
+/* Team, checked, changed-by-an-organiser: facts that were middle dots in a
+   muted sentence, where the two that matter read as asides. */
+.entry-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
 }
+
+.entry-tag {
+  padding: var(--s-1) var(--s-2);
+  border-radius: var(--r-pill);
+  background: var(--fill-2);
+  font-size: var(--t-caption);
+  color: var(--label-2);
+}
+
+.entry-tag.ok   { background: var(--strike); color: var(--bg); }
+.entry-tag.warn { background: var(--gold-dim); color: var(--on-gold); }
+
+/* The picker and its button on one line where there is room, stacked where
+   there is not -- the button used to sit in a .row of its own below. */
+.entry-name { margin-top: var(--s-3); }
+.entry-name > button { margin-top: var(--s-2); }
+
+.entry-counting { margin: var(--s-4) 0 var(--s-2); font-size: var(--t-footnote); }
 
 /* minmax(0, …) on neither track by design: the input gets a readable measure
    and the button takes what it needs, and at a phone width they wrap. */
@@ -5710,7 +5768,7 @@ label.choice:has(input:disabled) { cursor: default; opacity: .5; }
 /* A three-character value does not want the width of the whole card. */
 .declare-field input { width: 9rem; }
 
-.shots-head { margin: var(--s-6) 0 var(--s-2); }
+.shots-head { margin: var(--s-2) 0 var(--s-2); }
 .shots-intro { margin: 0 0 var(--s-4); font-size: var(--t-footnote); }
 
 /* auto-fit, not auto-fill: there are exactly two, and they should share the
