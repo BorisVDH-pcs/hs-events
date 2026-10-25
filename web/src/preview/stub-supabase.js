@@ -277,3 +277,11 @@ export function adminRevokeEvidence(evidenceId, dryRun = false) {
 export const DEMO_URLS = Object.fromEntries(
   DEMO.map((r) => [r.storage_path, shot(r.option_label ?? `${r.points / 10}m`)])
 );
+
+/**
+ * The My Accounts list, for the Home harness (home-main.jsx), which fills
+ * `accountFixtures` in before it renders. Empty everywhere else, which is also
+ * a case worth looking at: it is what a brand new player sees.
+ */
+export const accountFixtures = [];
+export const myAccounts = () => Promise.resolve(accountFixtures);

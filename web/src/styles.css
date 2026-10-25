@@ -5168,3 +5168,97 @@ label.choice:has(input:disabled) { cursor: default; opacity: .5; }
 }
 
 .rsn-add { margin-top: 1rem; display: grid; gap: .5rem; }
+
+/* ---- Home (Home.jsx) ----
+
+   The landing screen, and the one place reachable from every other. It is a
+   list of ways in, so the rules below are mostly about making each card read
+   as a target rather than as a row of facts. */
+
+.home { margin: 1.5rem 0; display: grid; gap: .4rem; }
+.home-greeting { margin: 0 0 .6rem; font-size: 1.5rem; letter-spacing: -.021em; }
+.home h3 {
+  margin: 1.4rem 0 .2rem;
+  font-size: .8125rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .06em;
+  color: var(--label-2);
+}
+.home > h3:first-of-type { margin-top: .6rem; }
+
+.home-games { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
+
+/* The whole card is the button, so every rule that would normally dress a
+   card has to survive being on a <button>: the UA's centred text, inherited
+   font and 2px border all have to go, or a game card renders as a grey
+   system button with its name in the middle. */
+.home-game {
+  display: grid; gap: .15rem;
+  width: 100%; margin: .5rem 0 0;
+  padding: .9rem 1rem;
+  text-align: left; font: inherit; color: var(--text);
+  background: var(--panel);
+  backdrop-filter: blur(30px) saturate(180%);
+  -webkit-backdrop-filter: blur(30px) saturate(180%);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: background .18s var(--ease-out), border-color .18s var(--ease-out);
+}
+.home-games .home-game { margin: 0; }
+.home-game:hover { background: var(--panel-2); border-color: var(--line); }
+.home-game:focus-visible { outline: none; box-shadow: var(--glow-md); }
+
+/* The one card Home leads with: the game that is running, or about to. Bigger
+   type and a tint edge, which is the whole of the difference -- a second
+   colour here would compete with the gold the app already spends on "this is
+   live". */
+.home-game.lead {
+  padding: 1.1rem 1.2rem;
+  border-color: var(--gold-dim);
+  border-radius: var(--r-xl);
+}
+.home-game.lead .home-game-name { font-size: 1.25rem; }
+
+/* An invitation, not a game in progress. Dimmer rather than louder: it is
+   worth seeing, and never worth more attention than the event somebody is
+   already playing. */
+.home-game.invite { background: var(--fill-3); box-shadow: none; }
+
+.home-game-name {
+  font-family: var(--display); font-size: 1.05rem; font-weight: 600;
+  letter-spacing: -.015em;
+}
+.home-game-meta { font-size: .8125rem; color: var(--label-2); }
+.home-game-go { font-size: .8125rem; color: var(--gold); margin-top: .25rem; }
+
+/* ---- the account summary ----
+   Names, not a table. The detail is one press away in the same dialog the
+   header opens, so this only has to answer "is my name on here, and is it
+   working". */
+.home-accounts { display: flex; flex-wrap: wrap; gap: .4rem; margin: .2rem 0 0; }
+.rsn-chip {
+  font-family: var(--mono); font-size: .8125rem;
+  padding: .25rem .55rem;
+  border-radius: var(--r-pill);
+  background: var(--fill-2);
+  border: 1px solid transparent;
+}
+/* Wise Old Man has never found it. Marked on the chip as well as spelled out
+   underneath, because the sentence names the account and the chip is where
+   the eye already is -- and the border carries it without relying on the red
+   alone. */
+.rsn-chip.bad { color: var(--hit-lit); border-color: var(--hit); background: transparent; }
+
+.home .row { margin-top: 1.2rem; }
+
+/* The wordmark as the way home. A real button for the keyboard, dressed as
+   nothing at all -- the logo is the affordance, and a button box drawn round
+   it would read as a second control in the corner. */
+.home-link {
+  background: none; border: none; padding: 0; margin: 0;
+  font: inherit; color: inherit; cursor: pointer;
+  border-radius: var(--r-md);
+}
+.home-link:hover { filter: brightness(1.12); }
+.home-link:focus-visible { outline: none; box-shadow: var(--glow-md); }
