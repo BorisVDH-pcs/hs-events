@@ -61,18 +61,30 @@ if not may_manage_game(p_game_id) then raise exception 'Not your game'; end if;
 gates — `may_manage_team(uuid)`, `may_manage_claim(uuid)` and so on — that joins
 the row back to its game and defers to `may_manage_game`.
 
-**16 take no row id.** These are the decisions, not the mechanics:
+**16 take no row id**, and a handful of the scoped ones are policy rather than
+mechanics. Decided 2026-10-25:
 
-| Function(s) | Proposed |
+| Function(s) | Decision |
 |---|---|
 | `admin_new_game`, `admin_create_game` | `may_run_mode(mode)` — the point of the tier |
 | `admin_game_readiness` | filter rows to games they may manage, don't refuse |
-| `admin_list_library`, `admin_save_library_tile` | moderators may read and save |
-| `admin_delete_library_tile`, board presets delete | admin only — shared catalogue |
-| `admin_list_tile_submissions`, accept/refuse | admin only — a site-wide queue |
-| `admin_set_featured_game` | admin only — it changes the front page |
-| `admin_reset_password`, `admin_delete_account`, `admin_list_password_resets`, `admin_list_account_deletions` | admin only, firmly |
+| `admin_list_library`, `admin_save_library_tile` | moderators read **and** save |
+| `admin_delete_library_tile`, `admin_delete_board_preset` | admin only — deleting hits other organisers' work |
+| `admin_list_tile_submissions`, accept/refuse | admin only — a site-wide queue that writes to the shared library |
+| `admin_set_featured_game` | `may_manage_game` — a moderator may feature a game of their own mode |
+| `admin_delete_game` | `may_manage_game` — they clean up their own games |
+| `admin_reset_game` | **admin only** — wiping progress is a deliberate admin act |
+| `admin_adjust_score`, `admin_delete_score_event`, `admin_revoke_evidence`, `admin_revoke_pet_jar` | `may_manage_*` — correcting the night is the job |
+| `admin_set_webhook`, `admin_list_webhooks`, `admin_delete_webhook` | `may_manage_game` — their event, their channel |
+| `admin_set_member`, `admin_remove_member`, `admin_add_team`, `admin_delete_team` | `may_manage_game` — seating players is most of the setup |
+| `admin_reset_password`, `admin_delete_account`, `admin_list_password_resets`, `admin_list_account_deletions` | admin only, firmly — the reason the tier exists |
 | `admin_set_moderator_modes`, `admin_list_moderators` | admin only, by definition |
+
+Worth revisiting once it has been used: a moderator may **delete** a game but not
+**reset** one, and delete is the less reversible of the two. The reasoning is that
+a reset silently wipes a live event's progress while a delete is usually tidying
+up a finished or test game — but if that turns out backwards in practice, it is
+two guard lines to swap.
 
 **And 11 functions that are not `admin_*` at all** consult `is_admin()` as an
 organiser escape hatch: `place_fleet`, `start_game`, `rename_team`,
@@ -81,9 +93,27 @@ organiser escape hatch: `place_fleet`, `start_game`, `rename_team`,
 running a game needs nearly all of these — seeing tile tasks, viewing as a team,
 starting the game — so they take `may_manage_game` too.
 
-Total: about 3,000 lines of function bodies to re-emit. They should be generated
-from the latest definition in the migration files with the guard line swapped,
-not retyped, and reviewed by diffing the guard lines only.
+Done in `20261025130000_moderator_sweep.sql`, which does NOT re-emit those
+bodies. Each guard is one line inside a function that is otherwise untouched, so
+the body comes from the live definition via `pg_get_functiondef` and only that
+line is replaced — the technique `20261004130000` already used on `fire_tile`
+and `add_evidence`, for the reason it gives there: the rest of each function is
+taken from the live definition, so nothing else in them can drift.
+
+Every swap asserts its pattern matched **exactly once** and raises otherwise, so
+a guard that has been reworded since cannot be silently skipped, and a failed
+assertion aborts the whole migration. 57 assertions in total: 50 standard
+guards, 5 reworded ones (`start_game`, `admin_board_for_team`, `place_fleet`,
+`rename_team`, `acting_as_team`), and 2 for `admin_game_readiness`, which
+filters its rows rather than refusing.
+
+Of the 61 functions carrying the standard guard, 50 are swapped and 11 stay
+admin-only by the decisions above. None is unaccounted for.
+
+`scripts/rollback-moderator-sweep.sql` puts every guard back.
+
+An earlier draft of this document estimated ~3,000 lines of regenerated SQL.
+That was before the `fire_tile` precedent turned up; the migration is 290 lines.
 
 ### The console
 
