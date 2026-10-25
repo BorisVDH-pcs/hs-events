@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  MAX_EVIDENCE, MAX_FIGURE, METRIC_GROUPS, WOM_METRICS,
+  MAX_EVIDENCE, MAX_FIGURE, METRIC_GROUPS, RAIDS, WOM_METRICS,
   challengeEventText, figureLabel, figureToStored, isKnownMetric, metricLabel,
   rankedLabel, storedToInput, womLabel,
 } from '../src/lib/challenge.js';
@@ -70,7 +70,19 @@ const byGroup = (g) => WOM_METRICS.filter((m) => m.group === g);
 assert.equal(byGroup('Skills').length, 25, 'every skill, not a handful');
 assert.ok(byGroup('Bosses').length >= 60, 'the bosses, not a handful');
 assert.equal(byGroup('Clues').length, 7, 'all tiers plus the total');
-assert.equal(byGroup('Raids').length, 6, 'three raids, normal and hard');
+
+// WOM files raids under bosses, so the Raids group is ours to maintain and the
+// only part of this list a regeneration cannot get right by itself. Held both
+// ways: a raid added to RAIDS but not regenerated fails, and so does one that
+// was regenerated into Bosses -- which is how The Fractured Archive spent its
+// first five days, lost among sixty-odd bosses.
+assert.deepEqual(
+  byGroup('Raids').map((m) => m.value), RAIDS,
+  'the Raids group is exactly RAIDS, in that order',
+);
+for (const v of RAIDS) {
+  assert.ok(isKnownMetric(v), `${v} is a metric WOM actually serves`);
+}
 for (const g of METRIC_GROUPS) {
   assert.ok(byGroup(g).length > 0, `${g} is not an empty heading`);
   assert.equal(new Set(byGroup(g).map((m) => m.name)).size, byGroup(g).length,
