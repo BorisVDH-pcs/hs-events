@@ -28,6 +28,16 @@ const GAMES = {
     { gameId: 'g4', gameName: 'Summer Raid', mode: 'territory', status: 'finished', teamId: 't4', teamName: 'The Crimson Tide', createdAt: ago(40) },
     { gameId: 'g5', gameName: 'Slayer Week 44', mode: 'challenge', status: 'active', teamId: null, teamName: null, joined: true, createdAt: ago(3) },
     { gameId: 'g6', gameName: 'Clues Week 45', mode: 'challenge', status: 'setup', teamId: null, teamName: null, joined: false, createdAt: ago(0) },
+    { gameId: 'g7', gameName: 'Spring Raid', mode: 'battleships', status: 'finished', teamId: 't1', teamName: 'The Crimson Tide', createdAt: ago(120) },
+    { gameId: 'g8', gameName: 'Clan Bingo VIII', mode: 'bingo', status: 'finished', teamId: 't2', teamName: 'Blue Watch', createdAt: ago(75) },
+  ],
+  // A season behind them and nothing running. The case the single "You are
+  // not in anything yet" used to get wrong, and the reason History had to be
+  // somewhere findable rather than just out of the way.
+  seasonOver: [
+    { gameId: 'g4', gameName: 'Summer Raid', mode: 'territory', status: 'finished', teamId: 't4', teamName: 'The Crimson Tide', createdAt: ago(40) },
+    { gameId: 'g7', gameName: 'Spring Raid', mode: 'battleships', status: 'finished', teamId: 't1', teamName: 'The Crimson Tide', createdAt: ago(120) },
+    { gameId: 'g8', gameName: 'Clan Bingo VIII', mode: 'bingo', status: 'finished', teamId: 't2', teamName: 'Blue Watch', createdAt: ago(75) },
   ],
   one: [
     { gameId: 'g2', gameName: 'Clan Bingo IX', mode: 'bingo', status: 'active', teamId: 't2', teamName: 'Blue Watch', createdAt: ago(5) },
@@ -72,6 +82,7 @@ function Harness() {
           <select value={games} onChange={(e) => setGames(e.target.value)}>
             <option value="season">Mid-season</option>
             <option value="one">One running game</option>
+            <option value="seasonOver">Season over, nothing running</option>
             <option value="invitesOnly">Invitations only</option>
             <option value="nothing">In nothing at all</option>
           </select>

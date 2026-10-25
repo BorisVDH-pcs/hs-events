@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { myAccounts } from '../lib/supabase.js';
-import { groupGames, gameUrgency } from '../lib/homeGames.js';
+import { groupGames, gameUrgency, splitFinished } from '../lib/homeGames.js';
 import { modeLabel } from '../lib/site.js';
 
 /**
@@ -24,7 +24,9 @@ export default function Home({
   games, onPick, displayName, isOrganiser, onConsole, onOpenAccounts,
 }) {
   const { mine, open } = groupGames(games);
+  const { current, finished } = splitFinished(mine);
   const [accounts, setAccounts] = useState(null);
+  const [tab, setTab] = useState('current');
 
   useEffect(() => {
     myAccounts()
@@ -35,9 +37,14 @@ export default function Home({
   // The one to lead with: running first, then about to run. Within a kind,
   // listMyGames' own order stands -- rostered before entered, newest first --
   // because a new event must not bury the bingo somebody is mid-way through.
-  const ordered = [...mine].sort((a, b) => gameUrgency(a) - gameUrgency(b));
+  const ordered = [...current].sort((a, b) => gameUrgency(a) - gameUrgency(b));
   const primary = ordered[0] ?? null;
   const rest = ordered.slice(1);
+
+  // One tab is not a choice, so the strip only appears once there is history
+  // to go and look at. A player's first season never sees it.
+  const showTabs = finished.length > 0;
+  const onHistory = showTabs && tab === 'finished';
 
   const broken = (accounts ?? []).filter((a) => a.wom_found === false);
 
@@ -51,12 +58,46 @@ export default function Home({
 
       <h3>Your games</h3>
 
-      {mine.length === 0 ? (
+      {showTabs && (
+        <div className="tabs home-tabs" role="tablist" aria-label="Your games">
+          <button
+            role="tab"
+            aria-selected={!onHistory}
+            className={!onHistory ? 'on' : ''}
+            onClick={() => setTab('current')}
+          >
+            Playing
+            <span className="home-tab-count">{current.length}</span>
+          </button>
+          <button
+            role="tab"
+            aria-selected={onHistory}
+            className={onHistory ? 'on' : ''}
+            onClick={() => setTab('finished')}
+          >
+            History
+            <span className="home-tab-count">{finished.length}</span>
+          </button>
+        </div>
+      )}
+
+      {onHistory ? (
+        <ul className="home-games">
+          {finished.map((g) => (
+            <li key={g.gameId}><GameCard game={g} onPick={onPick} /></li>
+          ))}
+        </ul>
+      ) : current.length === 0 ? (
         <p className="muted">
-          You are not in anything yet.{' '}
-          {open.length > 0
-            ? 'There is something open below — that is the way in.'
-            : 'When an organiser starts an event it will show up here.'}
+          {/* Three different nothings, and they mean different things. Having
+              played a season and having never played are not the same answer
+              to "where are my games", and the old single sentence told a
+              returning player they were not in anything yet. */}
+          {finished.length > 0
+            ? 'Nothing running right now — your finished events are under History.'
+            : open.length > 0
+              ? 'You are not in anything yet. There is something open below — that is the way in.'
+              : 'You are not in anything yet. When an organiser starts an event it will show up here.'}
         </p>
       ) : (
         <>

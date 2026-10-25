@@ -5237,9 +5237,14 @@ label.choice:has(input:disabled) { cursor: default; opacity: .5; }
    header opens, so this only has to answer "is my name on here, and is it
    working". */
 .home-accounts { display: flex; flex-wrap: wrap; gap: .4rem; margin: .2rem 0 0; }
+/* A monospaced face at a body size, not a caption size. These are names the
+   player has to be able to CHECK rather than merely see -- the whole section
+   exists because one wrong character scores a week of play as zero, and "rn"
+   against "m" is exactly the pair a small size hides. The mono face is doing
+   the same job: it keeps 1/l and 0/O apart. */
 .rsn-chip {
-  font-family: var(--mono); font-size: .8125rem;
-  padding: .25rem .55rem;
+  font-family: var(--mono); font-size: 1rem;
+  padding: .35rem .7rem;
   border-radius: var(--r-pill);
   background: var(--fill-2);
   border: 1px solid transparent;
@@ -5251,6 +5256,25 @@ label.choice:has(input:disabled) { cursor: default; opacity: .5; }
 .rsn-chip.bad { color: var(--hit-lit); border-color: var(--hit); background: transparent; }
 
 .home .row { margin-top: 1.2rem; }
+
+/* Tighter than the console's tabs: there the strip separates whole pages of
+   settings, here it sits between a heading and the list it filters, and the
+   console's 1.2rem margins would float it between the two belonging to
+   neither. */
+.tabs.home-tabs { margin: .5rem 0 .2rem; }
+
+/* How many are in each tab. NOT .admin-nav-badge, which this first reused:
+   that one is red, because in the console it counts things still to do. Four
+   finished events are not four problems. This is a count, so it is grey and
+   it follows the tab's own colour -- lit on the tab you are on, secondary on
+   the one you are not. */
+.home-tab-count {
+  margin-left: .4rem;
+  font-size: .75rem; font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--label-3);
+}
+.home-tabs button.on .home-tab-count { color: var(--label-2); }
 
 /* The wordmark as the way home. A real button for the keyboard, dressed as
    nothing at all -- the logo is the affordance, and a button box drawn round

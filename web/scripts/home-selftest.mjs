@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { gameUrgency, groupGames } from '../src/lib/homeGames.js';
+import { gameUrgency, groupGames, splitFinished } from '../src/lib/homeGames.js';
 import { modeLabel } from '../src/lib/site.js';
 
 // ---- Which list a row belongs in ----
@@ -69,6 +69,56 @@ assert.equal(gameUrgency(undefined), 1);
   const a = { gameId: 'a', status: 'active' };
   const b = { gameId: 'b', status: 'active' };
   assert.equal(gameUrgency(a) - gameUrgency(b), 0);
+}
+
+// ---- Playing, and played ----
+//
+// Home splits a player's own games across two tabs. The rule is the status
+// alone, which is the part worth pinning: everything not finished is still
+// theirs to play, including a game in setup that has not opened yet.
+
+{
+  const done = { ...rostered, gameId: 'z', status: 'finished' };
+  const { current, finished } = splitFinished([rostered, entered, done]);
+  assert.deepEqual(current.map((g) => g.gameId), ['a', 'b']);
+  assert.deepEqual(finished.map((g) => g.gameId), ['z']);
+}
+
+// Not-yet-started is "playing", not history. It is the case most likely to
+// be filed wrongly, and filing it wrongly hides an event from the player
+// until the moment it starts.
+assert.equal(splitFinished([{ gameId: 'p', status: 'setup' }]).current.length, 1);
+assert.equal(splitFinished([{ gameId: 'p', status: 'prep' }]).current.length, 1);
+assert.equal(splitFinished([{ gameId: 'p', status: 'active' }]).current.length, 1);
+assert.equal(splitFinished([{ gameId: 'p', status: 'finished' }]).finished.length, 1);
+
+assert.deepEqual(splitFinished([]), { current: [], finished: [] });
+assert.deepEqual(splitFinished(null), { current: [], finished: [] });
+// A row with no status at all is still something to play rather than
+// something to file away: the tab that shows it is the one somebody is
+// looking at, and a game hidden in History is a game nobody finds.
+assert.equal(splitFinished([{ gameId: 'p' }]).current.length, 1);
+
+// History reads newest first, which is the opposite of what the rostered-vs-
+// challenge ranking in listMyGames would give it.
+{
+  const { finished } = splitFinished([
+    { gameId: 'old', status: 'finished', createdAt: '2026-01-01' },
+    { gameId: 'new', status: 'finished', createdAt: '2026-09-01' },
+    { gameId: 'mid', status: 'finished', createdAt: '2026-05-01' },
+  ]);
+  assert.deepEqual(finished.map((g) => g.gameId), ['new', 'mid', 'old']);
+}
+
+// And sorting history must not reorder the list it was given -- `mine` is
+// rendered from the same array.
+{
+  const rows = [
+    { gameId: 'old', status: 'finished', createdAt: '2026-01-01' },
+    { gameId: 'new', status: 'finished', createdAt: '2026-09-01' },
+  ];
+  splitFinished(rows);
+  assert.deepEqual(rows.map((g) => g.gameId), ['old', 'new'], 'splitFinished does not sort in place');
 }
 
 // ---- Home says which game each card is ----
