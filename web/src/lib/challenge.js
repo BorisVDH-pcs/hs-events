@@ -112,6 +112,7 @@ export const WOM_METRICS = [
   { value: 'theatre_of_blood_hard_mode', name: 'Theatre Of Blood (HM)', group: 'Raids', label: 'Raid — Theatre Of Blood (HM)' },
   { value: 'tombs_of_amascut', name: 'Tombs of Amascut', group: 'Raids', label: 'Raid — Tombs of Amascut' },
   { value: 'tombs_of_amascut_expert', name: 'Tombs of Amascut (Expert Mode)', group: 'Raids', label: 'Raid — Tombs of Amascut (Expert Mode)' },
+  { value: 'the_fractured_archive', name: 'The Fractured Archive', group: 'Raids', label: 'Raid — The Fractured Archive' },
   // Bosses
   { value: 'abyssal_sire', name: 'Abyssal Sire', group: 'Bosses', label: 'Boss — Abyssal Sire' },
   { value: 'alchemical_hydra', name: 'Alchemical Hydra', group: 'Bosses', label: 'Boss — Alchemical Hydra' },
@@ -162,7 +163,6 @@ export const WOM_METRICS = [
   { value: 'spindel', name: 'Spindel', group: 'Bosses', label: 'Boss — Spindel' },
   { value: 'tempoross', name: 'Tempoross', group: 'Bosses', label: 'Boss — Tempoross' },
   { value: 'the_corrupted_gauntlet', name: 'The Corrupted Gauntlet', group: 'Bosses', label: 'Boss — The Corrupted Gauntlet' },
-  { value: 'the_fractured_archive', name: 'The Fractured Archive', group: 'Bosses', label: 'Boss — The Fractured Archive' },
   { value: 'the_gauntlet', name: 'The Gauntlet', group: 'Bosses', label: 'Boss — The Gauntlet' },
   { value: 'the_hueycoatl', name: 'The Hueycoatl', group: 'Bosses', label: 'Boss — The Hueycoatl' },
   { value: 'the_leviathan', name: 'The Leviathan', group: 'Bosses', label: 'Boss — The Leviathan' },
@@ -202,6 +202,26 @@ export const WOM_METRICS = [
 ];
 
 /** The picker's group headings, in order. */
+/**
+ * Which of WOM's bosses are raids.
+ *
+ * WOM has no notion of a raid -- it files all seven of these under bosses --
+ * but an organiser running Raid of the Week does, so the split is ours, and
+ * this is the one line in the file that is a judgement rather than their data.
+ * The Fractured Archive landed here five days after release, in a group of
+ * sixty-odd bosses where nobody would have found it.
+ *
+ * So: this is the list to add the next raid to. The selftest holds it and
+ * WOM_METRICS to each other, so a value in one and not the other fails rather
+ * than quietly misfiles a raid again.
+ */
+export const RAIDS = [
+  'chambers_of_xeric', 'chambers_of_xeric_challenge_mode',
+  'theatre_of_blood', 'theatre_of_blood_hard_mode',
+  'tombs_of_amascut', 'tombs_of_amascut_expert',
+  'the_fractured_archive',
+];
+
 export const METRIC_GROUPS = ['Skills', 'Raids', 'Bosses', 'Clues', 'Activities', 'Other'];
 
 /** True when WOM has never heard of this metric, so it was typed by hand. */
