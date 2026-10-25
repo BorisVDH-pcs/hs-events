@@ -5557,3 +5557,92 @@ label.choice:has(input:disabled) { cursor: default; opacity: .5; }
   .home-game { transition: background .18s linear, border-color .18s linear; }
   .home-game:active { transform: none; }
 }
+
+/* ---- Setup wizard (Admin.jsx -> NewGame) ----
+
+   Built on the same scales as Home, which is the whole point of having them:
+   two screens written days apart should not need to agree by hand.
+
+   The old form was one card asking for the mode, the name, the card size,
+   every team name and both times at once -- and the first of those answers
+   decides which of the others apply, so fields appeared and vanished under
+   the organiser as they typed. */
+
+.wizard-steps {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin: var(--s-4) 0 var(--s-6);
+  padding: 0;
+}
+
+.wizard-steps li { display: grid; }
+
+/* The button and the span are styled together so a finished step and the
+   current one are the same shape -- only their colour says which is which. */
+.wizard-steps li > * {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin: 0;
+  padding: var(--s-2) var(--s-3);
+  font: inherit;
+  font-size: var(--t-footnote);
+  text-align: left;
+  color: var(--label-2);
+  background: var(--fill-3);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-pill);
+}
+
+.wizard-steps li > button { cursor: pointer; transition: background .15s var(--ease-out); }
+.wizard-steps li > button:hover { background: var(--fill-2); color: var(--text); }
+.wizard-steps li > button:focus-visible { outline: none; box-shadow: var(--glow-md); }
+
+.wizard-steps li.on > * {
+  color: var(--text);
+  background: var(--fill);
+  border-color: var(--gold-dim);
+}
+
+.wizard-step-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 1.375rem;
+  height: 1.375rem;
+  border-radius: var(--r-pill);
+  background: var(--fill-2);
+  font-size: var(--t-caption);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.wizard-steps li.on .wizard-step-mark { background: var(--gold); color: var(--on-gold); }
+.wizard-steps li.done .wizard-step-mark { background: var(--strike); color: var(--bg); }
+
+/* One question per step, in the words an organiser would use. A heading reads
+   as a form section; a question reads as one thing being asked. */
+.wizard-ask {
+  margin: 0 0 var(--s-4);
+  font-family: var(--display);
+  font-size: var(--t-title3);
+  line-height: var(--lh-snug);
+  letter-spacing: var(--tr-title);
+  color: var(--text);
+}
+
+/* A floor, so Back and Next do not jump up the screen between a short step
+   and a long one. */
+.wizard-body { min-height: 12rem; }
+
+.wizard-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s-3);
+  margin-top: var(--s-6);
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--hairline);
+}
+
+.wizard-foot button:disabled { opacity: .45; cursor: default; }

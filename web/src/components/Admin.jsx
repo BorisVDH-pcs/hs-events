@@ -2146,6 +2146,51 @@ function ModePicker({ modeChoices, mode, onPick }) {
   );
 }
 
+/**
+ * Where you are in the wizard, and how much of it is left.
+ *
+ * A step you have finished is a button, because going back to change the name
+ * should not mean pressing Back twice. A step you have not reached is not,
+ * because its questions depend on answers you have not given yet.
+ */
+function WizardSteps({ steps, at, onGo }) {
+  return (
+    <ol className="wizard-steps">
+      {steps.map((s, i) => {
+        const mark = (
+          <>
+            <span className="wizard-step-mark" aria-hidden="true">{i < at ? '\u2713' : i + 1}</span>
+            <span className="wizard-step-label">{s.label}</span>
+          </>
+        );
+        return (
+          <li key={s.key} className={i === at ? 'on' : i < at ? 'done' : ''}>
+            {i < at
+              ? <button type="button" onClick={() => onGo(i)}>{mark}</button>
+              : <span aria-current={i === at ? 'step' : undefined}>{mark}</span>}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+/**
+ * Creating an event, one question at a time.
+ *
+ * WHY A WIZARD. This was a single card asking for the mode, the name, the
+ * card size, every team name and both times at once. The trouble is that the
+ * first of those answers decides which of the others even apply -- a bingo
+ * wants a card size and any number of teams, battleships wants exactly two
+ * and no size at all -- so fields appeared and vanished underneath the
+ * organiser as they filled it in, and they were naming teams before the kind
+ * of event had settled.
+ *
+ * Three steps, because three is what the questions genuinely divide into:
+ * what kind of event this is, what it is called and when it runs, and who is
+ * playing. Each step asks one thing, and nothing on screen belongs to a
+ * question that has not been reached.
+ */
 function NewGame({ busy, onCreate, modeChoices = MODES }) {
   // Battleships unless the organiser cannot run it, in which case the first
   // mode they can: a radio group with nothing selected has no sensible save.
@@ -2157,10 +2202,12 @@ function NewGame({ busy, onCreate, modeChoices = MODES }) {
   const [gridSize, setGridSize] = useState(5);
   const [startsAt, setStartsAt] = useState('');
   const [endsAt, setEndsAt] = useState('');
+  const [at, setAt] = useState(0);
 
   const bingo = mode === 'bingo';
   const snakes = mode === 'snakes';
   const territory = mode === 'territory';
+  const challenge = mode === 'challenge';
   // Every mode but battleships takes any number of teams.
   const multi = bingo || snakes || territory;
   const names = multi ? teamNames : teamNames.slice(0, 2);
@@ -2168,137 +2215,188 @@ function NewGame({ busy, onCreate, modeChoices = MODES }) {
   // Case-insensitive, like the server: "Alpha" and "alpha" read as one team in
   // the standings, so they are refused here before they are refused there.
   const duplicate = new Set(filled.map((n) => n.toLowerCase())).size !== filled.length;
-  const ready = name.trim() && !duplicate
+  const teamsReady = !duplicate
     && (multi ? filled.length >= 1 : filled.length === 2 && names.every((n) => n.trim()));
+  const ready = name.trim() && teamsReady;
 
   const setTeam = (i, value) => setTeamNames((prev) => prev.map((n, j) => (j === i ? value : n)));
 
-  // A challenge asks a different set of questions entirely — what it is scored
-  // on, rather than how big the board is — so it gets its own body rather than
-  // four more branches through this one. The mode picker is the only part the
-  // two share.
-  if (mode === 'challenge') {
-    return (
-      <section className="card">
-        <h2>New event</h2>
-        <ModePicker modeChoices={modeChoices} mode={mode} onPick={setMode} />
-        <ChallengeNewGame
-          busy={busy}
-          onCreate={async (payload) => worked(await onCreate(payload))}
-        />
-      </section>
-    );
-  }
+  // A challenge asks an entirely different second question -- what it is
+  // scored on, rather than how big the board is -- so it keeps its own body
+  // and its own Create button. It still sits inside the wizard, as step two
+  // of two, rather than replacing the screen the moment the mode changes.
+  const steps = challenge
+    ? [{ key: 'kind', label: 'Kind' }, { key: 'details', label: 'Details' }]
+    : [{ key: 'kind', label: 'Kind' },
+       { key: 'details', label: 'Details' },
+       { key: 'teams', label: 'Teams' }];
+  const here = Math.min(at, steps.length - 1);
+  const step = steps[here].key;
+
+  // What has to be true before the next step is worth showing. A mode is
+  // always selected, so the first step is never a dead end.
+  const canGoOn = step === 'kind' || (step === 'details' && Boolean(name.trim()));
+  const go = (next) => setAt(Math.max(0, Math.min(next, steps.length - 1)));
 
   return (
-    <section className="card">
-      <h2>New game</h2>
-      <ModePicker modeChoices={modeChoices} mode={mode} onPick={setMode} />
+    <section className="card wizard">
+      <h2>New event</h2>
 
-      {/* .new-game-fields: every field keeps its own width rather than
-          stretching across the card, so adding a team adds one more field
-          beside the others instead of squeezing or widening them all. */}
-      <div className="row new-game-fields">
-        <label className="field-name">Game name
-          <input value={name} onChange={(e) => setName(e.target.value)}
-                 placeholder={bingo ? 'Clan Bingo' : snakes ? 'Snakes and Ladders' : territory ? 'Conquest of Gielinor' : 'Battleships V4'} />
-        </label>
-        {bingo && (
-          <label className="field-size">Card size
-            <select value={gridSize} onChange={(e) => setGridSize(Number(e.target.value))}>
-              {[3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
-                <option key={n} value={n}>{n}×{n} — {n * n} tiles</option>
+      <WizardSteps steps={steps} at={here} onGo={go} />
+
+      <div className="wizard-body">
+        {step === 'kind' && (
+          <>
+            <p className="wizard-ask">What kind of event is this?</p>
+            <ModePicker modeChoices={modeChoices} mode={mode} onPick={setMode} />
+          </>
+        )}
+
+        {step === 'details' && challenge && (
+          <ChallengeNewGame
+            busy={busy}
+            onCreate={async (payload) => worked(await onCreate(payload))}
+          />
+        )}
+
+        {step === 'details' && !challenge && (
+          <>
+            <p className="wizard-ask">What is it called, and when does it run?</p>
+
+            <div className="row new-game-fields">
+              <label className="field-name">Event name
+                <input value={name} onChange={(e) => setName(e.target.value)}
+                       placeholder={bingo ? 'Clan Bingo' : snakes ? 'Snakes and Ladders' : territory ? 'Conquest of Gielinor' : 'Battleships V4'} />
+              </label>
+              {bingo && (
+                <label className="field-size">Card size
+                  <select value={gridSize} onChange={(e) => setGridSize(Number(e.target.value))}>
+                    {[3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+                      <option key={n} value={n}>{n}\u00d7{n} \u2014 {n * n} tiles</option>
+                    ))}
+                  </select>
+                </label>
+              )}
+            </div>
+
+            <div className="row new-game-fields">
+              {/* Optional: teams can be rostered and fleets placed well before
+                  this moment. Left blank, players just see "time to be
+                  announced" until one is set from Configure. */}
+              <label className="field-time"><span>Start time <span className="muted">(optional)</span></span>
+                <input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} />
+              </label>
+              {(bingo || territory) && (
+                <label
+                  className="field-time"
+                  title={territory
+                    ? 'The biggest empire at this moment wins.'
+                    : 'Without an end time, the game runs until a team fills the card.'}
+                >
+                  <span>End time <span className="muted">(optional)</span></span>
+                  <input type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} />
+                </label>
+              )}
+            </div>
+
+            {/* These say what happens if a time is left blank, so they belong
+                beside the times rather than at the foot of the whole form. */}
+            {bingo && (
+              <p className="muted new-game-note">
+                Without an end time, the game runs until a team fills the card.
+              </p>
+            )}
+            {territory && (
+              <p className="muted new-game-note">
+                The whole OSRS map: 64 places, one task each, starting empty. Up to six
+                teams, each with its own home. The biggest empire at the end time wins.
+              </p>
+            )}
+            {snakes && (
+              <p className="muted new-game-note">
+                Always the 100-tile board. It ends when a team completes tile 100, or
+                when you end it from Configure.
+              </p>
+            )}
+          </>
+        )}
+
+        {step === 'teams' && (
+          <>
+            <p className="wizard-ask">
+              {multi
+                ? 'Who is playing? Add as many teams as you need.'
+                : 'Battleships is played by exactly two teams.'}
+            </p>
+
+            {/* .new-game-fields: every field keeps its own width rather than
+                stretching across the card, so adding a team adds one more
+                field beside the others instead of widening them all. */}
+            <div className="row new-game-fields">
+              {names.map((n, i) => (
+                <label key={i} className="field-team">
+                  {`Team ${i + 1}`}
+                  <span className="team-name-field">
+                    <input
+                      value={n}
+                      onChange={(e) => setTeam(i, e.target.value)}
+                      placeholder={`Team ${['Alpha', 'Bravo', 'Charlie', 'Delta', 'Echo', 'Foxtrot'][i] ?? i + 1}`}
+                    />
+                    {multi && names.length > 1 && (
+                      <button
+                        type="button" className="ghost" aria-label={`Remove team ${i + 1}`}
+                        onClick={() => setTeamNames((prev) => prev.filter((_, j) => j !== i))}
+                      >
+                        {'\u2715'}
+                      </button>
+                    )}
+                  </span>
+                </label>
               ))}
-            </select>
-          </label>
+              {multi && (
+                <button type="button" className="ghost" onClick={() => setTeamNames((prev) => [...prev, ''])}>
+                  + Another team
+                </button>
+              )}
+            </div>
+            {duplicate && <p className="error">Two teams have the same name.</p>}
+          </>
         )}
       </div>
 
-      <div className="row new-game-fields">
-        {names.map((n, i) => (
-          <label key={i} className="field-team">
-            {`Team ${i + 1}`}
-            <span className="team-name-field">
-              <input
-                value={n}
-                onChange={(e) => setTeam(i, e.target.value)}
-                placeholder={`Team ${['Alpha', 'Bravo', 'Charlie', 'Delta', 'Echo', 'Foxtrot'][i] ?? i + 1}`}
-              />
-              {multi && names.length > 1 && (
-                <button
-                  type="button" className="ghost" aria-label={`Remove team ${i + 1}`}
-                  onClick={() => setTeamNames((prev) => prev.filter((_, j) => j !== i))}
-                >
-                  ✕
-                </button>
-              )}
-            </span>
-          </label>
-        ))}
-        {multi && (
-          <button type="button" className="ghost" onClick={() => setTeamNames((prev) => [...prev, ''])}>
-            + Another team
+      <div className="wizard-foot">
+        <button type="button" className="ghost" disabled={here === 0} onClick={() => go(here - 1)}>
+          Back
+        </button>
+        {/* The challenge body carries its own Create button, so the wizard
+            does not put a second one beside it. Back stays either way --
+            changing your mind about the kind of event should not mean
+            noticing that the step pills are clickable. */}
+        {challenge && step === 'details' ? null : step === 'teams' ? (
+          <button
+            disabled={busy || !ready}
+            onClick={async () => {
+              const result = await onCreate({
+                name: name.trim(),
+                mode,
+                teams: filled,
+                gridSize: bingo ? gridSize : territory ? TASK_GRID : 10,
+                startsAt: startsAt ? new Date(startsAt).toISOString() : null,
+                endsAt: (bingo || territory) && endsAt ? new Date(endsAt).toISOString() : null,
+              });
+              if (worked(result)) {
+                setName(''); setTeamNames(['', '']); setStartsAt(''); setEndsAt(''); setAt(0);
+              }
+            }}
+          >
+            Create event
+          </button>
+        ) : (
+          <button type="button" disabled={!canGoOn} onClick={() => go(here + 1)}>
+            Next
           </button>
         )}
       </div>
-      {duplicate && <p className="error">Two teams have the same name.</p>}
-
-      <div className="row new-game-fields">
-        {/* Optional: teams can be rostered and fleets placed well before this
-            moment. Left blank, players just see "time to be announced" until
-            one is set from Configure. */}
-        {/* One span for the caption, so the label's grid keeps "(optional)"
-            on the same line instead of giving it a row of its own. */}
-        <label className="field-time"><span>Start time <span className="muted">(optional)</span></span>
-          <input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} />
-        </label>
-        {(bingo || territory) && (
-          <label
-            className="field-time"
-            title={territory
-              ? 'The biggest empire at this moment wins.'
-              : 'Without an end time, the game runs until a team fills the card.'}
-          >
-            <span>End time <span className="muted">(optional)</span></span>
-            <input type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} />
-          </label>
-        )}
-        <button
-          disabled={busy || !ready}
-          onClick={async () => {
-            const result = await onCreate({
-              name: name.trim(),
-              mode,
-              teams: filled,
-              gridSize: bingo ? gridSize : territory ? TASK_GRID : 10,
-              startsAt: startsAt ? new Date(startsAt).toISOString() : null,
-              endsAt: (bingo || territory) && endsAt ? new Date(endsAt).toISOString() : null,
-            });
-            if (worked(result)) {
-              setName(''); setTeamNames(['', '']); setStartsAt(''); setEndsAt('');
-            }
-          }}
-        >
-          Create
-        </button>
-      </div>
-      {bingo && (
-        <p className="muted new-game-note">
-          Without an end time, the game runs until a team fills the card.
-        </p>
-      )}
-      {territory && (
-        <p className="muted new-game-note">
-          The whole OSRS map: 64 places, one task each, starting empty. Up to six
-          teams, each with its own home. The biggest empire at the end time wins.
-        </p>
-      )}
-      {snakes && (
-        <p className="muted new-game-note">
-          Always the 100-tile board. It ends when a team completes tile 100, or
-          when you end it from Configure.
-        </p>
-      )}
     </section>
   );
 }
