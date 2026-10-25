@@ -2,6 +2,7 @@ import { fromPosition, coordLabel } from '../lib/board.js';
 import { evidenceEventText, revokedProgressText } from '../lib/eventText.js';
 import { snakesEventText } from '../lib/snakes.js';
 import { territoryEventText } from '../lib/territory.js';
+import { challengeEventText } from '../lib/challenge.js';
 
 /**
  * The live feed. Most event types never name a tile: `game_events` is readable
@@ -58,6 +59,9 @@ export default function EventFeed({ events, teams, myTeamId }) {
     // Territory names its places rather than coordinates, the same way.
     const territory = territoryEventText(e, who);
     if (territory) return territory;
+    // A challenge has no board at all: its lines are figures and a ladder.
+    const challenge = challengeEventText(e, who);
+    if (challenge) return challenge;
 
     switch (e.type) {
       case 'fleet_placed':

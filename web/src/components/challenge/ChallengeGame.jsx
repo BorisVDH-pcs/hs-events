@@ -1,0 +1,426 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  supabase,
+  challengeList, challengeMine, challengeStandings,
+  challengeJoin, challengeLeave, challengeDeclare, challengeAddEvidence, womPulse,
+} from '../../lib/supabase.js';
+import {
+  MAX_EVIDENCE, WOM_PULSE_MS,
+  figureLabel, figureToStored, metricLabel, rankedLabel, storedToInput, womLabel,
+} from '../../lib/challenge.js';
+import { useCountdown, pad } from '../../lib/countdown.js';
+import EventFeed from '../EventFeed.jsx';
+import ChallengeLadder from './ChallengeLadder.jsx';
+
+/**
+ * The player's view of a challenge.
+ *
+ * No board, so none of the three-column board layout applies: what a player
+ * does here is sign up, give a number, hang the screenshots behind it, and
+ * watch the ladder.
+ *
+ * IT LOADS ITS OWN DATA. Every other mode comes through `board_for_me`, which
+ * answers in one call because every other mode is a board. A challenge needs
+ * three things that function does not carry — the setup, this player's entry
+ * and the ladder — and all three sit behind tables with RLS on and no policies,
+ * so they can only come from their own RPCs. Teaching `board_for_me` a fourth
+ * shape would mean editing a shared function for the one mode that has nothing
+ * in common with the other four.
+ */
+export default function ChallengeGame({ game, teams = [], events = [], profileId = null, onRefresh }) {
+  const [setup, setSetup] = useState(null);
+  const [mine, setMine] = useState(null);
+  const [standings, setStandings] = useState([]);
+  const [profileRsn, setProfileRsn] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const [notice, setNotice] = useState(null);
+
+  const [rsn, setRsn] = useState('');
+  const [figure, setFigure] = useState('');
+  const [shotUrl, setShotUrl] = useState('');
+  const [shotPhase, setShotPhase] = useState('finish');
+  const [shotNote, setShotNote] = useState('');
+
+  const isOpen = game.status === 'setup' || game.status === 'placement';
+  const isActive = game.status === 'active';
+  const isFinished = game.status === 'finished';
+  const joined = Boolean(mine);
+  const unit = setup?.declared_unit ?? null;
+  const left = useCountdown(game.ends_at);
+
+  const load = useCallback(async () => {
+    try {
+      const [list, entry, rows] = await Promise.all([
+        challengeList(),
+        challengeMine(game.id),
+        challengeStandings(game.id),
+      ]);
+      setSetup((list ?? []).find((c) => c.game_id === game.id) ?? null);
+      setMine(entry ?? null);
+      setStandings(rows ?? []);
+      setError(null);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [game.id]);
+
+  useEffect(() => { setLoading(true); load(); }, [load]);
+
+  // The name typed at sign-up, as a starting point for the box. The entry
+  // snapshots whatever is sent, so correcting it here fixes this event only
+  // and leaves the profile alone.
+  useEffect(() => {
+    if (!supabase || !profileId) return;
+    supabase.from('profiles').select('rsn').eq('id', profileId).maybeSingle()
+      .then(({ data }) => setProfileRsn(data?.rsn ?? ''))
+      .catch(() => setProfileRsn(''));
+  }, [profileId]);
+
+  useEffect(() => { setRsn(mine?.rsn ?? profileRsn ?? ''); }, [mine?.rsn, profileRsn]);
+  useEffect(() => { setFigure(storedToInput(mine?.declared, unit)); }, [mine?.declared, unit]);
+
+  /**
+   * Wise Old Man, on a timer nobody set.
+   *
+   * There is no scheduler on this project, so an open page is what keeps the
+   * numbers moving — the same arrangement that settles a finished bingo. Both
+   * halves of the pulse are rate limited server-side, so fifty open phones
+   * cost one request between them, and a reply that landed is only worth a
+   * reload when it actually changed something.
+   */
+  const pulsing = useRef(false);
+  useEffect(() => {
+    if (!isActive || !setup?.wom_metric) return undefined;
+    let live = true;
+    const tick = async () => {
+      if (pulsing.current) return;
+      pulsing.current = true;
+      try {
+        if ((await womPulse(game.id)) > 0 && live) await load();
+      } catch {
+        // A WOM outage is not this screen's problem to announce: the figures
+        // stay where they were until the next turn of the loop.
+      } finally {
+        pulsing.current = false;
+      }
+    };
+    tick();
+    const timer = window.setInterval(tick, WOM_PULSE_MS);
+    return () => { live = false; window.clearInterval(timer); };
+  }, [isActive, setup?.wom_metric, game.id, load]);
+
+  const run = async (fn, done) => {
+    setBusy(true); setError(null); setNotice(null);
+    try {
+      await fn();
+      setNotice(done);
+      await load();
+      await onRefresh?.();
+      return true;
+    } catch (err) {
+      setError(err.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (loading) return <p>Loading the event…</p>;
+
+  const myTeam = teams.find((t) => t.id === mine?.team_id) ?? null;
+  const winner = isFinished ? standings.find((s) => s.place === 1) : null;
+  const typed = figureToStored(figure, unit);
+  const unchanged = typed !== null && typed === (mine?.declared ?? null);
+  const startShots = (mine?.evidence ?? []).filter((e) => e.phase === 'start');
+  const finishShots = (mine?.evidence ?? []).filter((e) => e.phase === 'finish');
+  const shotsFull = (shotPhase === 'start' ? startShots : finishShots).length >= MAX_EVIDENCE;
+
+  return (
+    <div className="challenge-layout">
+      <div className="challenge-main">
+        {error && <p className="error" role="alert">{error}</p>}
+        {notice && <p className="muted notice" role="status">✓ {notice}</p>}
+
+        <section className="card challenge-head">
+          <h2>{game.name}</h2>
+          <p className="muted">
+            {setup?.solo === false ? 'Teams' : 'Everyone for themselves'}
+            {' · won on '}
+            {rankedLabel(setup)}
+            {setup?.wom_metric && setup?.declared_label
+              && ' — the other figure is shown, but does not decide it'}
+          </p>
+
+          {/* The clock is the whole shape of a short event, so it leads the
+              card whichever phase it is in. */}
+          {game.ends_at && !isFinished && (
+            <p className="challenge-clock">
+              {left.days > 0 && `${left.days}d `}
+              {pad(left.hours)}:{pad(left.minutes)}:{pad(left.seconds)}
+              <span className="muted">{isOpen ? ' until the end time' : ' left'}</span>
+            </p>
+          )}
+
+          {isFinished && (
+            <p className="banner">{winner ? `${winner.name} wins.` : 'The event is over.'}</p>
+          )}
+
+          <ul className="challenge-asks">
+            {setup?.wom_metric && (
+              <li>
+                <strong>{metricLabel(setup.wom_metric)}</strong>
+                <span className="muted">
+                  {' — counted off the hiscores by Wise Old Man. Nothing to send in.'}
+                </span>
+              </li>
+            )}
+            {setup?.declared_label && (
+              <li>
+                <strong>{setup.declared_label}</strong>
+                <span className="muted">
+                  {' — the number you give'}
+                  {setup.declared_unit === 'gp' ? ', in millions' : ''}
+                  {', with a screenshot from the start and one from the finish.'}
+                </span>
+              </li>
+            )}
+          </ul>
+        </section>
+
+        {/* Sign-ups close when the event starts, which is a limitation and not
+            a rule anyone wanted: the Wise Old Man competition is built from
+            exactly who is in at that moment, so a latecomer would sit on this
+            ladder and not on WOM's. */}
+        {isOpen && (
+          <section className="card">
+            <h2>{joined ? 'You are in' : 'Sign up'}</h2>
+            <p className="muted">
+              {setup?.entrants ?? 0} signed up so far. Sign-ups close the moment an
+              organiser starts the event.
+            </p>
+
+            {setup?.wom_metric && (
+              <>
+                <label className="field-name">Your RuneScape name
+                  <input
+                    value={rsn}
+                    onChange={(e) => setRsn(e.target.value)}
+                    placeholder="Exactly as the hiscores spell it"
+                    disabled={busy}
+                  />
+                </label>
+                <p className="muted">
+                  Wise Old Man matches this exactly. Get it wrong and the hiscores
+                  have nothing to match, so a week of play scores nothing.
+                </p>
+              </>
+            )}
+
+            <div className="row">
+              {!joined ? (
+                <button
+                  disabled={busy || (Boolean(setup?.wom_metric) && !rsn.trim())}
+                  onClick={() => run(
+                    () => challengeJoin(game.id, rsn.trim() || null),
+                    'You are signed up.',
+                  )}
+                >
+                  Sign me up
+                </button>
+              ) : (
+                <>
+                  <button
+                    disabled={busy || !rsn.trim() || rsn.trim() === mine.rsn}
+                    onClick={() => run(() => challengeJoin(game.id, rsn.trim()), 'Name saved.')}
+                  >
+                    Save my name
+                  </button>
+                  <button
+                    className="ghost"
+                    disabled={busy}
+                    onClick={() => run(() => challengeLeave(game.id), 'You are out of this one.')}
+                  >
+                    Take me out
+                  </button>
+                </>
+              )}
+            </div>
+          </section>
+        )}
+
+        {(isActive || isFinished) && !joined && (
+          <section className="card">
+            <h2>Not in this one</h2>
+            <p className="muted">
+              Sign-ups closed when the event started. The ladder is below, and
+              the next event will be along.
+            </p>
+          </section>
+        )}
+
+        {(isActive || isFinished) && joined && (
+          <section className="card challenge-mine">
+            <h2>Your event</h2>
+            <p className="muted">
+              {mine.rsn ? `Playing as ${mine.rsn}` : 'No RuneScape name on this entry'}
+              {myTeam && ` · ${myTeam.name}`}
+              {mine.verified && ' · checked by an organiser'}
+              {mine.altered && !mine.verified && ' · an organiser has changed your number'}
+            </p>
+
+            {setup?.wom_metric && (
+              <p className="challenge-figure">
+                <span className="muted">{metricLabel(setup.wom_metric)}: </span>
+                <strong>{womLabel(mine.wom_gained)}</strong>
+                <span className="muted">
+                  {mine.wom_gained === null || mine.wom_gained === undefined
+                    ? ' — nothing read off the hiscores yet'
+                    : ' since the start'}
+                </span>
+              </p>
+            )}
+
+            {setup?.declared_label && (
+              <>
+                <label className="field-name">
+                  <span>
+                    {setup.declared_label}
+                    {setup.declared_unit === 'gp' && <span className="muted"> (in millions)</span>}
+                  </span>
+                  <input
+                    value={figure}
+                    onChange={(e) => setFigure(e.target.value)}
+                    inputMode="decimal"
+                    placeholder={setup.declared_unit === 'gp' ? '250, or 0.5' : '12'}
+                    disabled={busy || isFinished || mine.verified}
+                  />
+                </label>
+                {figure.trim() !== '' && typed === null && (
+                  <p className="error">
+                    {setup.declared_unit === 'gp'
+                      ? 'A number of millions, at most one decimal — 250, 0.5, 1250.'
+                      : 'A whole number.'}
+                  </p>
+                )}
+                {mine.verified && (
+                  <p className="muted">
+                    An organiser has checked this number, so it is theirs to change
+                    now. Ask them.
+                  </p>
+                )}
+                <div className="row">
+                  <button
+                    disabled={busy || isFinished || mine.verified || typed === null || unchanged}
+                    onClick={() => run(
+                      () => challengeDeclare(game.id, typed),
+                      `${setup.declared_label} saved as ${figureLabel(typed, unit)}.`,
+                    )}
+                  >
+                    {mine.declared === null || mine.declared === undefined ? 'Send it in' : 'Update it'}
+                  </button>
+                  {mine.declared !== null && mine.declared !== undefined && (
+                    <span className="muted">
+                      Currently {figureLabel(mine.declared, unit)}
+                      {mine.altered && ' — set by an organiser'}
+                    </span>
+                  )}
+                </div>
+
+                <h3>The shots behind it</h3>
+                <p className="muted">
+                  One from the start, one from the finish. The site cannot read a
+                  screenshot, so these are what make the number checkable — paste
+                  the link to an uploaded image, anywhere an organiser can open it.
+                </p>
+                <ShotList label="Start" shots={startShots} />
+                <ShotList label="Finish" shots={finishShots} />
+
+                {!isFinished && (
+                  <div className="row challenge-shot-form">
+                    <label className="field-size">Which
+                      <select
+                        value={shotPhase}
+                        onChange={(e) => setShotPhase(e.target.value)}
+                        disabled={busy}
+                      >
+                        <option value="start">Start</option>
+                        <option value="finish">Finish</option>
+                      </select>
+                    </label>
+                    <label className="field-name">Link to the picture
+                      <input
+                        value={shotUrl}
+                        onChange={(e) => setShotUrl(e.target.value)}
+                        placeholder="https://…"
+                        disabled={busy}
+                      />
+                    </label>
+                    <label className="field-name"><span>Note <span className="muted">(optional)</span></span>
+                      <input
+                        value={shotNote}
+                        onChange={(e) => setShotNote(e.target.value)}
+                        placeholder="What it shows"
+                        disabled={busy}
+                      />
+                    </label>
+                    <button
+                      disabled={busy || !shotUrl.trim() || shotsFull}
+                      title={shotsFull ? `That is ${MAX_EVIDENCE} ${shotPhase} shots already.` : undefined}
+                      onClick={async () => {
+                        const ok = await run(
+                          () => challengeAddEvidence(
+                            game.id, shotPhase, shotUrl.trim(), shotNote.trim() || null,
+                          ),
+                          'Shot added.',
+                        );
+                        if (ok) { setShotUrl(''); setShotNote(''); }
+                      }}
+                    >
+                      Add it
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </section>
+        )}
+
+        <ChallengeLadder
+          standings={standings}
+          setup={setup}
+          myProfileId={profileId}
+          myTeamId={mine?.team_id ?? null}
+        />
+      </div>
+
+      <div className="challenge-side">
+        <EventFeed events={events} teams={teams} myTeamId={mine?.team_id ?? null} />
+      </div>
+    </div>
+  );
+}
+
+/** The shots for one phase. Links, not images: they live wherever they were uploaded. */
+function ShotList({ label, shots }) {
+  return (
+    <div className="challenge-shots">
+      <h4>{label}</h4>
+      {shots.length === 0 ? (
+        <p className="muted">None yet.</p>
+      ) : (
+        <ul>
+          {shots.map((s, i) => (
+            <li key={s.id}>
+              <a href={s.url} target="_blank" rel="noreferrer">{label} shot {i + 1}</a>
+              {s.note && <span className="muted"> — {s.note}</span>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}

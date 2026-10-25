@@ -1,4 +1,38 @@
-import { supabase } from './supabase.js';
+import { challengeList, supabase } from './supabase.js';
+
+/**
+ * Every challenge this player can reach: the ones they have entered, and the
+ * ones still open for sign-ups.
+ *
+ * A challenge is opt-in and a solo one has no teams at all, so `team_members`
+ * -- which answers this question for every other mode -- has nothing to find,
+ * and an event nobody has joined yet has nothing anywhere. A sign-up screen
+ * that cannot be reached is a sign-up screen that does not work, so the open
+ * ones are listed whether this player is in them or not: that is the way to
+ * the Sign up button.
+ *
+ * Fails soft on its own rather than through the caller's catch: a client ahead
+ * of its migration keeps the games it could already see.
+ */
+async function listMyChallenges() {
+  try {
+    const rows = await challengeList();
+    return (rows ?? []).map((c) => ({
+      gameId: c.game_id,
+      gameName: c.name,
+      status: c.status,
+      createdAt: c.created_at,
+      // A challenge has no team of this player's to name. A team event does
+      // have teams, but entrants are not team_members -- an organiser puts
+      // them on one, and the event's own screen says which.
+      teamId: null,
+      teamName: null,
+      joined: c.joined === true,
+    }));
+  } catch {
+    return [];
+  }
+}
 
 /**
  * Every game this player is rostered into, newest first.
@@ -55,8 +89,17 @@ export async function listMyGames(uid) {
     });
   }
 
-  return [...byGame.values()].sort(
-    (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+  const rostered = [...byGame.values()];
+  const challenges = (await listMyChallenges()).filter((c) => !byGame.has(c.gameId));
+
+  // Rostered games first, then challenges this player entered, then the ones
+  // merely open. The order is not cosmetic: App picks `mine[0]` for anyone
+  // with no stored choice, so sorting the whole list by date alone would move
+  // every player off the bingo they are playing the moment an organiser
+  // creates next week's event.
+  const rank = (g) => (g.teamId ? 0 : g.joined ? 1 : 2);
+  return [...rostered, ...challenges].sort(
+    (a, b) => rank(a) - rank(b) || new Date(b.createdAt) - new Date(a.createdAt)
   );
 }
 

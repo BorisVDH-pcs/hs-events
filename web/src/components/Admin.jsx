@@ -14,6 +14,9 @@ import {
   listBoardJumps, adminSetSnakes, adminSetTerritoryHomes, snakesStandings, adminSnakesEndGame,
   territoryStandings,
   adminListTileSubmissions, adminAcceptTileSubmission, adminRefuseTileSubmission,
+  adminNewChallenge, adminChallengeEntries, adminChallengeSetFigure,
+  adminChallengeVerify, adminChallengeSetTeam, challengeStart, challengeList,
+  challengeStandings, womPulse,
 } from '../lib/supabase.js';
 import { LAST_TILE, isLadder } from '../lib/snakes.js';
 import { TASK_GRID, homesProblem, placePosition, teamHomes } from '../lib/territory.js';
@@ -22,6 +25,9 @@ import TerritoryAdminTrack from './territory/TerritoryAdminTrack.jsx';
 import SnakesJumpEditor from './snakes/SnakesJumpEditor.jsx';
 import useJumpDraft from './snakes/useJumpDraft.js';
 import SnakesAdminTrack from './snakes/SnakesAdminTrack.jsx';
+import ChallengeNewGame from './challenge/ChallengeNewGame.jsx';
+import ChallengeEntries from './challenge/ChallengeEntries.jsx';
+import ChallengeLadder from './challenge/ChallengeLadder.jsx';
 import BoardBuilder from './BoardBuilder.jsx';
 import AdminOverview from './AdminOverview.jsx';
 import BingoOverview from './bingo/BingoOverview.jsx';
@@ -82,9 +88,21 @@ const TERRITORY_STEP_HINT = {
   finished:  'This conquest is over.',
 };
 
+// A challenge has no board to fill and no fleet to wait on, so the only thing
+// between creating one and starting it is people signing up -- which is theirs
+// to do, not the organiser's.
+const CHALLENGE_STEP_HINT = {
+  setup:     'Sign-ups are open. Share it, wait for entrants, then start — starting closes sign-ups '
+           + 'and creates the Wise Old Man competition.',
+  placement: 'Sign-ups are open. Start the event when enough people are in.',
+  active:    'The event is running. Check the numbers and the screenshots behind them in Track.',
+  finished:  'This event is over.',
+};
+
 const isBingoGame = (g) => g?.mode === 'bingo';
 const isSnakesGame = (g) => g?.mode === 'snakes';
 const isTerritoryGame = (g) => g?.mode === 'territory';
+const isChallengeGame = (g) => g?.mode === 'challenge';
 const NO_JUMPS = [];
 // Same reason as NO_JUMPS: a fresh [] every render would be a new
 // dependency every render, and loadGames below is keyed on it.
@@ -108,7 +126,7 @@ const worked = (result) => result !== FAILED;
  * slice costs a few queries rather than leaving a stale checklist on screen.
  * `tiles` is absent because `detail` already covers it.
  */
-const ALL_SLICES = ['games', 'detail', 'library'];
+const ALL_SLICES = ['games', 'detail', 'library', 'challenge'];
 
 /**
  * What a deal from the catalogue could not do, appended to whatever the caller
@@ -225,6 +243,16 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
   // Every game's snakes and ladders, keyed by game id. board_jumps is a small
   // public table, so one read covers the Games list and the open game alike.
   const [jumpsByGame, setJumpsByGame] = useState({});
+  // Every challenge's setup row -- solo or teams, which figures it collects,
+  // which one ranks -- keyed by game id. challenge_list is the only call that
+  // carries it (challenge_setup has RLS on and no policies at all) and it
+  // answers for every event this organiser runs, so one read covers the Games
+  // list and the open event alike.
+  const [challengeSetups, setChallengeSetups] = useState({});
+  // The open event's entrants, with their figures and the shots behind them,
+  // and the ladder those figures make.
+  const [challengeEntries, setChallengeEntries] = useState([]);
+  const [challengeLadder, setChallengeLadder] = useState([]);
   // Loaded only once the Accounts pane is opened: nobody else on the console
   // needs to know who has ever had their password reset or account deleted.
   const [passwordResets, setPasswordResets] = useState([]);
@@ -295,6 +323,15 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
     } catch {
       setJumpsByGame({});
     }
+
+    // Fails soft like the rest: a console ahead of its migration draws the
+    // Games list it drew yesterday rather than a red line above it.
+    try {
+      const list = await challengeList();
+      setChallengeSetups(Object.fromEntries((list ?? []).map((c) => [c.game_id, c])));
+    } catch {
+      setChallengeSetups({});
+    }
     // Keyed on the role: App resolves is_admin and the moderator modes in two
     // separate calls, so whichever lands second must re-filter the list.
   }, [isAdmin, modes]);
@@ -313,6 +350,29 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
     if (!id) { setTiles([]); return; }
     try {
       setTiles((await adminListTiles(id)) ?? []);
+    } catch (err) {
+      setError(err.message);
+    }
+  }, []);
+
+  /**
+   * The open event's entrants and ladder, when it is a challenge.
+   *
+   * Its own read rather than another branch of loadGameDetail: that function
+   * fetches tiles, fleets and webhooks, and a challenge has none of the first
+   * two. The mode is passed in rather than looked up so this stays keyed on
+   * nothing -- it is called from `run`, which must not be rebuilt every time
+   * the games list changes.
+   */
+  const loadChallenge = useCallback(async (id, mode) => {
+    if (!id || mode !== 'challenge') { setChallengeEntries([]); setChallengeLadder([]); return; }
+    try {
+      const [entries, rows] = await Promise.all([
+        adminChallengeEntries(id),
+        challengeStandings(id),
+      ]);
+      setChallengeEntries(entries ?? []);
+      setChallengeLadder(rows ?? []);
     } catch (err) {
       setError(err.message);
     }
@@ -392,6 +452,7 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
 
   useEffect(() => { loadGames(); }, [loadGames]);
   useEffect(() => { loadGameDetail(gameId); }, [gameId, loadGameDetail]);
+  useEffect(() => { loadChallenge(gameId, game?.mode); }, [gameId, game?.mode, loadChallenge]);
   useEffect(() => { loadLibrary(); }, [loadLibrary]);
   useEffect(() => { loadSuggestions(); }, [loadSuggestions]);
 
@@ -473,6 +534,7 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
         // 'detail' already re-reads the tiles; asking for both is a duplicate
         // query, not a second opinion.
         want.has('tiles') && !want.has('detail') ? loadTiles(gameId) : null,
+        want.has('challenge') ? loadChallenge(gameId, game?.mode) : null,
         want.has('library') ? loadLibrary() : null,
         want.has('suggestions') ? loadSuggestions() : null,
       ].filter(Boolean));
@@ -505,6 +567,8 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
   const bingo = isBingoGame(game);
   const snakesMode = isSnakesGame(game);
   const territoryMode = isTerritoryGame(game);
+  const challengeMode = isChallengeGame(game);
+  const challengeSetup = game ? challengeSetups[game.id] ?? null : null;
   // Each team's home: the one the organiser picked, or the suggestion for its
   // slot until they do. A home needs no task, like a snake's head.
   const homes = territoryMode ? teamHomes(gameTeams) : null;
@@ -604,7 +668,48 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
     ...cardChecks.filter((c) => c.key !== 'tiles'),
   ] : null;
 
-  const checks = !game ? [] : bingoChecks ?? snakesChecks ?? territoryChecks ?? [
+  // Challenge: no board, no captains, no fleets. What stands between it and
+  // starting is people signing up, which is theirs to do and not the
+  // organiser's -- so this list is shorter than every other mode's and most of
+  // it is waiting.
+  const challengeUnassigned = challengeEntries.filter((e) => !e.team_id).length;
+  const challengeChecks = game && challengeMode ? [
+    {
+      key: 'entrants', label: 'Entrants', required: true,
+      ok: challengeEntries.length > 0,
+      detail: `${challengeEntries.length} signed up`,
+      fix: 'Players sign themselves up from their own screen. Tell the clan it is open.',
+    },
+    // Only when there are teams to be on. A solo event ranks people, so there
+    // is nothing here to get wrong.
+    ...(challengeSetup?.solo === false ? [{
+      key: 'challenge_teams', label: 'Teams', required: true,
+      ok: challengeEntries.length > 0 && challengeUnassigned === 0,
+      detail: challengeUnassigned
+        ? `${challengeUnassigned} with no team`
+        : `${gameTeams.length} team${gameTeams.length === 1 ? '' : 's'}`,
+      fix: 'Put every entrant on a team in Track — the event will not start until they are all on one.',
+    }] : []),
+    {
+      // Enforced, and the one thing a challenge cannot do without: the figures
+      // are what changed between the start and this moment, so an event with
+      // no end has nothing to measure and challenge_start refuses it.
+      key: 'ends', label: 'End time', required: true,
+      ok: Boolean(game.ends_at) && Date.parse(game.ends_at) > Date.now(),
+      detail: game.ends_at ? new Date(game.ends_at).toLocaleString() : 'not set',
+      fix: game.ends_at
+        ? 'It has already passed — move it before starting.'
+        : 'Set one below.',
+    },
+    {
+      key: 'discord', label: 'Discord', required: false,
+      ok: webhooks.length > 0,
+      detail: webhooks.length ? `${webhooks.length} configured` : 'none',
+      fix: 'Optional. With none set, this event posts nothing to Discord.',
+    },
+  ] : null;
+
+  const checks = !game ? [] : challengeChecks ?? bingoChecks ?? snakesChecks ?? territoryChecks ?? [
     {
       key: 'tiles', label: 'Tiles', required: true,
       ok: tiles.length === needTiles,
@@ -666,10 +771,14 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
   const canOpenPreparation = cardLike || (checks.every((c) => c.key !== 'tiles' || c.ok)
     && teamsWithoutCaptain.length === 0 && gameTeams.length === 2 && rosterCount > 0);
   const canStart = blocking.length === 0;
-  // Battleships starts only from placement; bingo from either side of it.
-  const startableStatus = cardLike
-    ? game.status === 'setup' || game.status === 'placement'
-    : game?.status === 'placement';
+  // Battleships starts only from placement; bingo from either side of it. A
+  // challenge has no preparation at all -- starting it is what closes
+  // sign-ups -- so it starts from setup and nowhere else.
+  const startableStatus = challengeMode
+    ? game?.status === 'setup'
+    : cardLike
+      ? game.status === 'setup' || game.status === 'placement'
+      : game?.status === 'placement';
 
   const stillNeeded = (missing) => (missing.length === 0
     ? undefined
@@ -699,7 +808,12 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
   const allowedPane = isAdmin || !ADMIN_ONLY_PANES.includes(pane) ? pane : 'games';
   const activePane = !game && !GAME_INDEPENDENT_PANES.includes(allowedPane) ? 'games' : allowedPane;
 
-  const configTab = (game && configTabs[game.id]) || 'game';
+  const storedConfigTab = (game && configTabs[game.id]) || 'game';
+  // A remembered tab can name one this mode does not have — the same browser
+  // was on Board for the last game it opened.
+  const configTab = challengeMode && !CHALLENGE_CONFIG_TABS.some((t) => t.key === storedConfigTab)
+    ? 'game'
+    : storedConfigTab;
   const openConfigTab = (key) => {
     if (!game) return;
     setConfigTabs((prev) => {
@@ -791,25 +905,32 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
       <NewGame
         busy={busy}
         modeChoices={isAdmin ? MODES : MODES.filter((m) => modes.includes(m.key))}
-        onCreate={({ name, mode, teams: teamList, gridSize, startsAt, endsAt }) =>
-        run(async () => {
-          // Battleships still goes through the call it always has; the new one
-          // delegates to it anyway, and this keeps a console ahead of its
-          // migration able to create the game it could create yesterday.
-          const id = mode === 'battleships'
-            ? await adminCreateGame(name, teamList[0], teamList[1])
-            : await adminNewGame({ name, mode, teams: teamList, gridSize, endsAt });
-          if (id && startsAt) await adminSetStartTime(id, startsAt);
-          return id;
-        }, mode === 'bingo' ? 'Bingo created. Fill its card next.'
-          : mode === 'snakes' ? 'Snakes and Ladders created. Place the snakes and ladders, then fill the board.'
-            : mode === 'territory' ? 'Territory created. Its places have no tasks yet — fill them on the Board tab.'
-            : 'Game created. Add its tiles next.')
-          .then((id) => {
-            if (worked(id) && id) { setGameId(id); setPane('configure'); }
+        onCreate={(payload) => {
+          const { name, mode, teams: teamList, gridSize, startsAt, endsAt } = payload;
+          return run(async () => {
+            // A challenge has its own creating call: admin_new_game refuses
+            // the mode and says so, because it has no room for a metric, a
+            // label, a unit or a ranking.
+            if (mode === 'challenge') return adminNewChallenge(payload);
+            // Battleships still goes through the call it always has; the new one
+            // delegates to it anyway, and this keeps a console ahead of its
+            // migration able to create the game it could create yesterday.
+            const id = mode === 'battleships'
+              ? await adminCreateGame(name, teamList[0], teamList[1])
+              : await adminNewGame({ name, mode, teams: teamList, gridSize, endsAt });
+            if (id && startsAt) await adminSetStartTime(id, startsAt);
             return id;
-          })
-      } />
+          }, mode === 'challenge' ? 'Event created — sign-ups are open. Start it when enough people are in.'
+            : mode === 'bingo' ? 'Bingo created. Fill its card next.'
+              : mode === 'snakes' ? 'Snakes and Ladders created. Place the snakes and ladders, then fill the board.'
+                : mode === 'territory' ? 'Territory created. Its places have no tasks yet — fill them on the Board tab.'
+                  : 'Game created. Add its tiles next.')
+            .then((id) => {
+              if (worked(id) && id) { setGameId(id); setPane('configure'); }
+              return id;
+            });
+        }}
+      />
 
       <section className="card">
         <h2>Games</h2>
@@ -828,6 +949,7 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
                   )}
                   {isSnakesGame(g) && <span className="pill mode-pill">Snakes &amp; Ladders</span>}
                   {isTerritoryGame(g) && <span className="pill mode-pill">Territory</span>}
+                  {isChallengeGame(g) && <span className="pill mode-pill">Challenge</span>}
                   {g.is_featured && (
                     <span className="pill" title="Unassigned players see this game's countdown">
                       ★ Featured
@@ -958,7 +1080,12 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
 
       {activePane === 'configure' && game && (
         <>
-          <ConfigTabs tab={configTab} onPick={openConfigTab} badge={configTabBadge} />
+          <ConfigTabs
+            tab={configTab}
+            onPick={openConfigTab}
+            badge={configTabBadge}
+            tabs={challengeMode ? CHALLENGE_CONFIG_TABS : CONFIG_TABS}
+          />
 
           {/* All four stay mounted and only the open one shows, so a half-typed
               tile, a snakes draft or a set of ticked players survives a look at
@@ -969,8 +1096,10 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
             <p className="muted">
               {bingo && <span className="pill mode-pill">Bingo · {game.grid_size}×{game.grid_size}</span>}
               {snakesMode && <span className="pill mode-pill">Snakes &amp; Ladders</span>}
-              {territoryMode && <span className="pill mode-pill">Territory</span>}{' '}
-              {(bingo ? BINGO_STEP_HINT : snakesMode ? SNAKES_STEP_HINT
+              {territoryMode && <span className="pill mode-pill">Territory</span>}
+              {challengeMode && <span className="pill mode-pill">Challenge</span>}{' '}
+              {(challengeMode ? CHALLENGE_STEP_HINT : bingo ? BINGO_STEP_HINT
+                : snakesMode ? SNAKES_STEP_HINT
                 : territoryMode ? TERRITORY_STEP_HINT : STEP_HINT)[game.status]}
             </p>
 
@@ -981,25 +1110,36 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
             />
 
             <div className="row">
-              <button
-                disabled={busy || game.status !== 'setup' || !canOpenPreparation}
-                title={openBlockedReason}
-                onClick={() => run(() => adminOpenPlacement(game.id), 'Preparation is open.')}
-              >
-                Open preparation
-              </button>
+              {/* A challenge has no preparation phase: there is no board to
+                  hide and no fleet to place, and starting it is the thing
+                  that closes sign-ups. */}
+              {!challengeMode && (
+                <button
+                  disabled={busy || game.status !== 'setup' || !canOpenPreparation}
+                  title={openBlockedReason}
+                  onClick={() => run(() => adminOpenPlacement(game.id), 'Preparation is open.')}
+                >
+                  Open preparation
+                </button>
+              )}
               <button
                 disabled={busy || !startableStatus || !canStart}
                 title={startBlockedReason}
-                onClick={() => run(() => startGame(game.id), bingo
-                  ? 'Bingo started — the card is open to every team.'
-                  : snakesMode
-                    ? 'The race has started — every team can roll.'
-                    : territoryMode
-                      ? 'The conquest has begun — every team marches out from home.'
-                      : 'Game started — fleets are now frozen.')}
+                onClick={() => (challengeMode
+                  // Its own call: start_game refuses a challenge and says so.
+                  // Creating the Wise Old Man competition is part of starting,
+                  // and that belongs with the rest of the mode's own rules.
+                  ? run(() => challengeStart(game.id),
+                    'The event has started — sign-ups are closed.')
+                  : run(() => startGame(game.id), bingo
+                    ? 'Bingo started — the card is open to every team.'
+                    : snakesMode
+                      ? 'The race has started — every team can roll.'
+                      : territoryMode
+                        ? 'The conquest has begun — every team marches out from home.'
+                        : 'Game started — fleets are now frozen.'))}
               >
-                Start game
+                {challengeMode ? 'Start event' : 'Start game'}
               </button>
               {/* Bingo only. The timer ends a game on its own, but an organiser
                   may need to call it early — a full card is not the only way an
@@ -1091,13 +1231,44 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
                   End game now
                 </button>
               )}
+              {/* Challenge: the same button, and deliberately the same one —
+                  admin_end_game hands a challenge to challenge_end, because
+                  ending a game is one button whatever the mode. A ladder
+                  scored off the hiscores is refused while its figures are
+                  stale, which is a refusal worth reading rather than a check
+                  to repeat here. */}
+              {challengeMode && game.status === 'active' && (
+                <button
+                  className="danger"
+                  disabled={busy}
+                  onClick={async () => {
+                    const leader = challengeLadder[0] ?? null;
+                    const message = (leader
+                      ? `${leader.name} is on top and wins unless something lands before you confirm.\n`
+                      : 'Nobody has a figure yet.\n')
+                      + 'Submissions close now for everyone.'
+                      + (challengeSetup?.ranked_by === 'wom'
+                        ? '\n\nScored off the hiscores: refresh the figures in Track first, '
+                          + 'or this will be refused.'
+                        : '');
+                    if (!(await confirm(message, {
+                      title: `End "${game.name}" now?`,
+                      confirmLabel: 'End the event',
+                      danger: true,
+                    }))) return;
+                    run(() => adminEndGame(game.id), 'The event is over.');
+                  }}
+                >
+                  End event now
+                </button>
+              )}
             </div>
 
             {/* Display-only: nothing here gates Start game, which stays
                 available the moment its own checklist is met — earlier than
                 this if you're ready, later if you're not. It just gives
                 players rostered ahead of time something to count down to. */}
-            {game.status !== 'active' && game.status !== 'finished' && (
+            {!challengeMode && game.status !== 'active' && game.status !== 'finished' && (
               <StartTimeEditor
                 game={game}
                 busy={busy}
@@ -1110,10 +1281,12 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
                 server refuses every submission, and the standings at that point
                 are the result. Editable while running, so an evening can be
                 extended — but never into the past, which would end it by stealth. */}
-            {(bingo || territoryMode) && game.status !== 'finished' && (
+            {(bingo || territoryMode || challengeMode) && game.status !== 'finished' && (
               <TimeEditor
                 label="End time"
-                hint="(submissions close at this moment)"
+                hint={challengeMode
+                  ? '(the figures are what changed by this moment)'
+                  : '(submissions close at this moment)'}
                 value={game.ends_at}
                 resetKey={game.id}
                 busy={busy}
@@ -1168,7 +1341,7 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
 
             {/* The way back out of a started game. Without it the only undo was
                 Delete, which takes the 100 tiles and the roster with it. */}
-            {!cardLike && (game.status === 'active' || game.status === 'finished') && (
+            {!cardLike && !challengeMode && (game.status === 'active' || game.status === 'finished') && (
               <div className="row" style={{ marginTop: '.8rem' }}>
                 <button
                   className="danger"
@@ -1560,8 +1733,77 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
       {/* Watching a game that is already set up. Both of these fetch on mount,
           so keeping them in their own pane also means a game you only came in to
           configure no longer loads every board and every screenshot first. */}
-      {activePane === 'track' && game && (
+      {/* Not for a challenge: "view as team" opens that team's board, and a
+          challenge has not got one. What an organiser needs to see of it is
+          the entrants and their numbers, which is the whole of the pane
+          below. */}
+      {activePane === 'track' && game && !challengeMode && (
         <TeamScreens game={game} teams={gameTeams} onViewAs={onViewAs} />
+      )}
+
+      {activePane === 'track' && game && challengeMode && (
+        <>
+          {challengeSetup?.wom_metric && (
+            <section className="card">
+              <h2>Wise Old Man</h2>
+              <p className="muted">
+                There is no scheduler on this project, so nothing fetches on its
+                own: an open player screen asks every minute, and this is the
+                same ask by hand. Reading WOM is two steps — the request goes
+                out, the reply lands a moment later — so a first press that
+                changes nothing is normal. Press it again.
+              </p>
+              <div className="row">
+                <button
+                  className="ghost"
+                  disabled={busy}
+                  onClick={() => run(
+                    () => womPulse(game.id),
+                    (handled) => (handled > 0
+                      ? 'The figures are up to date.'
+                      : 'Asked Wise Old Man. The reply lands in a moment — press again to read it.'),
+                    { refresh: ['challenge'] },
+                  )}
+                >
+                  Refresh the figures
+                </button>
+                {challengeSetup?.ranked_by === 'wom' && game.status === 'active' && (
+                  <span className="muted">
+                    This event is scored on them, so it cannot be ended while they are stale.
+                  </span>
+                )}
+              </div>
+            </section>
+          )}
+
+          <ChallengeLadder
+            standings={challengeLadder}
+            setup={challengeSetup}
+            title={game.status === 'finished' ? 'Final ladder' : 'If it ended now'}
+          />
+
+          <ChallengeEntries
+            entries={challengeEntries}
+            setup={challengeSetup}
+            teams={gameTeams}
+            busy={busy}
+            onSetFigure={(entryId, amount) => run(
+              () => adminChallengeSetFigure(entryId, amount),
+              'Number corrected — the ladder and the feed both say who changed it.',
+              { refresh: ['challenge'] },
+            )}
+            onVerify={(entryId, ok) => run(
+              () => adminChallengeVerify(entryId, ok),
+              ok ? 'Checked. The player cannot change it now.' : 'Unchecked — the player can change it again.',
+              { refresh: ['challenge'] },
+            )}
+            onSetTeam={(entryId, teamId) => run(
+              () => adminChallengeSetTeam(entryId, teamId),
+              'Team set.',
+              { refresh: ['challenge'] },
+            )}
+          />
+        </>
       )}
 
       {activePane === 'track' && game && bingo && (
@@ -1627,7 +1869,7 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
         </>
       )}
 
-      {activePane === 'track' && game && !cardLike && (
+      {activePane === 'track' && game && !cardLike && !challengeMode && (
         <>
           <section className="card">
             <h2>Boards</h2>
@@ -1728,6 +1970,11 @@ const CONFIG_TABS = [
   { key: 'discord', label: 'Discord' },
 ];
 
+// A challenge has no board and no roster -- entrants sign themselves up and an
+// organiser puts them on teams in Track -- so both of those tabs would be about
+// a board it has not got.
+const CHALLENGE_CONFIG_TABS = CONFIG_TABS.filter((t) => t.key === 'game' || t.key === 'discord');
+
 // Which tab fixes each setup check (SetupChecklist keys). Fleets are placed by
 // captains, so that one stays on Game.
 const CHECK_TAB = {
@@ -1747,10 +1994,10 @@ function writeConfigTabs(tabs) {
   try { localStorage.setItem(CONFIG_TABS_KEY, JSON.stringify(tabs)); } catch { /* private window: in-session only */ }
 }
 
-function ConfigTabs({ tab, onPick, badge }) {
+function ConfigTabs({ tab, onPick, badge, tabs = CONFIG_TABS }) {
   return (
     <div className="tabs config-tabs" role="tablist" aria-label="Configure">
-      {CONFIG_TABS.map((t) => {
+      {tabs.map((t) => {
         const n = badge(t.key);
         return (
           <button
@@ -1807,6 +2054,7 @@ const MODES = [
   { key: 'bingo', label: 'Bingo', blurb: 'Any number of teams on the same card. Every tile is open at once; most tiles completed wins.' },
   { key: 'snakes', label: 'Snakes & Ladders', blurb: 'Any number of teams racing up a 100-tile board. Finish your tile, roll, and mind the snakes; first to complete tile 100 wins.' },
   { key: 'territory', label: 'Territory', blurb: 'Risk on the OSRS map. Teams march out from home and take places by finishing their tasks, even from each other; the biggest empire when time runs out wins.' },
+  { key: 'challenge', label: 'Challenge', blurb: 'A short event with no board: Clue, Boss, Raid or Skill of the Week. Everyone signs up, Wise Old Man counts the hiscores, players declare what it cannot see, and the ladder sorts it out.' },
 ];
 
 /**
@@ -1816,6 +2064,24 @@ const MODES = [
  * because "how many teams" is exactly the question a bingo organiser is
  * answering here, and a count field followed by N names is two steps for one.
  */
+function ModePicker({ modeChoices, mode, onPick }) {
+  return (
+    <div className="mode-picker" role="radiogroup" aria-label="Game mode">
+      {modeChoices.map((m) => (
+        <label key={m.key} className={`mode-option${mode === m.key ? ' on' : ''}`}>
+          <input
+            type="radio" name="game-mode" value={m.key}
+            checked={mode === m.key}
+            onChange={() => onPick(m.key)}
+          />
+          <strong>{m.label}</strong>
+          <span className="muted">{m.blurb}</span>
+        </label>
+      ))}
+    </div>
+  );
+}
+
 function NewGame({ busy, onCreate, modeChoices = MODES }) {
   // Battleships unless the organiser cannot run it, in which case the first
   // mode they can: a radio group with nothing selected has no sensible save.
@@ -1843,22 +2109,27 @@ function NewGame({ busy, onCreate, modeChoices = MODES }) {
 
   const setTeam = (i, value) => setTeamNames((prev) => prev.map((n, j) => (j === i ? value : n)));
 
+  // A challenge asks a different set of questions entirely — what it is scored
+  // on, rather than how big the board is — so it gets its own body rather than
+  // four more branches through this one. The mode picker is the only part the
+  // two share.
+  if (mode === 'challenge') {
+    return (
+      <section className="card">
+        <h2>New event</h2>
+        <ModePicker modeChoices={modeChoices} mode={mode} onPick={setMode} />
+        <ChallengeNewGame
+          busy={busy}
+          onCreate={async (payload) => worked(await onCreate(payload))}
+        />
+      </section>
+    );
+  }
+
   return (
     <section className="card">
       <h2>New game</h2>
-      <div className="mode-picker" role="radiogroup" aria-label="Game mode">
-        {modeChoices.map((m) => (
-          <label key={m.key} className={`mode-option${mode === m.key ? ' on' : ''}`}>
-            <input
-              type="radio" name="game-mode" value={m.key}
-              checked={mode === m.key}
-              onChange={() => setMode(m.key)}
-            />
-            <strong>{m.label}</strong>
-            <span className="muted">{m.blurb}</span>
-          </label>
-        ))}
-      </div>
+      <ModePicker modeChoices={modeChoices} mode={mode} onPick={setMode} />
 
       {/* .new-game-fields: every field keeps its own width rather than
           stretching across the card, so adding a team adds one more field
