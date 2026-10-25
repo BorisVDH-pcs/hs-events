@@ -175,6 +175,20 @@ assert.equal(modeLabel(null), 'Event', 'and an unknown mode says something rathe
     'the wrapper leaves the layout entirely when there is no rail');
   assert.ok(css.includes('.side-nav { display: none; }'), 'and the rail is hidden by default');
 
+  // The grid is applied ONLY when a rail is actually in the wrapper. Without
+  // the `:has`, the organiser's console -- which renders no rail, having
+  // .admin-nav of its own -- put its single child in the first column, the
+  // 210px one meant for the rail, and the whole console was squeezed into it.
+  assert.ok(css.includes('.app-split:has(> .side-nav) {'),
+    'the two-column grid is conditional on a rail being there');
+  // And it is a grid ONLY inside that rule: an unconditional
+  // `.app-split { display: grid }` is what caused the squeeze.
+  assert.ok(
+    css.indexOf('display: grid', css.indexOf('.app-split:has(> .side-nav) {'))
+      - css.indexOf('.app-split:has(> .side-nav) {') < 80,
+    'the grid sits inside the :has rule, not on .app-split itself'
+  );
+
   const RAIL_BREAKPOINT = 1400;
   assert.ok(css.includes(`@media (min-width: ${RAIL_BREAKPOINT}px) {`),
     `the rail appears at ${RAIL_BREAKPOINT}px`);

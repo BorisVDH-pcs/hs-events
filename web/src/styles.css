@@ -5202,7 +5202,14 @@ label.choice:has(input:disabled) { cursor: default; opacity: .5; }
 .side-nav { display: none; }
 
 @media (min-width: 1400px) {
-  .app-split {
+  /* ONLY WHEN THERE IS ACTUALLY A RAIL. `.app-split` wraps the screen on
+     every view, but SideNav is not rendered on the organiser's console --
+     that has .admin-nav of its own. Without `:has`, the console's single
+     child landed in the FIRST column of this grid, which is the 210px one
+     the rail was meant to sit in, and the whole console was squeezed into
+     it with the page empty beside it. Auto-placement does not know a column
+     was reserved for something that was never rendered. */
+  .app-split:has(> .side-nav) {
     display: grid;
     /* minmax(0, 1fr) and not 1fr: a grid item's automatic minimum is its
        content, and the board grids inside would otherwise stretch this

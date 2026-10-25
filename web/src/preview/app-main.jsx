@@ -19,6 +19,7 @@ import { StrictMode, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from '../App.jsx';
 import { preview, previewGames } from './stub-supabase.js';
+import { tableFixtures } from './stub-admin.js';
 import '../styles.css';
 
 const SESSION = {
@@ -38,7 +39,14 @@ previewGames.rows = [
 
 function Harness() {
   const [signedIn, setSignedIn] = useState(true);
+  // An organiser lands on the console, which is the screen with NO rail --
+  // and therefore the one that breaks differently from every other. It was
+  // squeezed into the rail's 210px column for a day because nothing here
+  // could render it.
+  const [admin, setAdmin] = useState(true);
+
   preview.session = signedIn ? SESSION : null;
+  tableFixtures.profiles = [{ id: SESSION.user.id, is_admin: admin }];
 
   return (
     <>
@@ -46,8 +54,11 @@ function Harness() {
         <button className="link" onClick={() => setSignedIn((v) => !v)}>
           {signedIn ? 'Signed in — sign out' : 'Signed out — sign in'}
         </button>
+        <button className="link" onClick={() => setAdmin((v) => !v)}>
+          {admin ? 'As organiser' : 'As player'}
+        </button>
       </div>
-      <App key={String(signedIn)} />
+      <App key={`${signedIn}-${admin}`} />
     </>
   );
 }
