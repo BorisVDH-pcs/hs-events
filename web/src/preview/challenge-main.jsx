@@ -24,7 +24,7 @@ const GAME_ID = 'c1';
 // number the player types, and both sets of shots behind it.
 previewGames.rows = [{
   game_id: GAME_ID,
-  solo: true,
+  solo: false,
   ranked_by: 'declared',
   wom_metric: 'zulrah',
   declared_label: 'Loot value',
@@ -42,7 +42,7 @@ accountFixtures.push(
 // looks like for most of the week it is open.
 challengeFixtures.entry = {
   id: 'e1',
-  team_id: null,
+  team_id: 't1',
   rsn: 'Zezima',
   declared: 2500,
   verified: false,
@@ -71,7 +71,7 @@ createRoot(document.getElementById('root')).render(
     <main className="app">
       <ChallengeGame
         game={GAME}
-        teams={[]}
+        teams={[{ id: 't1', name: 'The Crimson Tide' }]}
         events={[]}
         profileId="00000000-0000-4000-8000-000000000001"
       />

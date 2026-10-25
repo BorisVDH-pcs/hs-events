@@ -315,7 +315,7 @@ export default function ChallengeGame({
                   </button>
                   <button
                     className="ghost"
-                    disabled={busy}
+                      disabled={busy}
                     onClick={() => run(() => challengeLeave(game.id), 'You are out of this one.')}
                   >
                     Take me out
@@ -339,54 +339,68 @@ export default function ChallengeGame({
         {(isActive || isFinished) && joined && (
           <section className="card challenge-mine">
             <h2>Your event</h2>
-            <p className="muted">
-              {mine.rsn ? `Playing as ${mine.rsn}` : 'No RuneScape name on this entry'}
-              {myTeam && ` · ${myTeam.name}`}
-              {mine.verified && ' · checked by an organiser'}
-              {mine.altered && !mine.verified && ' · an organiser has changed your number'}
-            </p>
+            {/* ---- Who is playing ----
+                Name, team and the organiser's verdict used to be one run-on
+                muted line with middle dots between them, which made the two
+                that matter -- checked, or quietly changed -- read as asides.
+                They are tags now, beside the name they belong to. */}
+            <section className="entry-box">
+              <header className="entry-head">
+                <h4>{mine.rsn ? `Playing as ${mine.rsn}` : 'No RuneScape name on this entry'}</h4>
+                <span className="entry-tags">
+                  {myTeam && <span className="entry-tag">{myTeam.name}</span>}
+                  {mine.verified && <span className="entry-tag ok">Checked</span>}
+                  {mine.altered && !mine.verified && (
+                    <span className="entry-tag warn">Number changed by an organiser</span>
+                  )}
+                </span>
+              </header>
 
-            {/* Being on this ladder and being on WOM's competition are two
-                different things. The one unacceptable outcome is a player
-                finding out at the end of the week that they were never the
-                same, so it is said here, in red, while there is time to fix
-                it. Null means there is no competition to be missing from. */}
-            {/* The worse of the two, and the one that looks fine: WOM takes any
-                name of the right shape and invents a player for it, so a typo
-                is accepted and then scores nothing for a week. This is what
-                says so. */}
-            {mine.wom_found === false && (
-              <p className="error">
-                Wise Old Man has <strong>{mine.rsn}</strong> on the competition,
-                but has never found that name on the hiscores — so it is being
-                counted as zero. Either it is spelled differently in game, or
-                the account is too new to be ranked. Correct it below and it
-                will be swapped over.
-              </p>
-            )}
+              {/* Being on this ladder and being on WOM's competition are two
+                  different things. The one unacceptable outcome is a player
+                  finding out at the end of the week that they were never the
+                  same, so it is said here, in red, while there is time to fix
+                  it. The worse of the two is the one that looks fine: WOM
+                  takes any name of the right shape and invents a player for
+                  it, so a typo is accepted and then scores nothing for a
+                  week. */}
+              {mine.wom_found === false && (
+                <p className="error">
+                  Wise Old Man has <strong>{mine.rsn}</strong> on the competition,
+                  but has never found that name on the hiscores — so it is being
+                  counted as zero. Either it is spelled differently in game, or
+                  the account is too new to be ranked. Correct it below and it
+                  will be swapped over.
+                </p>
+              )}
 
-            {mine.wom_added === false && (
-              <p className="error">
-                Wise Old Man has not taken {mine.rsn} yet, so nothing is being
-                counted for you. It is tried again every minute.
-              </p>
-            )}
+              {mine.wom_added === false && (
+                <p className="error">
+                  Wise Old Man has not taken {mine.rsn} yet, so nothing is being
+                  counted for you. It is tried again every minute.
+                </p>
+              )}
 
-            {/* A name can be corrected for as long as the event runs, because
-                a wrong one is the usual reason WOM has not taken it, and
-                nobody should have to sit out a week over a typo. */}
-            {isActive && setup?.wom_metric && (
-              <>
-                <ChallengeRsnField
-                  accounts={accounts}
-                  value={rsn}
-                  onChange={setRsn}
-                  disabled={busy}
-                  freeform={freeform}
-                  onFreeform={setFreeform}
-                  onOpenAccounts={onOpenAccounts}
-                />
-                <div className="row">
+              {/* A name can be corrected for as long as the event runs, because
+                  a wrong one is the usual reason WOM has not taken it, and
+                  nobody should have to sit out a week over a typo. */}
+              {isActive && setup?.wom_metric && (
+                <div className="entry-name">
+                  {/* Wrapped, because ChallengeRsnField returns a fragment --
+                      its select and its "Not the right name?" hint are two
+                      siblings, and a flex row here laid them out side by side
+                      with the hint stranded between the two controls. */}
+                  <div className="entry-name-field">
+                    <ChallengeRsnField
+                      accounts={accounts}
+                      value={rsn}
+                      onChange={setRsn}
+                    disabled={busy}
+                      freeform={freeform}
+                      onFreeform={setFreeform}
+                      onOpenAccounts={onOpenAccounts}
+                    />
+                  </div>
                   <button
                     className="ghost"
                     disabled={busy || !rsn.trim() || rsn.trim() === mine.rsn}
@@ -395,70 +409,83 @@ export default function ChallengeGame({
                     Save my name
                   </button>
                 </div>
-              </>
-            )}
+              )}
 
-            {/* In an all-accounts event the entry's one name is not the whole
-                story, so the accounts actually behind the figure are listed
-                with what WOM made of each. The partly-broken case is the point:
-                a player with three accounts and one typo is still scoring, and
-                a single banner over the lot of them would say nothing is
-                wrong. */}
-            {setup?.all_accounts && entryAccounts.length > 0 && (
-              <>
-                <p className="muted">
-                  Counting {entryAccounts.length} account{entryAccounts.length === 1 ? '' : 's'}:
-                </p>
-                <ul className="rsn-list">
-                  {entryAccounts.map((a) => (
-                    <li key={a.rsn} className="rsn-row">
-                      <div className="rsn-name">
-                        <strong>{a.rsn}</strong>
-                        <span className="muted"> · {womLabel(a.wom_gained)}</span>
-                      </div>
-                      {a.wom_found === false && (
-                        <p className="error">
-                          Never found on the hiscores — this one is counting as zero.
-                        </p>
-                      )}
-                      {!a.wom_added && (
-                        <p className="error">
-                          Wise Old Man has not taken this name yet. It is tried again every minute.
-                        </p>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
+              {/* In an all-accounts event the entry's one name is not the whole
+                  story, so the accounts actually behind the figure are listed
+                  with what WOM made of each. The partly-broken case is the
+                  point: a player with three accounts and one typo is still
+                  scoring, and a single banner over the lot of them would say
+                  nothing is wrong. */}
+              {setup?.all_accounts && entryAccounts.length > 0 && (
+                <>
+                  <p className="muted entry-counting">
+                    Counting {entryAccounts.length} account{entryAccounts.length === 1 ? '' : 's'}:
+                  </p>
+                  <ul className="rsn-list">
+                    {entryAccounts.map((a) => (
+                      <li key={a.rsn} className="rsn-row">
+                        <div className="rsn-name">
+                          <strong>{a.rsn}</strong>
+                          <span className="muted"> · {womLabel(a.wom_gained)}</span>
+                        </div>
+                        {a.wom_found === false && (
+                          <p className="error">
+                            Never found on the hiscores — this one is counting as zero.
+                          </p>
+                        )}
+                        {!a.wom_added && (
+                          <p className="error">
+                            Wise Old Man has not taken this name yet. It is tried again every minute.
+                          </p>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </section>
 
-            {setup?.wom_metric && (
-              <p className="challenge-figure">
-                <span className="muted">{metricLabel(setup.wom_metric)}: </span>
-                <strong>{womLabel(mine.wom_gained)}</strong>
-                <span className="muted">
-                  {mine.wom_gained === null || mine.wom_gained === undefined
-                    ? ' — nothing read off the hiscores yet'
-                    : ' since the start'}
-                </span>
-              </p>
-            )}
-
-            {setup?.declared_label && (
-              <>
-                {/* The number, in a box of its own. It used to be a
-                    full-card-width input for a three-character value, with
-                    its button and its current reading colliding underneath. */}
-                <section className="declare-box">
-                  <header className="declare-head">
-                    <h4>{setup.declared_label}</h4>
-                    {mine.declared !== null && mine.declared !== undefined && (
-                      <span className="declare-now">
-                        {figureLabel(mine.declared, unit)}
-                        {mine.altered && <span className="muted"> · set by an organiser</span>}
-                      </span>
+            {/* ---- The two figures ----
+                An event can carry a number read off the hiscores, a number the
+                player sends in, or both -- and where it carries both, only one
+                of them decides the ladder. That used to be said once, in the
+                header, as "the other figure is shown, but does not decide it",
+                leaving you to work out which was which. Side by side with the
+                deciding one ringed, it does not need saying twice. */}
+            <div className="figure-boxes">
+              {setup?.wom_metric && (
+                <section className={`figure-box${setup.ranked_by === 'wom' ? ' decides' : ''}`}>
+                  <header className="figure-head">
+                    <h4>{metricLabel(setup.wom_metric)}</h4>
+                    {setup.ranked_by === 'wom' && (
+                      <span className="figure-decides">decides the ladder</span>
                     )}
                   </header>
+                  <p className="figure-value">{womLabel(mine.wom_gained)}</p>
+                  <p className="muted figure-note">
+                    {mine.wom_gained === null || mine.wom_gained === undefined
+                      ? 'Nothing read off the hiscores yet.'
+                      : 'Counted off the hiscores since the start — you send nothing in for this.'}
+                  </p>
+                </section>
+              )}
+
+              {setup?.declared_label && (
+                <section className={`figure-box${setup.ranked_by !== 'wom' ? ' decides' : ''}`}>
+                  <header className="figure-head">
+                    <h4>{setup.declared_label}</h4>
+                    {setup.ranked_by !== 'wom' && (
+                      <span className="figure-decides">decides the ladder</span>
+                    )}
+                  </header>
+
+                  <p className="figure-value">
+                    {mine.declared === null || mine.declared === undefined
+                      ? <span className="muted">Nothing sent in yet</span>
+                      : figureLabel(mine.declared, unit)}
+                    {mine.altered && <span className="muted"> · set by an organiser</span>}
+                  </p>
 
                   <div className="declare-field">
                     <label>
@@ -492,13 +519,17 @@ export default function ChallengeGame({
                     </p>
                   )}
                   {mine.verified && (
-                    <p className="muted">
+                    <p className="muted figure-note">
                       An organiser has checked this number, so it is theirs to change
                       now. Ask them.
                     </p>
                   )}
                 </section>
+              )}
+            </div>
 
+            {setup?.declared_label && (
+              <>
                 <h3 className="shots-head">The shots behind it</h3>
                 <p className="muted shots-intro">
                   The site cannot read a screenshot, so these are what make the
