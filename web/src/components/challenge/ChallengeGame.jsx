@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   challengeList, challengeMine, challengeStandings, challengeWomCompetition,
-  challengeJoin, challengeLeave, challengeDeclare, challengeAddEvidence, womPulse,
+  challengeJoin, challengeLeave, challengeDeclare, womPulse,
   myAccounts, challengeMyAccounts,
 } from '../../lib/supabase.js';
+import { signedUrls, uploadChallengeShot } from '../../lib/evidence.js';
 import {
   MAX_EVIDENCE, WOM_PULSE_MS,
   figureLabel, figureToStored, metricLabel, rankedLabel, storedToInput,
@@ -109,6 +110,31 @@ export default function ChallengeGame({
   }, [mine?.rsn, primaryRsn, accounts]);
   useEffect(() => { setFigure(storedToInput(mine?.declared, unit)); }, [mine?.declared, unit]);
 
+  /*
+   * Signed links for the shots that are files.
+   *
+   * The bucket is private deliberately, so there is no address to build -- and
+   * these expire, which is the point: one pasted into the wrong channel stops
+   * working rather than showing somebody's bank for the rest of the event.
+   *
+   * Rows made before uploads existed carry a plain `url` instead and are left
+   * alone, so an event that is halfway through draws both kinds without
+   * knowing which it has.
+   */
+  const [shotUrls, setShotUrls] = useState({});
+  const shotPaths = (mine?.evidence ?? [])
+    .map((e) => e.storage_path).filter(Boolean).join('|');
+  useEffect(() => {
+    if (!shotPaths) { setShotUrls({}); return undefined; }
+    let live = true;
+    signedUrls(shotPaths.split('|'))
+      .then((map) => { if (live) setShotUrls(map); })
+      // A shot that will not sign is one broken picture, not a broken page:
+      // ShotBox says so in place of the link and the rest of the screen stays.
+      .catch(() => { if (live) setShotUrls({}); });
+    return () => { live = false; };
+  }, [shotPaths]);
+
   /**
    * Wise Old Man, on a timer nobody set.
    *
@@ -161,8 +187,10 @@ export default function ChallengeGame({
   const winner = isFinished ? standings.find((s) => s.place === 1) : null;
   const typed = figureToStored(figure, unit);
   const unchanged = typed !== null && typed === (mine?.declared ?? null);
-  const addShot = (phase, url, note) => run(
-    () => challengeAddEvidence(game.id, phase, url, note),
+  const addShot = (phase, file, note) => run(
+    () => uploadChallengeShot({
+      gameId: game.id, entryId: mine?.entry_id, phase, file, note,
+    }),
     phase === 'start' ? 'Start shot added.' : 'Finish shot added.',
   );
 
@@ -534,8 +562,8 @@ export default function ChallengeGame({
                 <p className="muted shots-intro">
                   The site cannot read a screenshot, so these are what make the
                   number checkable. One from before you started and one from
-                  when you finished — paste the link to an uploaded image,
-                  anywhere an organiser can open it.
+                  when you finished — drag it in, paste it, or pick it off your
+                  machine.
                 </p>
 
                 <div className="shot-boxes">
@@ -544,6 +572,7 @@ export default function ChallengeGame({
                     title="Before you started"
                     hint="Whatever the number is counted from — the bank, the log, the collection."
                     shots={startShots}
+                    urls={shotUrls}
                     max={MAX_EVIDENCE}
                     busy={busy}
                     closed={isFinished}
@@ -554,6 +583,7 @@ export default function ChallengeGame({
                     title="When you finished"
                     hint="The same thing at the end. The difference between the two is what gets checked."
                     shots={finishShots}
+                    urls={shotUrls}
                     max={MAX_EVIDENCE}
                     busy={busy}
                     closed={isFinished}
@@ -583,12 +613,12 @@ export default function ChallengeGame({
 /**
  * One phase's shot: the one that counts, and the way to replace it.
  *
- * WHY TWO OF THESE, rather than the one form with a Start/Finish dropdown
- * that this replaces. The dropdown existed only because a single form served
- * two lists, so adding a finish shot meant setting a mode, typing a link, and
- * then working out which of two lists further up the page had grown by one. A
- * box per phase deletes the control and the hunt together: what you add turns
- * up in the box you added it to.
+ * WHY TWO OF THESE, rather than the one form with a Start/Finish dropdown that
+ * this replaced. The dropdown existed only because a single form served two
+ * lists, so adding a finish shot meant setting a mode, typing a link, and then
+ * working out which of two lists further up the page had grown by one. A box
+ * per phase deletes the control and the hunt together: what you add turns up
+ * in the box you added it to.
  *
  * WHY ONE SHOT, where this drew five numbered slots. The cap was never an ask
  * for five -- challenge_max_evidence() allows a handful so that a picture
@@ -600,9 +630,15 @@ export default function ChallengeGame({
  * Replace SUPERSEDES; it does not delete. Evidence is immutable for players on
  * purpose -- 0021 grants no delete policy and says why -- so an earlier try
  * stays where an organiser can still open it, folded away rather than gone.
+ *
+ * STAGED, THEN SENT. A dropped file sits in the box until a second press,
+ * which is the only moment a player can change their mind: once it is up it is
+ * up. It also means a picture dropped on the wrong box is not permanently
+ * filed against the wrong half of the event. Same rule, same reason, as the
+ * tile uploader.
  */
-function ShotBox({ phase, title, hint, shots, max, busy, closed, onAdd }) {
-  const [url, setUrl] = useState('');
+function ShotBox({ phase, title, hint, shots, urls, max, busy, closed, onAdd }) {
+  const [file, setFile] = useState(null);
   const [note, setNote] = useState('');
   const [replacing, setReplacing] = useState(false);
 
@@ -614,6 +650,8 @@ function ShotBox({ phase, title, hint, shots, max, busy, closed, onAdd }) {
   const full = shots.length >= max;
   const asking = !closed && !full && (!current || replacing);
 
+  const clear = () => { setFile(null); setNote(''); setReplacing(false); };
+
   return (
     <section className="shot-box">
       <header className="shot-box-head">
@@ -623,7 +661,7 @@ function ShotBox({ phase, title, hint, shots, max, busy, closed, onAdd }) {
 
       {current ? (
         <p className="shot-current">
-          <a href={current.url} target="_blank" rel="noreferrer">The picture</a>
+          <ShotLink shot={current} urls={urls} label="The picture" />
           {current.note && <span className="muted"> — {current.note}</span>}
         </p>
       ) : !asking && (
@@ -641,7 +679,7 @@ function ShotBox({ phase, title, hint, shots, max, busy, closed, onAdd }) {
           <ol className="shot-list">
             {earlier.map((s, i) => (
               <li key={s.id}>
-                <a href={s.url} target="_blank" rel="noreferrer">Try {i + 1}</a>
+                <ShotLink shot={s} urls={urls} label={`Try ${i + 1}`} />
                 {s.note && <span className="muted"> — {s.note}</span>}
               </li>
             ))}
@@ -651,15 +689,7 @@ function ShotBox({ phase, title, hint, shots, max, busy, closed, onAdd }) {
 
       {asking && (
         <div className="shot-add">
-          <label>
-            <span>Link to the picture</span>
-            <input
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://…"
-              disabled={busy}
-            />
-          </label>
+          <ShotDrop file={file} onFile={setFile} disabled={busy} phase={phase} />
           <label>
             <span>Note <span className="muted">(optional)</span></span>
             <input
@@ -671,16 +701,16 @@ function ShotBox({ phase, title, hint, shots, max, busy, closed, onAdd }) {
           </label>
           <div className="shot-add-buttons">
             <button
-              disabled={busy || !url.trim()}
+              disabled={busy || !file}
               onClick={async () => {
-                const ok = await onAdd(phase, url.trim(), note.trim() || null);
-                if (ok) { setUrl(''); setNote(''); setReplacing(false); }
+                const ok = await onAdd(phase, file, note.trim() || null);
+                if (ok) clear();
               }}
             >
               {current ? 'Replace it' : 'Add it'}
             </button>
             {current && (
-              <button className="ghost" disabled={busy} onClick={() => setReplacing(false)}>
+              <button className="ghost" disabled={busy} onClick={clear}>
                 Keep the one I have
               </button>
             )}
@@ -696,5 +726,104 @@ function ShotBox({ phase, title, hint, shots, max, busy, closed, onAdd }) {
         </button>
       ))}
     </section>
+  );
+}
+
+/**
+ * A link to one shot, whichever kind it is.
+ *
+ * A file has to be signed first and the signing is a round trip, so there is a
+ * moment where the row is there and the address is not. Saying so beats a dead
+ * link, and beats hiding a shot the player knows they sent.
+ */
+function ShotLink({ shot, urls, label }) {
+  const href = shot.storage_path ? urls[shot.storage_path] : shot.url;
+  if (!href) return <span className="muted">{label} — still loading</span>;
+  return <a href={href} target="_blank" rel="noreferrer">{label}</a>;
+}
+
+/**
+ * Where a screenshot goes in. Drag it, paste it, or pick it.
+ *
+ * All three, because people hand a screenshot over three ways and the one they
+ * reach for is not ours to choose. Paste is the one that matters most: a fresh
+ * screenshot is already on the clipboard, and asking someone to save it to
+ * disk first is asking them not to bother.
+ *
+ * The paste listener is on this element rather than the window, so the two
+ * boxes on the screen cannot both claim the same Ctrl+V. It is focusable for
+ * that reason -- and a zone you have to click before pasting is also a zone
+ * that tells you, by its highlight, which half of the event you are about to
+ * paste into.
+ */
+function ShotDrop({ file, onFile, disabled, phase }) {
+  const [over, setOver] = useState(false);
+  const [preview, setPreview] = useState(null);
+  const input = useRef(null);
+
+  // Revoked on the way out: an object URL holds the whole image in memory
+  // until it is, and a player who tries four screenshots would hold all four.
+  useEffect(() => {
+    if (!file) { setPreview(null); return undefined; }
+    const url = URL.createObjectURL(file);
+    setPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+
+  const take = (list) => {
+    const picked = [...(list ?? [])].find((f) => f && f.type.startsWith('image/'));
+    if (picked) onFile(picked);
+  };
+
+  return (
+    <div className="shot-drop-field">
+      <span className="shot-drop-label">The picture</span>
+      <div
+        className={`shot-drop${over ? ' over' : ''}${file ? ' has' : ''}`}
+        tabIndex={disabled ? -1 : 0}
+        role="button"
+        aria-label={`Add the ${phase} screenshot`}
+        aria-disabled={disabled || undefined}
+        onClick={() => { if (!disabled) input.current?.click(); }}
+        onKeyDown={(e) => {
+          if (disabled) return;
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); input.current?.click(); }
+        }}
+        onPaste={(e) => {
+          if (disabled) return;
+          const files = [...(e.clipboardData?.files ?? [])];
+          if (files.length) { e.preventDefault(); take(files); }
+        }}
+        onDragOver={(e) => { if (!disabled) { e.preventDefault(); setOver(true); } }}
+        onDragLeave={() => setOver(false)}
+        onDrop={(e) => {
+          if (disabled) return;
+          e.preventDefault();
+          setOver(false);
+          take(e.dataTransfer?.files);
+        }}
+      >
+        {preview ? (
+          <>
+            <img className="shot-drop-shot" src={preview} alt="" />
+            <span className="shot-drop-say">
+              {file.name || 'That one'} — click to pick another
+            </span>
+          </>
+        ) : (
+          <span className="shot-drop-say">
+            Drop a screenshot here, paste one, or <u>pick a file</u>
+          </span>
+        )}
+        <input
+          ref={input}
+          type="file"
+          accept="image/*"
+          className="shot-drop-input"
+          disabled={disabled}
+          onChange={(e) => { take(e.target.files); e.target.value = ''; }}
+        />
+      </div>
+    </div>
   );
 }

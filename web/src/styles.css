@@ -5826,6 +5826,47 @@ body.dragging-jump * { cursor: grabbing !important; user-select: none; }
 }
 
 .shot-add-buttons { display: flex; gap: var(--s-2); flex-wrap: wrap; }
+
+/* Where a screenshot goes in.
+   Deliberately the same creature as `.evidence-drop` further up -- dashed
+   until you touch it, solid and ringed when it has focus, gold while a file is
+   over it -- because a player who has handed in tile proof has already learnt
+   what this looks like, and a second vocabulary for the same act would be one
+   to learn for nothing. It is roomier only because this box holds one picture
+   rather than a row of them. */
+.shot-drop-field { display: grid; gap: var(--s-1); font-size: var(--t-footnote); }
+.shot-drop-label { color: var(--label-2); }
+.shot-drop {
+  display: grid; gap: var(--s-2); justify-items: center;
+  padding: var(--s-3) var(--s-2);
+  border: 1px dashed var(--line-lit);
+  border-radius: var(--r-md);
+  text-align: center; line-height: 1.35;
+  color: var(--label-2); cursor: pointer;
+  transition: border-color .2s var(--ease-out), color .2s var(--ease-out),
+              background .2s var(--ease-out), transform .12s var(--ease-out);
+}
+.shot-drop:active { transform: scale(.99); }
+.shot-drop:hover { color: var(--text); border-color: var(--gold-deep); background: var(--fill-3); }
+.shot-drop:focus-visible {
+  outline: none;
+  color: var(--text); border-style: solid; border-color: var(--gold-deep);
+  background: var(--fill-3); box-shadow: var(--glow-sm);
+}
+.shot-drop.over {
+  border-color: transparent; color: var(--gold-lit);
+  background: rgba(242, 193, 78, .12); box-shadow: var(--glow-md);
+}
+/* Something is in it: no longer an invitation, so it stops dashing. */
+.shot-drop.has { border-style: solid; border-color: var(--hairline); }
+.shot-drop[aria-disabled="true"] { cursor: default; opacity: .5; }
+.shot-drop-say { font-size: var(--t-caption); }
+/* Capped, so a tall screenshot cannot push the buttons off the bottom. */
+.shot-drop-shot {
+  max-width: 100%; max-height: 9rem;
+  border-radius: var(--r-sm); object-fit: contain;
+}
+.shot-drop-input { display: none; }
 .shot-add button { justify-self: start; }
 
 /* The shot that counts, and the tries before it folded away under it. */

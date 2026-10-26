@@ -154,6 +154,48 @@ export async function uploadEvidence({ gameId, teamId, claimId, file, optionId =
 }
 
 /**
+ * A challenge screenshot: the file first, then the row, same as above.
+ *
+ * ITS OWN FOLDER, not the one a tile uses. The bucket's original policies gate
+ * on the team segment of the path, and a solo challenge has no team -- which is
+ * why this was a pasted link until 20261026140000 gave challenge shots a
+ * namespace of their own, keyed on the entry:
+ *
+ *     challenge/{game}/{entry}/{uuid}.webp
+ *
+ * challenge_add_shot rebuilds that same prefix server-side and refuses a path
+ * that does not start with it, so a tampered path buys nothing.
+ *
+ * No imgbb mirror. That exists so a Discord message can embed a tile's proof;
+ * a challenge posts no such message, and a copy on someone else's host is not
+ * worth making for nobody to read.
+ */
+export async function uploadChallengeShot({ gameId, entryId, phase, file, note = null }) {
+  assertWritable();
+  if (!file.type.startsWith('image/')) {
+    throw new Error(`${file.name || 'That file'} is not an image.`);
+  }
+
+  const blob = await downscale(file);
+  if (!blob) throw new Error('Could not read that image.');
+
+  const path = `challenge/${gameId}/${entryId}/${crypto.randomUUID()}.${extFor(blob.type)}`;
+  const { error: upErr } = await supabase.storage
+    .from(BUCKET)
+    .upload(path, blob, { contentType: blob.type, upsert: false });
+  if (upErr) throw new Error(upErr.message);
+
+  const { data, error } = await supabase.rpc('challenge_add_shot', {
+    p_game_id: gameId,
+    p_phase: phase,
+    p_storage_path: path,
+    p_note: note,
+  });
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+/**
  * Snakes: hand in a pet screenshot for one rollback instead of the tile
  * (20261005130000). Same folder as the tile's proof, so the bucket's insert
  * policy and the path check work unchanged -- but snakes_trade_pet keeps it out

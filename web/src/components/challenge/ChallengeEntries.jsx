@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { figureLabel, figureToStored, metricLabel, storedToInput, womLabel } from '../../lib/challenge.js';
+import { signedUrls } from '../../lib/evidence.js';
 
 /**
  * The organiser's review list.
@@ -21,6 +22,29 @@ export default function ChallengeEntries({
   const hasWom = Boolean(setup?.wom_metric);
   const hasDeclared = Boolean(setup?.declared_label);
   const solo = setup?.solo !== false;
+
+  /*
+   * One signing pass for the whole list, not one per row.
+   *
+   * The bucket is private, so a stored shot has no address until it is signed,
+   * and signing is a round trip -- forty entrants each asking for their own
+   * would be forty. Rows made while pasting a link was the only way in carry a
+   * plain `url` instead and need none of this.
+   */
+  const [urls, setUrls] = useState({});
+  const paths = entries
+    .flatMap((e) => e.evidence ?? [])
+    .map((s) => s.storage_path).filter(Boolean).join('|');
+  useEffect(() => {
+    if (!paths) { setUrls({}); return undefined; }
+    let live = true;
+    signedUrls(paths.split('|'))
+      .then((map) => { if (live) setUrls(map); })
+      // One picture that will not sign must not take the review list with it:
+      // ShotLinks says so where the link would have been.
+      .catch(() => { if (live) setUrls({}); });
+    return () => { live = false; };
+  }, [paths]);
 
   return (
     <section className="card challenge-entries">
@@ -45,6 +69,7 @@ export default function ChallengeEntries({
                 hasWom={hasWom}
                 hasDeclared={hasDeclared}
                 solo={solo}
+                urls={urls}
                 onSetFigure={onSetFigure}
                 onVerify={onVerify}
                 onSetTeam={onSetTeam}
@@ -57,7 +82,7 @@ export default function ChallengeEntries({
   );
 }
 
-function EntryRow({ entry, setup, teams, busy, hasWom, hasDeclared, solo, onSetFigure, onVerify, onSetTeam }) {
+function EntryRow({ entry, setup, teams, busy, hasWom, hasDeclared, solo, urls, onSetFigure, onVerify, onSetTeam }) {
   const unit = setup?.declared_unit ?? null;
   const [figure, setFigure] = useState(() => storedToInput(entry.declared, unit));
 
@@ -111,8 +136,8 @@ function EntryRow({ entry, setup, teams, busy, hasWom, hasDeclared, solo, onSetF
       {hasDeclared && (
         <>
           <div className="challenge-entry-shots">
-            <ShotLinks label="Start" shots={startShots} />
-            <ShotLinks label="Finish" shots={finishShots} />
+            <ShotLinks label="Start" shots={startShots} urls={urls} />
+            <ShotLinks label="Finish" shots={finishShots} urls={urls} />
           </div>
 
           <div className="row challenge-entry-actions">
@@ -159,7 +184,7 @@ function EntryRow({ entry, setup, teams, busy, hasWom, hasDeclared, solo, onSetF
  * follow quietly rather than as equal numbered siblings -- which is what they
  * were, leaving an organiser to guess which of "1 2 3" to open.
  */
-function ShotLinks({ label, shots }) {
+function ShotLinks({ label, shots, urls }) {
   const current = shots.length ? shots[shots.length - 1] : null;
   const earlier = shots.slice(0, -1);
   return (
@@ -167,20 +192,27 @@ function ShotLinks({ label, shots }) {
       <span className="muted">{label}: </span>
       {!current ? <span className="muted">none</span> : (
         <>
-          <a href={current.url} target="_blank" rel="noreferrer" title={current.note ?? undefined}>
-            open
-          </a>
+          <Shot shot={current} urls={urls} text="open" />
           {earlier.map((s, i) => (
-            <a
-              key={s.id} className="shot-earlier-link"
-              href={s.url} target="_blank" rel="noreferrer"
-              title={s.note ?? undefined}
-            >
-              try {i + 1}
-            </a>
+            <Shot key={s.id} shot={s} urls={urls} text={`try ${i + 1}`} quiet />
           ))}
         </>
       )}
     </span>
+  );
+}
+
+/** One shot, signed if it is a file and plain if it is an older pasted link. */
+function Shot({ shot, urls, text, quiet }) {
+  const href = shot.storage_path ? urls[shot.storage_path] : shot.url;
+  if (!href) return <span className="muted">{text} — signing…</span>;
+  return (
+    <a
+      className={quiet ? 'shot-earlier-link' : undefined}
+      href={href} target="_blank" rel="noreferrer"
+      title={shot.note ?? undefined}
+    >
+      {text}
+    </a>
   );
 }
