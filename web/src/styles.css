@@ -5216,18 +5216,86 @@ body.dragging-jump * { cursor: grabbing !important; user-select: none; }
   .challenge-side { order: 2; }
 }
 
+/* ---- the heading ----
+ *
+ * Art, name and clock on one line. What the event is and how much of it is
+ * left are the two things a player takes off this card, and they were three
+ * stacked paragraphs with the name -- an ordinary <h2>, which in this app is a
+ * 13px grey section label -- as the smallest type of the three.
+ */
+.challenge-hero {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-3) var(--s-4);
+  margin-bottom: var(--s-3);
+}
+
+.challenge-hero-text { flex: 1 1 12rem; min-width: 0; }
+.challenge-hero-text h2 {
+  margin: 0;
+  font-family: var(--display);
+  font-size: var(--t-title1);
+  font-weight: 700;
+  line-height: var(--lh-tight);
+  letter-spacing: var(--tr-title);
+  text-transform: none;
+  color: var(--text);
+}
+.challenge-hero-text p { margin: var(--s-1) 0 0; }
+
+/* A framed badge rather than the bare picture: the art comes off the wiki at
+   whatever size it was drawn at, and a box with `contain` inside it is what
+   makes a square boss sprite and a tall clue scroll sit the same. */
+.challenge-hero-art {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 3.75rem;
+  height: 3.75rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  background: var(--fill-3);
+}
+.challenge-hero-art .tile-icon { width: 80%; height: 80%; object-fit: contain; }
+.challenge-hero-word {
+  font-size: var(--t-footnote);
+  font-weight: 700;
+  letter-spacing: var(--tr-caps);
+  color: var(--label-2);
+}
+
 /* The clock is the shape of a short event, so it is set like a score rather
    than like a line of text. */
 .challenge-clock {
+  flex: none;
   font-size: 1.6rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   letter-spacing: -.02em;
-  margin: .4rem 0;
+  margin: 0;
 }
 .challenge-clock .muted { font-size: .875rem; font-weight: 400; letter-spacing: 0; }
 
-.challenge-asks { list-style: none; margin: .6rem 0 0; padding: 0; display: grid; gap: .4rem; }
+/* Only while it shares the line with the name. Once it wraps under it, auto
+   would strand it against the right edge on its own row. */
+@media (min-width: 560px) {
+  .challenge-clock { margin-left: auto; }
+}
+@media (max-width: 560px) {
+  .challenge-hero-art { width: 3rem; height: 3rem; }
+}
+
+/* Under a rule: the heading says what the event is, this says what it asks
+   of you, and they are two different readings of the same card. */
+.challenge-asks {
+  list-style: none;
+  margin: 0;
+  padding: var(--s-3) 0 0;
+  border-top: 1px solid var(--hairline);
+  display: grid;
+  gap: .4rem;
+}
 .challenge-asks li { font-size: .875rem; }
 
 /* ---- the ladder ----
@@ -5928,6 +5996,11 @@ body.dragging-jump * { cursor: grabbing !important; user-select: none; }
   gap: var(--s-2);
   margin-bottom: var(--s-3);
 }
+
+/* The metric's picture against its own number, so the figure and what it is
+   counted off read as one thing rather than two. */
+.figure-head-name { display: flex; align-items: center; gap: var(--s-2); min-width: 0; }
+.figure-head-name .tile-icon { flex: none; width: 1.5rem; height: 1.5rem; object-fit: contain; }
 
 .entry-head h4,
 .figure-head h4,
