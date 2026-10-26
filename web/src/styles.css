@@ -3932,13 +3932,6 @@ button.danger.ghost:hover:not(:disabled) {
 .metric-choice-name { line-height: 1.25; overflow-wrap: anywhere; }
 
 .metric-empty { margin: 0; font-size: var(--t-footnote); }
-/* A way out of the list, not a third thing to weigh against it. */
-.metric-type {
-  justify-self: start;
-  padding: 0; border: 0; background: none;
-  color: var(--label-2); font-size: var(--t-footnote); font-weight: 400;
-}
-.metric-type:hover:not(:disabled) { background: none; color: var(--gold); }
 
 /* ---- the tile form ---- */
 

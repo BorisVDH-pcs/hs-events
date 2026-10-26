@@ -29,13 +29,19 @@ import TileIcon from '../TileIcon.jsx';
  * whole list is searched, because somebody typing "vard" wants Vardorvis and
  * not a reminder that he is filed under Bosses. With the box empty the groups
  * are how you browse, which is the case this control exists for.
+ *
+ * THE LIST IS THE WHOLE SET. A box under the grid used to take a name the list
+ * did not carry, for the weeks between Wise Old Man adding a boss and the list
+ * being brought up to date. It is gone, so an event counts what WOM_METRICS
+ * holds and nothing else: a metric they know and this does not is added there,
+ * in lib/challenge.js, rather than typed past the grid here.
  */
-export default function MetricPicker({ value, disabled, onChange, onType }) {
+export default function MetricPicker({ value, disabled, onChange }) {
   const [group, setGroup] = useState(() => groupOf(value));
   const [query, setQuery] = useState('');
 
-  // Follows a choice made from outside -- the typed escape hatch hands one
-  // back, and the grid should not still be showing the group it came from.
+  // Follows the value the form holds, so the grid opens on the group that
+  // choice sits in rather than on whichever one is the default.
   useEffect(() => { setGroup(groupOf(value)); }, [value]);
 
   const searching = query.trim().length > 0;
@@ -75,7 +81,7 @@ export default function MetricPicker({ value, disabled, onChange, onType }) {
 
       {shown.length === 0 ? (
         <p className="muted metric-empty">
-          Nothing matches that. Wise Old Man may still know it — type its name below.
+          Nothing matches that — try a shorter word.
         </p>
       ) : (
         <div className="metric-grid">
@@ -90,13 +96,6 @@ export default function MetricPicker({ value, disabled, onChange, onType }) {
           ))}
         </div>
       )}
-
-      {/* Still an open set: WOM adds bosses faster than the metric list is
-          regenerated, and an event refused for a metric that exists would be
-          our fault rather than the organiser's. */}
-      <button type="button" className="ghost metric-type" disabled={disabled} onClick={onType}>
-        Not here? Type its Wise Old Man name
-      </button>
     </div>
   );
 }
