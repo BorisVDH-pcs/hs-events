@@ -1,0 +1,126 @@
+name: Back up database
+
+# Read-only nightly snapshot of the live Supabase project, pushed to the
+# PRIVATE repo BorisVDH-pcs/hs-events-db-backups. The dumps contain profile
+# and account data, so they must never land in this public repo.
+#
+# This workflow only ever reads: `link` and `db dump`, never `db push` and
+# never `db reset`. It has its own concurrency group so it can never
+# interleave with a migration push.
+
+on:
+  schedule:
+    # 02:00 UTC -> 03:00 Amsterdam in winter, 04:00 in summer. Deliberately
+    # the quiet window: the project runs on Nano with very little memory
+    # headroom, so the dump should not compete with event-night traffic.
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: supabase-db-backup
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+    steps:
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link project
+        run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
+
+      - name: Dump roles, schema and data
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          supabase db dump --role-only --file out/roles.sql
+          supabase db dump              --file out/schema.sql
+          supabase db dump --data-only  --file out/data.sql
+          ls -l out
+
+      - name: Sanity-check the dumps
+        run: |
+          set -euo pipefail
+          # A dump that silently produced nothing is worse than no backup at
+          # all, because it looks like success. Fail loudly instead.
+          for f in roles schema data; do
+            size=$(stat -c%s "out/$f.sql")
+            echo "$f.sql: $size bytes"
+            if [ "$size" -lt 512 ]; then
+              echo "::error::out/$f.sql is only $size bytes - refusing to publish a suspect backup"
+              exit 1
+            fi
+          done
+          grep -q "CREATE TABLE" out/schema.sql || {
+            echo "::error::schema.sql contains no CREATE TABLE statements"; exit 1; }
+
+      - name: Publish to the private backup repo
+        env:
+          DEPLOY_KEY: ${{ secrets.BACKUP_REPO_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -t ed25519 github.com >> ~/.ssh/known_hosts 2>/dev/null
+
+          git clone --depth 1 \
+            git@github.com:BorisVDH-pcs/hs-events-db-backups.git backup-repo
+
+          # Always write the same three paths. Each commit is a full snapshot
+          # and git delta-compresses the day-to-day difference, which keeps the
+          # repo small; the history is the time dimension, so restoring a given
+          # day means checking out that day's commit.
+          cp out/roles.sql out/schema.sql out/data.sql backup-repo/
+          cd backup-repo
+
+          {
+            echo "Snapshot:  $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "Source:    project \${SUPABASE_PROJECT_ID} (eu-west-2)"
+            echo "Run:       ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            echo
+            echo "Sizes:"
+            for f in roles schema data; do
+              printf '  %-12s %10s bytes\n' "$f.sql" "$(stat -c%s "$f.sql")"
+            done
+          } > MANIFEST.txt
+
+          git config user.name  "hs-events backup bot"
+          git config user.email "actions@github.com"
+          git add -A
+
+          # MANIFEST.txt changes every run, so compare only the dumps.
+          if git diff --cached --quiet -- roles.sql schema.sql data.sql; then
+            echo "Database unchanged since the last snapshot - nothing to commit."
+            exit 0
+          fi
+
+          git commit -m "Snapshot $(date -u +%Y-%m-%d)" -m "Taken by run ${GITHUB_RUN_ID}."
+          git push origin HEAD:main
+          echo "Pushed $(git rev-parse --short HEAD)"
+
+      - name: Summarise
+        if: always()
+        run: |
+          {
+            echo "### Database backup"
+            echo
+            echo "Destination: \`BorisVDH-pcs/hs-events-db-backups\` (private)"
+            if [ -d out ]; then
+              echo
+              echo "| file | bytes |"
+              echo "|---|---|"
+              for f in roles schema data; do
+                [ -f "out/$f.sql" ] && echo "| $f.sql | $(stat -c%s "out/$f.sql") |"
+              done
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
