@@ -42,6 +42,7 @@ import PetJarReview from './PetJarReview.jsx';
 import DiscordWebhooks from './DiscordWebhooks.jsx';
 import PasswordResetDialog from './PasswordResetDialog.jsx';
 import CardHead from './CardHead.jsx';
+import { Pick, PickChip, PickSet } from './Pick.jsx';
 import TileSuggestionReview from './TileSuggestionReview.jsx';
 import { useConfirm } from './ConfirmDialog.jsx';
 import { statusLabel } from '../lib/status.js';
@@ -2248,19 +2249,20 @@ const labelOfMode = (key) => MODES.find((m) => m.key === key)?.label ?? key;
  */
 function ModePicker({ modeChoices, mode, onPick }) {
   return (
-    <div className="mode-picker" role="radiogroup" aria-label="Game mode">
+    /* The step has already asked "What kind of event is this?" above it, so
+       the legend names the group without saying it a second time. */
+    <PickSet label="Game mode">
       {modeChoices.map((m) => (
-        <label key={m.key} className={`mode-option${mode === m.key ? ' on' : ''}`}>
-          <input
-            type="radio" name="game-mode" value={m.key}
-            checked={mode === m.key}
-            onChange={() => onPick(m.key)}
-          />
-          <strong>{m.label}</strong>
-          <span className="muted">{m.blurb}</span>
-        </label>
+        <Pick
+          key={m.key}
+          name="game-mode"
+          checked={mode === m.key}
+          onChange={() => onPick(m.key)}
+          title={m.label}
+          blurb={m.blurb}
+        />
       ))}
-    </div>
+    </PickSet>
   );
 }
 
@@ -2390,7 +2392,7 @@ function NewGame({ busy, onCreate, modeChoices = MODES }) {
                 <label className="field-size">Card size
                   <select value={gridSize} onChange={(e) => setGridSize(Number(e.target.value))}>
                     {[3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
-                      <option key={n} value={n}>{n}\u00d7{n} \u2014 {n * n} tiles</option>
+                      <option key={n} value={n}>{n}×{n} — {n * n} tiles</option>
                     ))}
                   </select>
                 </label>
@@ -2869,16 +2871,18 @@ function ModeratorRoles({ profiles, moderators, busy, confirm, onSave }) {
           <li key={row.id}>
             <span className="role-name">{row.name}</span>
             <span className="role-modes">
+              {/* Chips, not boxes: one row per moderator with five modes on
+                  it, where a column of boxes would be the wrong shape. Same
+                  marks and same gold, so it still reads as the one way of
+                  picking something. */}
               {MODES.map((m) => (
-                <label key={m.key}>
-                  <input
-                    type="checkbox"
-                    checked={row.now.includes(m.key)}
-                    disabled={busy}
-                    onChange={(e) => toggle(row, m.key, e.target.checked)}
-                  />
-                  {m.label}
-                </label>
+                <PickChip
+                  key={m.key}
+                  checked={row.now.includes(m.key)}
+                  disabled={busy}
+                  onChange={(e) => toggle(row, m.key, e.target.checked)}
+                  label={m.label}
+                />
               ))}
             </span>
             {row.was.length === 0 && row.now.length === 0 ? (

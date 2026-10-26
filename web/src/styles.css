@@ -2350,12 +2350,7 @@ label {
 .role-list li:last-child { border-bottom: none; }
 .role-list li.muted { padding: .55rem .1rem; }
 .role-name { font-size: .9375rem; font-weight: 600; flex: 0 0 auto; }
-.role-modes { display: flex; flex-wrap: wrap; gap: .3rem .85rem; flex: 1 1 16rem; }
-.role-modes label {
-  display: flex; flex-direction: row; align-items: center; gap: .35rem;
-  white-space: nowrap; cursor: pointer;
-}
-.role-modes label:has(input:disabled) { cursor: default; opacity: .5; }
+.role-modes { display: flex; flex-wrap: wrap; gap: .35rem; flex: 1 1 16rem; }
 /* Pushed to the end of the row, so the saves line up however the ticks wrap. */
 .role-list button { flex: 0 0 auto; margin-left: auto; }
 .role-add { margin-top: 1.1rem; max-width: 18rem; }
@@ -4233,35 +4228,6 @@ button.bingo-cell.clickable:active { transform: scale(.95); transition-duration:
 
 .mode-pill { color: var(--gold-lit); background: rgba(242, 193, 78, .14); }
 
-.mode-picker {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
-  gap: .6rem;
-  margin-bottom: 1rem;
-}
-.mode-option {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  grid-template-areas: "radio title" "radio blurb";
-  column-gap: .6rem; row-gap: .15rem;
-  padding: .7rem .85rem;
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-lg);
-  background: var(--fill-3);
-  cursor: pointer;
-  transition: border-color .2s var(--ease-out), background .2s var(--ease-out);
-}
-/* The global input rule gives every input full width and padding; a radio
-   wants neither. */
-.mode-option input {
-  grid-area: radio; align-self: start;
-  width: auto; padding: 0; margin: .2rem 0 0;
-  accent-color: var(--gold);
-}
-.mode-option strong { grid-area: title; color: var(--text); font-size: .9375rem; }
-.mode-option .muted { grid-area: blurb; }
-.mode-option.on { border-color: rgba(242, 193, 78, .6); background: rgba(242, 193, 78, .08); }
-
 .team-name-field { display: flex; gap: .3rem; align-items: center; }
 .team-name-field input { flex: 1; min-width: 0; }
 .team-name-field button { flex: none; padding: .3rem .55rem; }
@@ -5238,51 +5204,7 @@ body.dragging-jump * { cursor: grabbing !important; user-select: none; }
 .challenge-entry-shots a { margin-right: .35rem; }
 .challenge-entry-actions { align-items: end; }
 
-/* New event, challenge: a run of questions, not one long row of fields.
-   The shared `label { display: grid }` is the caption-above-control shape,
-   which is right for a text field and wrong for a tick box -- it stacks the
-   box on top of its own words, and `.row { align-items: end }` then bottom-
-   aligns those two-row labels against the one-row ones. `.choice` is the row
-   form instead, the same shape `.team-add-all` already uses. */
-.cnew-question { margin-top: 1.15rem; }
-.cnew-question > h4 {
-  margin: 0 0 .45rem;
-  font-size: .6875rem; font-weight: 700;
-  letter-spacing: .11em; text-transform: uppercase;
-  color: var(--label-3);
-}
-label.choice {
-  display: flex; flex-direction: row; align-items: start;
-  gap: .5rem; width: auto; max-width: 100%;
-  margin: .35rem 0;
-  font-size: .875rem; font-weight: 500;
-  color: var(--text);
-  cursor: pointer;
-}
-/* Beside the FIRST line, not centred between two: these labels wrap at phone
-   width, and a box floating halfway down its own sentence reads as belonging
-   to neither line. */
-label.choice input { flex: none; margin: .2rem 0 0; }
-label.choice .muted { font-weight: 400; }
-label.choice:has(input:disabled) { cursor: default; opacity: .5; }
-
-/* Side by side when they are alternatives, stacked when each one opens its
-   own settings underneath. */
-.choice-row { display: flex; flex-wrap: wrap; align-items: center; gap: .1rem 1.6rem; }
-
-/* What a tick switches on, set in from it and hung off a rule, so the fields
-   plainly belong to the box above rather than floating beside it. */
-.choice-detail {
-  margin: .1rem 0 .7rem 1.6rem;
-  padding-left: .9rem;
-  border-left: 1px solid var(--hairline);
-}
-.choice-detail > .new-game-note { margin-top: .4rem; }
 .cnew-create { margin-top: 1.3rem; align-items: center; }
-@media (max-width: 560px) {
-  .choice-row { gap: .1rem; flex-direction: column; align-items: start; }
-  .choice-detail { margin-left: .8rem; padding-left: .7rem; }
-}
 
 /* ---- My accounts (20261026130000) ----------------------------------------
    A list of blocks, not the admin pane's .account-list rows: each one carries
@@ -5966,4 +5888,168 @@ label.choice:has(input:disabled) { cursor: default; opacity: .5; }
 
 @media (prefers-reduced-motion: reduce) {
   .card-more summary::before { transition: none; }
+}
+
+/* ---- Choice boxes (components/Pick.jsx) ----
+
+   One way of answering a question with a small, named set of answers. The
+   wizard used to have two: step one drew a box per choice and you pressed the
+   box, step two drew a bare native radio and you aimed at a 13px square. This
+   is the first one, made general, so the console asks the same way twice.
+
+   The input is a real radio or checkbox, hidden rather than replaced, so a
+   screen reader still gets a named group and the arrow keys still work. What
+   you see and press is the box. */
+
+.pick-set { border: 0; padding: 0; margin: 0 0 var(--s-5); min-width: 0; }
+
+/* Sentence case, in the voice the wizard already asks in. It was a tracked-out
+   ALL-CAPS eyebrow, which matched nothing else in the console once Track and
+   Accounts moved to CardHead's sentence-case headings. */
+.pick-ask {
+  padding: 0;
+  margin: 0 0 var(--s-3);
+  font-family: var(--display);
+  font-size: var(--t-subhead);
+  line-height: var(--lh-snug);
+  letter-spacing: var(--tr-title);
+  color: var(--text);
+}
+/* Where the step above has already asked the question out loud, the legend is
+   still what names the group to a screen reader -- it just has nothing left to
+   say on screen. */
+.pick-ask-hidden {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.pick-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: var(--s-2);
+  /* A box that opens its settings must not stretch the one beside it. */
+  align-items: start;
+}
+/* One column, for answers that each open a panel of their own. */
+.pick-grid.wide { grid-template-columns: minmax(0, 1fr); }
+
+.pick {
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  background: var(--fill-3);
+  transition: border-color .2s var(--ease-out), background .2s var(--ease-out);
+}
+.pick.on { border-color: rgba(242, 193, 78, .6); background: rgba(242, 193, 78, .08); }
+
+/* The label covers the whole head, so the box is the hit target. The settings
+   an answer opens are deliberately outside it: a label forwards its clicks to
+   its control, and a text field nested in one would toggle the answer every
+   time you clicked into it. */
+.pick-head {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: var(--s-3);
+  align-items: start;
+  width: auto; margin: 0;
+  padding: var(--s-3) var(--s-4);
+  cursor: pointer;
+}
+
+.pick-input {
+  position: absolute;
+  width: 1px; height: 1px;
+  margin: 0; padding: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.pick-mark {
+  display: grid;
+  place-items: center;
+  width: 1.1rem; height: 1.1rem;
+  margin-top: .05rem;
+  border: 1.5px solid var(--label-3);
+  transition: border-color .2s var(--ease-out), background .2s var(--ease-out);
+}
+.pick-mark-radio { border-radius: 50%; }
+.pick-mark-checkbox { border-radius: .3rem; }
+
+/* A ring with a dot for one-of, a filled box with a tick for any-of: the
+   difference between the two is the only thing telling you whether picking
+   this one puts the other one out. */
+:is(.pick, .pick-chip).on .pick-mark { border-color: var(--gold); }
+:is(.pick, .pick-chip).on .pick-mark-radio::after {
+  content: '';
+  width: .55rem; height: .55rem;
+  border-radius: 50%;
+  background: var(--gold);
+}
+:is(.pick, .pick-chip).on .pick-mark-checkbox { background: var(--gold); }
+:is(.pick, .pick-chip).on .pick-mark-checkbox::after {
+  content: '';
+  width: .28rem; height: .52rem;
+  margin-top: -.12rem;
+  border: solid var(--on-gold);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.pick-text { display: grid; gap: .15rem; min-width: 0; }
+.pick-text strong { font-size: .9375rem; font-weight: 600; color: var(--text); }
+.pick-text .muted { font-size: var(--t-footnote); line-height: var(--lh-snug); }
+
+/* What this answer switches on, inside the box it belongs to. It used to hang
+   off a rule outside the tick, which left the fields looking like a sibling of
+   the question rather than part of one answer to it. */
+.pick-more { padding: 0 var(--s-4) var(--s-4); }
+.pick-more > :first-child { margin-top: 0; }
+.pick-more > .new-game-note { margin-top: var(--s-2); }
+.pick-more .row { margin-bottom: 0; }
+
+:is(.pick, .pick-chip):has(.pick-input:focus-visible) {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(242, 193, 78, .25);
+}
+:is(.pick, .pick-chip):has(.pick-input:disabled) { opacity: .5; }
+:is(.pick, .pick-chip):has(.pick-input:disabled) :is(.pick-head, .pick-chip) { cursor: default; }
+.pick-chip:has(.pick-input:disabled) { cursor: default; }
+:is(.pick, .pick-chip):has(.pick-input:not(:disabled)):hover { border-color: var(--label-2); }
+:is(.pick, .pick-chip).on:has(.pick-input:not(:disabled)):hover { border-color: var(--gold); }
+
+/* The same choice shrunk to a pill, for a short named set where a column of
+   boxes is the wrong shape -- one row per moderator, five modes on it. */
+.pick-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  width: auto; margin: 0;
+  padding: .3rem .65rem .3rem .5rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-pill);
+  background: var(--fill-3);
+  font-size: var(--t-footnote);
+  color: var(--label-2);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color .2s var(--ease-out), background .2s var(--ease-out);
+}
+.pick-chip.on {
+  border-color: rgba(242, 193, 78, .6);
+  background: rgba(242, 193, 78, .1);
+  color: var(--text);
+}
+.pick-chip .pick-mark { width: .85rem; height: .85rem; margin-top: 0; }
+.pick-chip.on .pick-mark-checkbox::after {
+  width: .22rem; height: .42rem;
+  border-width: 0 1.5px 1.5px 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pick, .pick-chip, .pick-mark { transition: none; }
 }

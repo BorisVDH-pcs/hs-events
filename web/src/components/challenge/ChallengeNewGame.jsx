@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { METRIC_GROUPS, WOM_METRICS } from '../../lib/challenge.js';
+import { Pick, PickSet } from '../Pick.jsx';
 
 /** The list box's escape hatch. Not a metric, so it can never be one. */
 const OTHER = '\u0000other';
@@ -82,223 +83,208 @@ export default function ChallengeNewGame({ busy, onCreate }) {
         </label>
       </div>
 
-      <section className="cnew-question">
-        <h4>Who competes</h4>
-        <div className="choice-row" role="radiogroup" aria-label="Who competes">
-          <label className="choice">
-            <input
-              type="radio" name="challenge-solo" checked={solo}
-              onChange={() => setSolo(true)} disabled={busy}
-            />
-            <span>Everyone for themselves</span>
-          </label>
-          <label className="choice">
-            <input
-              type="radio" name="challenge-solo" checked={!solo}
-              onChange={() => setSolo(false)} disabled={busy}
-            />
-            <span>Teams <span className="muted">(a team scores its members added together)</span></span>
-          </label>
-        </div>
-
-      {!solo && (
-        <div className="row new-game-fields choice-detail">
-          {teamNames.map((n, i) => (
-            <label key={i} className="field-team">
-              {`Team ${i + 1}`}
-              <span className="team-name-field">
-                <input
-                  value={n}
-                  onChange={(e) => setTeam(i, e.target.value)}
-                  placeholder={`Team ${['Alpha', 'Bravo', 'Charlie', 'Delta', 'Echo', 'Foxtrot'][i] ?? i + 1}`}
-                  disabled={busy}
-                />
-                {teamNames.length > 1 && (
-                  <button
-                    type="button" className="ghost" aria-label={`Remove team ${i + 1}`}
-                    onClick={() => setTeamNames((prev) => prev.filter((_, j) => j !== i))}
-                  >
-                    ✕
-                  </button>
-                )}
-              </span>
-            </label>
-          ))}
-          <button
-            type="button" className="ghost" disabled={busy}
-            onClick={() => setTeamNames((prev) => [...prev, ''])}
-          >
-            + Another team
-          </button>
-        </div>
-      )}
-      {!solo && duplicate && <p className="error">Two teams have the same name.</p>}
-      </section>
+      <PickSet ask="Who competes?">
+        <Pick
+          name="challenge-solo" checked={solo} disabled={busy}
+          onChange={() => setSolo(true)}
+          title="Everyone for themselves"
+          blurb="One ladder, with every entrant on it."
+        />
+        <Pick
+          name="challenge-solo" checked={!solo} disabled={busy}
+          onChange={() => setSolo(false)}
+          title="Teams"
+          blurb="A team scores its members added together."
+        >
+          <div className="row new-game-fields">
+            {teamNames.map((n, i) => (
+              <label key={i} className="field-team">
+                {`Team ${i + 1}`}
+                <span className="team-name-field">
+                  <input
+                    value={n}
+                    onChange={(e) => setTeam(i, e.target.value)}
+                    placeholder={`Team ${['Alpha', 'Bravo', 'Charlie', 'Delta', 'Echo', 'Foxtrot'][i] ?? i + 1}`}
+                    disabled={busy}
+                  />
+                  {teamNames.length > 1 && (
+                    <button
+                      type="button" className="ghost" aria-label={`Remove team ${i + 1}`}
+                      onClick={() => setTeamNames((prev) => prev.filter((_, j) => j !== i))}
+                    >
+                      ✕
+                    </button>
+                  )}
+                </span>
+              </label>
+            ))}
+            <button
+              type="button" className="ghost" disabled={busy}
+              onClick={() => setTeamNames((prev) => [...prev, ''])}
+            >
+              + Another team
+            </button>
+          </div>
+          {duplicate && <p className="error">Two teams have the same name.</p>}
+        </Pick>
+      </PickSet>
 
       {/* Each figure is a tick with its own settings folded in underneath, so
           the fields that only matter when it is on are plainly attached to it
           rather than floating in the row beside it. */}
-      <section className="cnew-question">
-        <h4>What it is scored on</h4>
-
-        <label className="choice">
-          <input
-            type="checkbox" checked={useWom} disabled={busy}
-            onChange={(e) => {
-              setUseWom(e.target.checked);
-              if (!e.target.checked) setRankedBy('declared');
-              else if (!useDeclared) setRankedBy('wom');
-            }}
-          />
-          <span>From the hiscores <span className="muted">(Wise Old Man counts it)</span></span>
-        </label>
-        {useWom && (
-          <div className="choice-detail">
-            <div className="row new-game-fields">
-              {/* A list box, not an `input list=`. A datalist filters its
-                  suggestions against whatever is already typed, so a field
-                  arriving with a complete metric in it offered that metric
-                  and nothing else -- 113 of them were unreachable without
-                  clearing the box first, which nothing on screen said to do. */}
-              <label className="field-metric">Which metric
-                <select
-                  value={typed ? OTHER : metric}
-                  disabled={busy}
-                  onChange={(e) => {
-                    if (e.target.value === OTHER) { setTyped(true); return; }
-                    setTyped(false);
-                    setMetric(e.target.value);
-                  }}
-                >
-                  {METRIC_GROUPS.map((g) => (
-                    <optgroup key={g} label={g}>
-                      {WOM_METRICS.filter((m) => m.group === g).map((m) => (
-                        <option key={m.value} value={m.value}>{m.name}</option>
-                      ))}
-                    </optgroup>
-                  ))}
-                  {/* Still an open set: WOM adds bosses faster than this file
-                      is regenerated, and an event refused for a metric that
-                      exists would be our fault, not the organiser's. */}
-                  <option value={OTHER}>Something else — type it</option>
-                </select>
-              </label>
-              {typed && (
-                <label className="field-name">Its Wise Old Man name
-                  <input
-                    value={metric}
-                    onChange={(e) => setMetric(e.target.value.trim())}
-                    placeholder="araxxor"
-                    disabled={busy}
-                    autoFocus
-                  />
-                </label>
-              )}
-            </div>
-            {typed && (
-              <p className="muted new-game-note">
-                Spelled the way Wise Old Man spells it, in lower case with
-                underscores. Their competition is created from this, so a name
-                they do not know is refused when the event starts.
-              </p>
-            )}
-
-            {/* HOW MANY ACCOUNTS COUNT PER PERSON. Off is the rule a weekly
-                XP or kill-count event wants: one account each, or somebody
-                with two can grind both and the ladder stops meaning anything.
-                On is for a bingo, where switching to an alt mid-event is
-                normal and should not cost the drop.
-
-                Under the metric rather than beside the name, because it only
-                means anything for a hiscores figure — admin_new_challenge
-                refuses it without one rather than quietly ignoring it. */}
-            <label className="choice">
-              <input
-                type="checkbox" checked={allAccounts} disabled={busy}
-                onChange={(e) => setAllAccounts(e.target.checked)}
-              />
-              <span>
-                Count every account a player has{' '}
-                <span className="muted">(their whole My accounts list, added together)</span>
-              </span>
+      {/* One column: each answer opens a panel of its own, and the settings
+          sit inside the box they belong to rather than hanging off a rule
+          beside it. */}
+      <PickSet ask="What is it scored on?" wide>
+        <Pick
+          type="checkbox" checked={useWom} disabled={busy}
+          onChange={(e) => {
+            setUseWom(e.target.checked);
+            if (!e.target.checked) setRankedBy('declared');
+            else if (!useDeclared) setRankedBy('wom');
+          }}
+          title="From the hiscores"
+          blurb="Wise Old Man counts it for you."
+        >
+          <div className="row new-game-fields">
+            {/* A list box, not an `input list=`. A datalist filters its
+                suggestions against whatever is already typed, so a field
+                arriving with a complete metric in it offered that metric
+                and nothing else -- 113 of them were unreachable without
+                clearing the box first, which nothing on screen said to do. */}
+            <label className="field-metric">Which metric
+              <select
+                value={typed ? OTHER : metric}
+                disabled={busy}
+                onChange={(e) => {
+                  if (e.target.value === OTHER) { setTyped(true); return; }
+                  setTyped(false);
+                  setMetric(e.target.value);
+                }}
+              >
+                {METRIC_GROUPS.map((g) => (
+                  <optgroup key={g} label={g}>
+                    {WOM_METRICS.filter((m) => m.group === g).map((m) => (
+                      <option key={m.value} value={m.value}>{m.name}</option>
+                    ))}
+                  </optgroup>
+                ))}
+                {/* Still an open set: WOM adds bosses faster than this file
+                    is regenerated, and an event refused for a metric that
+                    exists would be our fault, not the organiser's. */}
+                <option value={OTHER}>Something else — type it</option>
+              </select>
             </label>
-            <p className="muted new-game-note">
-              {allAccounts
-                ? 'Every account on an entrant’s list goes on the competition and their '
-                  + 'figures are added up. For a bingo, where people play alts.'
-                : 'One account each — the one they pick when they sign up. For a weekly '
-                  + 'event, where two accounts would be two chances at the same ladder.'}
-            </p>
-          </div>
-        )}
-
-        <label className="choice">
-          <input
-            type="checkbox" checked={useDeclared} disabled={busy}
-            onChange={(e) => {
-              setUseDeclared(e.target.checked);
-              if (!e.target.checked) setRankedBy('wom');
-              else if (!useWom) setRankedBy('declared');
-            }}
-          />
-          <span>A number players give <span className="muted">(with screenshots behind it)</span></span>
-        </label>
-        {useDeclared && (
-          <div className="choice-detail">
-            <div className="row new-game-fields">
-              <label className="field-name">What they are giving
+            {typed && (
+              <label className="field-name">Its Wise Old Man name
                 <input
-                  value={declaredLabel}
-                  onChange={(e) => setDeclaredLabel(e.target.value)}
-                  placeholder="Total loot"
+                  value={metric}
+                  onChange={(e) => setMetric(e.target.value.trim())}
+                  placeholder="araxxor"
                   disabled={busy}
+                  autoFocus
                 />
               </label>
-              <label className="field-size">In
-                <select
-                  value={declaredUnit}
-                  onChange={(e) => setDeclaredUnit(e.target.value)}
-                  disabled={busy}
-                >
-                  <option value="gp">Millions of gp</option>
-                  <option value="count">A count</option>
-                </select>
-              </label>
-            </div>
-            <p className="muted new-game-note">
-              Players type this themselves and hang a start and a finish
-              screenshot behind it. The site cannot read a screenshot, so an
-              organiser checks the two against each other in Track and can
-              correct the number.
-            </p>
+            )}
           </div>
-        )}
+          {typed && (
+            <p className="muted new-game-note">
+              Spelled the way Wise Old Man spells it, in lower case with
+              underscores. Their competition is created from this, so a name
+              they do not know is refused when the event starts.
+            </p>
+          )}
 
-        {!useWom && !useDeclared && (
-          <p className="error">Pick at least one, or there is nothing to score.</p>
-        )}
-      </section>
+          {/* HOW MANY ACCOUNTS COUNT PER PERSON. Off is the rule a weekly
+              XP or kill-count event wants: one account each, or somebody
+              with two can grind both and the ladder stops meaning anything.
+              On is for a bingo, where switching to an alt mid-event is
+              normal and should not cost the drop.
+
+              A switch rather than another box: the boxes above are answers
+              to a question, and this is one setting that is on or off. The
+              stylesheet already keeps those apart -- a switch goes green,
+              every gold thing in here means picked. */}
+          <div className="switch-row">
+            <span className="switch-label">
+              Count every account a player has
+              <span className="muted">
+                {allAccounts
+                  ? 'Every account on an entrant\u2019s list goes on the competition and '
+                    + 'their figures are added up. For a bingo, where people play alts.'
+                  : 'One account each \u2014 the one they pick when they sign up. For a '
+                    + 'weekly event, where two accounts would be two chances at the same ladder.'}
+              </span>
+            </span>
+            <label className="switch">
+              <input
+                type="checkbox"
+                role="switch"
+                checked={allAccounts}
+                disabled={busy}
+                aria-label="Count every account a player has"
+                onChange={(e) => setAllAccounts(e.target.checked)}
+              />
+              <span className="switch-track" aria-hidden="true" />
+            </label>
+          </div>
+        </Pick>
+
+        <Pick
+          type="checkbox" checked={useDeclared} disabled={busy}
+          onChange={(e) => {
+            setUseDeclared(e.target.checked);
+            if (!e.target.checked) setRankedBy('wom');
+            else if (!useWom) setRankedBy('declared');
+          }}
+          title="A number players give"
+          blurb="They type it in, with screenshots behind it."
+        >
+          <div className="row new-game-fields">
+            <label className="field-name">What they are giving
+              <input
+                value={declaredLabel}
+                onChange={(e) => setDeclaredLabel(e.target.value)}
+                placeholder="Total loot"
+                disabled={busy}
+              />
+            </label>
+            <label className="field-size">In
+              <select
+                value={declaredUnit}
+                onChange={(e) => setDeclaredUnit(e.target.value)}
+                disabled={busy}
+              >
+                <option value="gp">Millions of gp</option>
+                <option value="count">A count</option>
+              </select>
+            </label>
+          </div>
+          <p className="muted new-game-note">
+            Players type this themselves and hang a start and a finish
+            screenshot behind it. The site cannot read a screenshot, so an
+            organiser checks the two against each other in Track and can
+            correct the number.
+          </p>
+        </Pick>
+      </PickSet>
+      {!useWom && !useDeclared && (
+        <p className="error">Pick at least one, or there is nothing to score.</p>
+      )}
 
       {both && (
-        <section className="cnew-question">
-          <h4>Which one wins it</h4>
-          <div className="choice-row" role="radiogroup" aria-label="Which figure wins">
-            <label className="choice">
-              <input
-                type="radio" name="challenge-ranked" checked={rankedBy === 'wom'}
-                onChange={() => setRankedBy('wom')} disabled={busy}
-              />
-              <span>The hiscores figure</span>
-            </label>
-            <label className="choice">
-              <input
-                type="radio" name="challenge-ranked" checked={rankedBy === 'declared'}
-                onChange={() => setRankedBy('declared')} disabled={busy}
-              />
-              <span>{declaredLabel.trim() || 'The number they give'}</span>
-            </label>
-          </div>
-        </section>
+        <PickSet ask="Which one wins it?">
+          <Pick
+            name="challenge-ranked" checked={rankedBy === 'wom'} disabled={busy}
+            onChange={() => setRankedBy('wom')}
+            title="The hiscores figure"
+          />
+          <Pick
+            name="challenge-ranked" checked={rankedBy === 'declared'} disabled={busy}
+            onChange={() => setRankedBy('declared')}
+            title={declaredLabel.trim() || 'The number they give'}
+          />
+        </PickSet>
       )}
 
       <div className="row new-game-fields cnew-create">
