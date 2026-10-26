@@ -85,7 +85,7 @@ jobs:
 
           {
             echo "Snapshot:  $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-            echo "Source:    project \${SUPABASE_PROJECT_ID} (eu-west-2)"
+            echo "Source:    High Society Events, eu-west-2"
             echo "Run:       ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
             echo
             echo "Sizes:"
