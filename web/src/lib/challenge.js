@@ -76,7 +76,7 @@ export const MAX_EVIDENCE = 5;
  * could not name most skills.
  *
  * `name` is what the option says under its group heading, `label` is the same
- * metric in prose -- "Boss — Zulrah" -- for the ladder column and the feed,
+ * metric in prose -- "Boss — Zulrah" -- for the ranking column and the feed,
  * where there is no heading to lean on. Both are WOM's own spellings.
  */
 export const WOM_METRICS = [
@@ -369,7 +369,7 @@ export function metricLabel(metric) {
   return known ? known.label : metric.replace(/_/g, ' ');
 }
 
-/** What the ladder is sorted on, in words. */
+/** What the ranking is sorted on, in words. */
 export function rankedLabel(setup) {
   if (!setup) return '';
   return setup.ranked_by === 'wom'
@@ -392,7 +392,7 @@ export const WOM_PULSE_MS = 60000;
  * Ten seconds, which is the delay a scheduled start or finish actually costs:
  * there is no scheduler, so the clock turns only while somebody is looking.
  * Ending takes two of these on purpose -- the first writes down whatever Wise
- * Old Man has sent and asks for fresh figures, the second settles the ladder on
+ * Old Man has sent and asks for fresh figures, the second settles the ranking on
  * them -- so a few seconds of "finishing" is the price of the right winner.
  *
  * Idle pages do not pay it. The clock is only read while a time has gone by
@@ -447,7 +447,7 @@ export function challengeEventText(e, who) {
       const label = (p.label ?? 'their number').toLowerCase();
       const name = p.by_name ?? who;
       // An organiser correcting a figure writes the same event with its own
-      // name on it, because a ladder has to be able to say whose number it is
+      // name on it, because a ranking has to be able to say whose number it is
       // showing. Saying so here is the only place a player sees it happen.
       return p.altered_by
         ? `${p.altered_by_name ?? 'An organiser'} set ${name}'s ${label} to ${amount}.`

@@ -1,7 +1,7 @@
 import { figureLabel, metricLabel, rankedLabel, womLabel } from '../../lib/challenge.js';
 
 /**
- * The ladder.
+ * The ranking.
  *
  * One row per entrant, or per team when the event runs in teams — the server
  * decides which (challenge_standings) and answers the same shape either way,
@@ -9,7 +9,7 @@ import { figureLabel, metricLabel, rankedLabel, womLabel } from '../../lib/chall
  *
  * The same rows bingo, snakes and territory use: a place, a name, the figure,
  * and a bar against the leader. It was a bare table until 2026-10-26, which is
- * the one thing a ladder cannot afford to be — it is the screen the whole
+ * the one thing a ranking cannot afford to be — it is the screen the whole
  * event is read off.
  *
  * WHERE THE SECOND FIGURE WENT. A challenge can collect two at once: Boss of
@@ -18,10 +18,10 @@ import { figureLabel, metricLabel, rankedLabel, womLabel } from '../../lib/chall
  * marked in gold. Now the deciding figure is the number on the row and the
  * other sits on the line under the name — still there, still a glance apart
  * for an organiser checking one against the other, but no longer asking which
- * of two numbers the ladder is sorted on.
+ * of two numbers the ranking is sorted on.
  */
 export default function ChallengeLadder({
-  standings = [], setup, myProfileId = null, myTeamId = null, title = 'Ladder',
+  standings = [], setup, myProfileId = null, myTeamId = null, title = 'Ranking',
 }) {
   const hasWom = Boolean(setup?.wom_metric);
   const hasDeclared = Boolean(setup?.declared_label);
@@ -37,7 +37,7 @@ export default function ChallengeLadder({
   /*
    * The bar is a share of the leader, not of everyone's total.
    *
-   * A ladder is read as "how far behind am I", which is a question about the
+   * A ranking is read as "how far behind am I", which is a question about the
    * top of it. Against a sum, every bar on a twenty-strong event is a sliver
    * and the shape says nothing.
    */
@@ -54,12 +54,12 @@ export default function ChallengeLadder({
 
       {standings.length === 0 ? (
         <p className="muted">
-          Nothing to show yet — the ladder opens when the event starts.
+          Nothing to show yet — the ranking opens when the event starts.
         </p>
       ) : (
         <ol>
           {standings.map((s) => {
-            // A solo ladder is people and a team ladder is teams, so which
+            // A solo ranking is people and a team ranking is teams, so which
             // row is "yours" is a different question in each.
             const mine = solo
               ? Boolean(myProfileId) && s.profile_id === myProfileId
