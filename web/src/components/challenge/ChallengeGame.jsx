@@ -7,11 +7,12 @@ import {
 import { signedUrls, uploadChallengeShot } from '../../lib/evidence.js';
 import {
   CLOCK_TICK_MS, MAX_EVIDENCE, WOM_PULSE_MS,
-  figureLabel, figureToStored, metricLabel, rankedLabel, storedToInput,
-  womCompetitionUrl, womLabel,
+  figureLabel, figureToStored, metricIcon, metricInitials, metricLabel,
+  rankedLabel, storedToInput, womCompetitionUrl, womLabel,
 } from '../../lib/challenge.js';
 import { useCountdown, pad } from '../../lib/countdown.js';
 import EventFeed from '../EventFeed.jsx';
+import TileIcon from '../TileIcon.jsx';
 import ChallengeLadder from './ChallengeLadder.jsx';
 import ChallengeRsnField from './ChallengeRsnField.jsx';
 
@@ -272,35 +273,62 @@ export default function ChallengeGame({
         {notice && <p className="muted notice" role="status">✓ {notice}</p>}
 
         <section className="card challenge-head">
-          <h2>{game.name}</h2>
-          <p className="muted">
-            {setup?.solo === false ? 'Teams' : 'Everyone for themselves'}
-            {' · won on '}
-            {rankedLabel(setup)}
-            {setup?.wom_metric && setup?.declared_label
-              && ' — the other figure is shown, but does not decide it'}
-          </p>
+          {/* ---- What event this is ----
+              The name used to be an ordinary <h2>, which in this app is a
+              13px grey section label -- the title of the thing a player has
+              just walked into, set smaller than the sentence under it. It
+              leads the card now, with the clock on its right where there is
+              room for it, and the event's own face beside both. */}
+          <div className="challenge-hero">
+            {setup?.wom_metric && (
+              <span className="challenge-hero-art">
+                {/* The art was only ever on the organiser's metric picker,
+                    and a week of Zulrah is a different event to a player long
+                    before any rules are read. The two metrics with no picture
+                    are Wise Old Man's own arithmetic, EHP and EHB, and both
+                    carry their initials in brackets -- so the worded badge is
+                    right in exactly the cases it can appear in. */}
+                <TileIcon
+                  slug={metricIcon(setup.wom_metric)}
+                  fallback={(
+                    <span className="challenge-hero-word" aria-hidden="true">
+                      {metricInitials(metricLabel(setup.wom_metric))}
+                    </span>
+                  )}
+                />
+              </span>
+            )}
 
-          {/* The clock is the whole shape of a short event, so it leads the
-              card whichever phase it is in: counting to the start while it is
-              waiting, and to the end once it is running.
+            <div className="challenge-hero-text">
+              <h2>{game.name}</h2>
+              <p className="muted">
+                {setup?.solo === false ? 'Teams' : 'Everyone for themselves'}
+                {' · won on '}
+                {rankedLabel(setup)}
+              </p>
+            </div>
 
-              At zero it says what is happening instead of showing 00:00:00,
-              because both times now act when they arrive and a stopped clock
-              over an event that is about to move reads as broken. */}
-          {left.set && !isFinished && (
-            <p className="challenge-clock">
-              {left.started ? (
-                <span className="muted">{isOpen ? 'Starting…' : 'Finishing…'}</span>
-              ) : (
-                <>
-                  {left.days > 0 && `${left.days}d `}
-                  {pad(left.hours)}:{pad(left.minutes)}:{pad(left.seconds)}
-                  <span className="muted">{isOpen ? ' until it starts' : ' left'}</span>
-                </>
-              )}
-            </p>
-          )}
+            {/* The clock is the whole shape of a short event, so it sits in
+                the heading whichever phase it is in: counting to the start
+                while it is waiting, and to the end once it is running.
+
+                At zero it says what is happening instead of showing 00:00:00,
+                because both times now act when they arrive and a stopped clock
+                over an event that is about to move reads as broken. */}
+            {left.set && !isFinished && (
+              <p className="challenge-clock">
+                {left.started ? (
+                  <span className="muted">{isOpen ? 'Starting…' : 'Finishing…'}</span>
+                ) : (
+                  <>
+                    {left.days > 0 && `${left.days}d `}
+                    {pad(left.hours)}:{pad(left.minutes)}:{pad(left.seconds)}
+                    <span className="muted">{isOpen ? ' until it starts' : ' left'}</span>
+                  </>
+                )}
+              </p>
+            )}
+          </div>
 
           {isFinished && (
             <p className="banner">{winner ? `${winner.name} wins.` : 'The event is over.'}</p>
@@ -564,7 +592,12 @@ export default function ChallengeGame({
               {setup?.wom_metric && (
                 <section className={`figure-box${setup.ranked_by === 'wom' ? ' decides' : ''}`}>
                   <header className="figure-head">
-                    <h4>{metricLabel(setup.wom_metric)}</h4>
+                    {/* The same picture as the heading, small, so the number
+                        and what it is counted off are one thing. */}
+                    <span className="figure-head-name">
+                      <TileIcon slug={metricIcon(setup.wom_metric)} fallback={null} />
+                      <h4>{metricLabel(setup.wom_metric)}</h4>
+                    </span>
                     {setup.ranked_by === 'wom' && (
                       <span className="figure-decides">decides the ladder</span>
                     )}
