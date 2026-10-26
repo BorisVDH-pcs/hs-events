@@ -43,6 +43,7 @@ import DiscordWebhooks from './DiscordWebhooks.jsx';
 import PasswordResetDialog from './PasswordResetDialog.jsx';
 import CardHead from './CardHead.jsx';
 import { Pick, PickChip, PickSet } from './Pick.jsx';
+import DateTimeField from './DateTimeField.jsx';
 import TileSuggestionReview from './TileSuggestionReview.jsx';
 import { useConfirm } from './ConfirmDialog.jsx';
 import { statusLabel } from '../lib/status.js';
@@ -2412,18 +2413,17 @@ function NewGame({ busy, onCreate, modeChoices = MODES }) {
               {/* Optional: teams can be rostered and fleets placed well before
                   this moment. Left blank, players just see "time to be
                   announced" until one is set from Configure. */}
-              <label><span>Start time <span className="muted">(optional)</span></span>
-                <input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} />
-              </label>
+              <DateTimeField label="Start time" hint="(optional)"
+                             value={startsAt} onChange={setStartsAt} />
               {(bingo || territory) && (
-                <label
+                <span
                   title={territory
                     ? 'The biggest empire at this moment wins.'
                     : 'Without an end time, the game runs until a team fills the card.'}
                 >
-                  <span>End time <span className="muted">(optional)</span></span>
-                  <input type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} />
-                </label>
+                  <DateTimeField label="End time" hint="(optional)"
+                                 value={endsAt} onChange={setEndsAt} />
+                </span>
               )}
             </div>
 
@@ -2568,19 +2568,21 @@ function TimeEditor({ label, hint, value: saved, resetKey, busy, onSave }) {
   // value with any would otherwise look edited the moment the form loads.
   const changed = value !== toLocalInput(saved);
 
+  /* Clearing moved inside the picker, where it empties the field and leaves
+     Save to commit it. It used to be a button out here that saved null on the
+     spot, which was the one control on this row that did not wait for Save. */
   return (
     <div className="row start-time-editor">
-      <label>{label} <span className="muted">{hint}</span>
-        <input type="datetime-local" value={value} onChange={(e) => setValue(e.target.value)} />
-      </label>
+      <DateTimeField
+        label={label}
+        hint={hint}
+        value={value}
+        disabled={busy}
+        onChange={setValue}
+      />
       <button disabled={busy || !changed} onClick={() => onSave(nextIso)}>
         Save {label.toLowerCase()}
       </button>
-      {saved && (
-        <button className="ghost" disabled={busy} onClick={() => { setValue(''); onSave(null); }}>
-          Clear
-        </button>
-      )}
     </div>
   );
 }
