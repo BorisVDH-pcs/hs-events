@@ -3,8 +3,8 @@ import { readFileSync } from 'node:fs';
 import {
   MAX_EVIDENCE, MAX_FIGURE, METRIC_GROUPS, RAIDS, WOM_METRICS,
   challengeEventText, figureLabel, figureToStored, isKnownMetric, metricIcon,
-  metricLabel, rankedLabel, searchMetrics, storedToInput, womCompetitionUrl,
-  womLabel,
+  metricInitials, metricLabel, rankedLabel, searchMetrics, storedToInput,
+  womCompetitionUrl, womLabel,
 } from '../src/lib/challenge.js';
 import { ICONS } from '../src/lib/icons.js';
 import { PER_MILLION } from '../src/lib/millions.js';
@@ -222,17 +222,37 @@ for (const m of withArt) {
 }
 
 // A floor, not the exact figure: adding artwork should never fail the suite,
-// and losing a third of it should never pass quietly. 101 of 114 today.
-assert.ok(withArt.length >= 95,
-  `at least 95 metrics have artwork (have ${withArt.length})`);
+// and losing a third of it should never pass quietly. 112 of 114 today.
+assert.ok(withArt.length >= 108,
+  `at least 108 metrics have artwork (have ${withArt.length})`);
 
-// The ones that do not, as of writing. Listed so that a PNG landing for any of
-// them is a deliberate update here rather than a silent change: the picker
-// draws a worded tile for each, which is a compromise worth noticing the end
-// of. Not an upper bound -- art only ever gets added.
-for (const value of ['overall', 'sailing', 'the_fractured_archive', 'wintertodt', 'ehp', 'ehb']) {
+// Seven clue tiles, seven pictures. They shared the elite scroll for a while
+// with Master alone in a casket, and a row of near-identical tiles with one odd
+// one reads as a mistake. A repeat here means the map has drifted back.
+const clueArt = WOM_METRICS.filter((m) => m.group === 'Clues').map((m) => metricIcon(m.value));
+assert.ok(clueArt.every(Boolean), 'every clue tier has artwork');
+assert.equal(new Set(clueArt).size, clueArt.length,
+  `every clue tier has its own (found ${clueArt.join(', ')})`);
+
+// The two that are not waiting for a sprite either: Wise Old Man works them
+// out rather than the game handing them to you, so the worded tile is where
+// they end up. Listed so that art landing for them is a deliberate change.
+for (const value of ['ehp', 'ehb']) {
   assert.ok(WOM_METRICS.some((m) => m.value === value),
     `${value} is still a metric`);
+  assert.equal(metricIcon(value), null, `${value} has nothing to draw`);
+}
+
+// So the worded tile says what the metric is called. The bracketed form wins,
+// or both efficiency figures come out "EEH" and the only two tiles this
+// function still draws are indistinguishable.
+assert.equal(metricInitials('Efficient hours played (EHP)'), 'EHP');
+assert.equal(metricInitials('Efficient hours bossed (EHB)'), 'EHB');
+assert.equal(metricInitials('Last Man Standing'), 'LMS');
+assert.equal(metricInitials('Wintertodt'), 'WI', 'one capital falls back to two letters');
+for (const m of WOM_METRICS) {
+  if (metricIcon(m.value)) continue;
+  assert.ok(metricInitials(m.name).length >= 2, `${m.value} gets a readable word`);
 }
 
 // Every word, in any order, across the name and the group.

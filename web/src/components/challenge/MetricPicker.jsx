@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
-import { METRIC_GROUPS, WOM_METRICS, metricIcon, searchMetrics } from '../../lib/challenge.js';
+import {
+  METRIC_GROUPS, WOM_METRICS, metricIcon, metricInitials, searchMetrics,
+} from '../../lib/challenge.js';
 import TileIcon from '../TileIcon.jsx';
 
 /**
@@ -17,11 +19,11 @@ import TileIcon from '../TileIcon.jsx';
  * metricIcon() maps the names that differ and checks the generated manifest,
  * so a metric is never drawn as a broken image.
  *
- * Thirteen have no art at all: Overall, Sailing, the Fractured Archive,
- * Wintertodt, the seven minigames and the two efficiency figures. They get a
- * worded tile at the same size rather than a gap or a stand-in picture of
- * something else -- a tile that admits it has no portrait is honest, and one
- * borrowing an unrelated drawing would be a lie the eye believes.
+ * Two have no art: EHP and EHB are Wise Old Man's own arithmetic, not things
+ * in the game, so there is nothing to draw. They get a worded tile at the same
+ * size rather than a gap or a stand-in picture of something else -- a tile
+ * that admits it has no portrait is honest, and one borrowing an unrelated
+ * drawing would be a lie the eye believes.
  *
  * SEARCH ABOVE, GROUPS BELOW IT. With a query the groups step aside and the
  * whole list is searched, because somebody typing "vard" wants Vardorvis and
@@ -113,7 +115,7 @@ function MetricTile({ metric, on, disabled, onPick }) {
       <span className="metric-choice-art">
         {slug
           ? <TileIcon slug={slug} fallback={null} />
-          : <span className="metric-choice-word" aria-hidden="true">{initials(metric.name)}</span>}
+          : <span className="metric-choice-word" aria-hidden="true">{metricInitials(metric.name)}</span>}
       </span>
       <span className="metric-choice-name">{metric.name}</span>
     </button>
@@ -125,15 +127,3 @@ function groupOf(value) {
   return WOM_METRICS.find((m) => m.value === value)?.group ?? 'Bosses';
 }
 
-/**
- * A short word for a metric with no picture.
- *
- * Capitals first, because the names that need this mostly carry their own
- * abbreviation already -- Last Man Standing is LMS to everyone who plays it,
- * and EHP is written in the name. A single-capital name falls back to its
- * first two letters so the tile never shows one lonely character.
- */
-function initials(name) {
-  const caps = name.replace(/[^A-Z]/g, '').slice(0, 3);
-  return caps.length > 1 ? caps : name.slice(0, 2).toUpperCase();
-}

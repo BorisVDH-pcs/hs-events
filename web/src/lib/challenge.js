@@ -242,15 +242,29 @@ export const METRIC_GROUPS = ['Skills', 'Raids', 'Bosses', 'Clues', 'Activities'
  *   A SKILL file is suffixed, and `runecrafting` is spelled `runecraft` in the
  *   art. Everything else in Skills resolves on the suffix alone.
  *
- *   CLUE TIERS have one piece of art between them (plus a master casket), so
- *   they share it and the label carries the tier. A beginner clue and an elite
- *   clue are the same picture here, which is a compromise the label has to
- *   make up for.
+ *   CLUE TIERS each wear their own scroll, which differ only by the colour of
+ *   the seal, and `clue_scrolls_all` wears the reward casket because that is
+ *   the one thing every tier produces. They shared the elite scroll for a
+ *   while, with Master alone in a casket, and six identical tiles with one odd
+ *   one read as a mistake rather than a distinction.
+ *
+ *   A MINIGAME wears what it hands out, or the thing at the end of it -- the
+ *   same move the raids make. The emblem is Bounty Hunter, Sol Heredit is the
+ *   Colosseum, the soul cape is Soul Wars, and Guardians of the Rift is
+ *   Runecrafting with extra steps, so it wears the skill.
+ *
+ *   A PLACE WITH NO FACE wears what you carry out of it. The Tome of Fire is
+ *   Wintertodt, which is a brazier and a snowstorm rather than anything that
+ *   fits in a tile, and the archive key is the Fractured Archive.
+ *
+ *   OVERALL is every skill at once rather than any one of them, so it wears
+ *   the lamp instead of picking a favourite.
  *
  * Nothing is renamed on disk: these slugs are tile artwork, and a tile already
  * built on `ahrim_the_blighted` must keep finding it.
  */
 const METRIC_ICON = {
+  overall: 'antique_lamp',
   runecrafting: 'runecraft_skill',
 
   chambers_of_xeric: 'great_olm',
@@ -268,13 +282,22 @@ const METRIC_ICON = {
   the_corrupted_gauntlet: 'corrupted_hunllef',
   the_royal_titans: 'branda_the_fire_queen',
 
-  clue_scrolls_all: 'clue_scroll_elite',
-  clue_scrolls_beginner: 'clue_scroll_elite',
-  clue_scrolls_easy: 'clue_scroll_elite',
-  clue_scrolls_medium: 'clue_scroll_elite',
-  clue_scrolls_hard: 'clue_scroll_elite',
+  clue_scrolls_all: 'reward_casket_master',
+  clue_scrolls_beginner: 'clue_scroll_beginner',
+  clue_scrolls_easy: 'clue_scroll_easy',
+  clue_scrolls_medium: 'clue_scroll_medium',
+  clue_scrolls_hard: 'clue_scroll_hard',
   clue_scrolls_elite: 'clue_scroll_elite',
-  clue_scrolls_master: 'reward_casket_master',
+  clue_scrolls_master: 'clue_scroll_master',
+
+  wintertodt: 'tome_of_fire',
+  the_fractured_archive: 'archive_key',
+
+  bounty_hunter_hunter: 'ancient_emblem',
+  bounty_hunter_rogue: 'ancient_emblem',
+  guardians_of_the_rift: 'runecraft_skill',
+  soul_wars_zeal: 'soul_cape',
+  colosseum_glory: 'sol_heredit',
 
   collections_logged: 'collection_log',
 };
@@ -283,11 +306,11 @@ const METRIC_ICON = {
  * The artwork for a metric, or null when there is none.
  *
  * Checked against the generated manifest rather than assumed, so this answers
- * what is actually in `public/icons` today. Thirteen metrics have no art as
- * things stand -- Overall, Sailing, the Fractured Archive, Wintertodt, the
- * seven minigames and the two efficiency figures -- and they are drawn as a
- * worded tile instead of a broken one. Drop a PNG in, re-run
- * `npm run icons:manifest`, and the tile picks it up with no change here.
+ * what is actually in `public/icons` today. Two metrics have none: EHP and
+ * EHB are Wise Old Man's own arithmetic rather than anything in the game, so
+ * there is nothing to draw and the worded tile is the honest answer. Drop a
+ * PNG in, re-run `npm run icons:manifest`, and the tile picks it up with no
+ * change here.
  */
 export function metricIcon(value) {
   for (const slug of [METRIC_ICON[value], value, `${value}_skill`]) {
@@ -297,6 +320,26 @@ export function metricIcon(value) {
 }
 
 const ICON_SET = new Set(ICONS);
+
+/**
+ * A short word for a metric that has no picture.
+ *
+ * The name usually carries its own abbreviation, and when it is bracketed it
+ * is the whole point of the name: "Efficient hours played (EHP)" wants EHP,
+ * not the first three capitals it happens to contain, which is EEH -- and
+ * EHB gives EEH as well, so the only two metrics that will always be worded
+ * were also the only two this got wrong, and they got it wrong identically.
+ *
+ * Failing that, the capitals: Last Man Standing is LMS to anyone who plays it.
+ * A name with one capital falls back to its first two letters, so a tile never
+ * shows a single lonely character.
+ */
+export function metricInitials(name) {
+  const bracketed = name.match(/\(([A-Z]{2,4})\)/);
+  if (bracketed) return bracketed[1];
+  const caps = name.replace(/[^A-Z]/g, '').slice(0, 3);
+  return caps.length > 1 ? caps : name.slice(0, 2).toUpperCase();
+}
 
 /**
  * Metrics matching what was typed, in the order the list already has them.
