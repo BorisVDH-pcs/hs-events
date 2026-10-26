@@ -45,6 +45,15 @@ skills, clue tiers and raids alike.
   participant's `start`, `end` and `gained` for the metric.
 - `POST /v2/competitions/:id/update-all` asks WOM to re-read the hiscores. It
   needs the verification code, and WOM does not promise it worked.
+- `DELETE /v2/competitions/:id` removes it, code in the body. WOM calls this
+  irreversible. Deleting the event here sends it — see **Deleting one** below.
+
+There is no fourth call available to us. Ending a competition early would mean
+`PUT /v2/competitions/:id` with a nearer `endsAt`, and pg_net has no PUT — it
+"only supports three types of asynchronous requests", GET, POST and DELETE. So
+a challenge ended early on the site keeps counting on WOM until its original
+end time. The ladder here is unaffected, being scored from the standings as
+they stood when it ended.
 
 The verification code is a credential. It lives in `challenge_wom`, which has
 RLS on and **no policies at all** — the same arrangement `discord_webhooks`
@@ -274,6 +283,31 @@ ones first. The order is not cosmetic. `App` opens `mine[0]` for anyone with
 no stored choice, so sorting the whole list by date would move every player
 off the bingo they are playing the moment an organiser creates next week's
 event.
+
+## Deleting one
+
+Deleting a challenge deletes its WOM competition, in that order
+(`20261026170000`). The order is the whole point: `challenge_wom` is
+`on delete cascade`, so a `delete from games` run first takes the verification
+code with it, and the competition is then live on wiseoldman.net with nobody
+on this side able to touch it again. `admin_delete_game` therefore calls
+`challenge_wom_destroy` before it deletes anything.
+
+Both sit in one transaction, and pg_net queues rather than sends, so a delete
+that raises part-way never reaches WOM — no competition is deleted for a game
+that then survives.
+
+What cannot be known from here is whether WOM accepted it: the call is
+fire-and-forget, and by the time an answer exists, the game and the code are
+gone. So `challenge_wom_deleted` keeps the competition id, the game's name and
+**the verification code**, outside the cascade. A credential outliving the
+thing it protects is a deliberate trade: without it, that table would be a list
+of competitions you can see are orphaned and cannot do anything about. It is
+closed exactly as `challenge_wom` is.
+
+**Ending a challenge sends nothing.** The standings are the public record of
+the result at the moment they crown a winner, and there is no PUT to end the
+competition early with (above).
 
 ## An end time is not only a bingo's
 
