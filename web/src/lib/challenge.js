@@ -8,6 +8,7 @@
  */
 
 import { PER_MILLION, millionsLabel } from './millions.js';
+import { ICONS } from './icons.js';
 
 /**
  * A number the player gives, as stored.
@@ -223,6 +224,95 @@ export const RAIDS = [
 ];
 
 export const METRIC_GROUPS = ['Skills', 'Raids', 'Bosses', 'Clues', 'Activities', 'Other'];
+
+/*
+ * The picture that stands for a metric, where its own name is not the slug.
+ *
+ * Most bosses need nothing here: Wise Old Man calls it `zulrah` and the
+ * artwork is `zulrah.png`. These are the ones where the two vocabularies part
+ * company, and they part company for a reason each time:
+ *
+ *   A RAID has no portrait, so it is shown by the thing at the end of it. Olm
+ *   is Chambers, Verzik is Theatre, the Wardens are Tombs -- which is how
+ *   people name those raids to each other anyway.
+ *
+ *   A CHEST is not a monster. Barrows borrows a brother, lunar chests borrow
+ *   one of the Moons, since what the player pictures is the fight, not the box.
+ *
+ *   A SKILL file is suffixed, and `runecrafting` is spelled `runecraft` in the
+ *   art. Everything else in Skills resolves on the suffix alone.
+ *
+ *   CLUE TIERS have one piece of art between them (plus a master casket), so
+ *   they share it and the label carries the tier. A beginner clue and an elite
+ *   clue are the same picture here, which is a compromise the label has to
+ *   make up for.
+ *
+ * Nothing is renamed on disk: these slugs are tile artwork, and a tile already
+ * built on `ahrim_the_blighted` must keep finding it.
+ */
+const METRIC_ICON = {
+  runecrafting: 'runecraft_skill',
+
+  chambers_of_xeric: 'great_olm',
+  chambers_of_xeric_challenge_mode: 'great_olm',
+  theatre_of_blood: 'verzik_vitur',
+  theatre_of_blood_hard_mode: 'verzik_vitur',
+  tombs_of_amascut: 'tumekens_warden',
+  tombs_of_amascut_expert: 'tumekens_warden',
+
+  barrows_chests: 'ahrim_the_blighted',
+  lunar_chests: 'eclipse_moon',
+  mimic: 'the_mimic',
+  nightmare: 'the_nightmare',
+  the_gauntlet: 'crystalline_hunllef',
+  the_corrupted_gauntlet: 'corrupted_hunllef',
+  the_royal_titans: 'branda_the_fire_queen',
+
+  clue_scrolls_all: 'clue_scroll_elite',
+  clue_scrolls_beginner: 'clue_scroll_elite',
+  clue_scrolls_easy: 'clue_scroll_elite',
+  clue_scrolls_medium: 'clue_scroll_elite',
+  clue_scrolls_hard: 'clue_scroll_elite',
+  clue_scrolls_elite: 'clue_scroll_elite',
+  clue_scrolls_master: 'reward_casket_master',
+
+  collections_logged: 'collection_log',
+};
+
+/**
+ * The artwork for a metric, or null when there is none.
+ *
+ * Checked against the generated manifest rather than assumed, so this answers
+ * what is actually in `public/icons` today. Thirteen metrics have no art as
+ * things stand -- Overall, Sailing, the Fractured Archive, Wintertodt, the
+ * seven minigames and the two efficiency figures -- and they are drawn as a
+ * worded tile instead of a broken one. Drop a PNG in, re-run
+ * `npm run icons:manifest`, and the tile picks it up with no change here.
+ */
+export function metricIcon(value) {
+  for (const slug of [METRIC_ICON[value], value, `${value}_skill`]) {
+    if (slug && ICON_SET.has(slug)) return slug;
+  }
+  return null;
+}
+
+const ICON_SET = new Set(ICONS);
+
+/**
+ * Metrics matching what was typed, in the order the list already has them.
+ *
+ * Every word, in any order, against the name and the group together -- the
+ * same rule searchIcons uses, so "raid tombs" and "tombs raid" both land. The
+ * group is in the haystack because "raid" is not in the name of a single raid.
+ */
+export function searchMetrics(query) {
+  const words = query.toLowerCase().split(' ').filter(Boolean);
+  if (words.length === 0) return WOM_METRICS;
+  return WOM_METRICS.filter((m) => {
+    const hay = `${m.name} ${m.group} ${m.value.replace(/_/g, ' ')}`.toLowerCase();
+    return words.every((w) => hay.includes(w));
+  });
+}
 
 /** True when WOM has never heard of this metric, so it was typed by hand. */
 export function isKnownMetric(metric) {

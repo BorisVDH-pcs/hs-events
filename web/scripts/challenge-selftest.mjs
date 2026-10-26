@@ -2,9 +2,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   MAX_EVIDENCE, MAX_FIGURE, METRIC_GROUPS, RAIDS, WOM_METRICS,
-  challengeEventText, figureLabel, figureToStored, isKnownMetric, metricLabel,
-  rankedLabel, storedToInput, womCompetitionUrl, womLabel,
+  challengeEventText, figureLabel, figureToStored, isKnownMetric, metricIcon,
+  metricLabel, rankedLabel, searchMetrics, storedToInput, womCompetitionUrl,
+  womLabel,
 } from '../src/lib/challenge.js';
+import { ICONS } from '../src/lib/icons.js';
 import { PER_MILLION } from '../src/lib/millions.js';
 
 // ---- What a player types, and what is stored ----
@@ -206,4 +208,40 @@ for (const key of ['solo', 'wom_metric', 'declared_label', 'declared_unit', 'ran
   assert.ok(listSql.includes(`'${key}'`), `challenge_list answers with ${key}`);
 }
 
-console.log(`challenge selftest: ok (${WOM_METRICS.length} metrics)`);
+// ---- The artwork the metric picker shows ----
+//
+// METRIC_ICON is written by hand, against slugs owned by the tile boards. A
+// boss renamed on disk, or a typo in the map, would show as an empty tile in
+// a picker nobody looks at twice -- so it is caught here instead.
+
+const iconSet = new Set(ICONS);
+const withArt = WOM_METRICS.filter((m) => metricIcon(m.value));
+for (const m of withArt) {
+  assert.ok(iconSet.has(metricIcon(m.value)),
+    `${m.value} resolves to a slug that is in public/icons`);
+}
+
+// A floor, not the exact figure: adding artwork should never fail the suite,
+// and losing a third of it should never pass quietly. 101 of 114 today.
+assert.ok(withArt.length >= 95,
+  `at least 95 metrics have artwork (have ${withArt.length})`);
+
+// The ones that do not, as of writing. Listed so that a PNG landing for any of
+// them is a deliberate update here rather than a silent change: the picker
+// draws a worded tile for each, which is a compromise worth noticing the end
+// of. Not an upper bound -- art only ever gets added.
+for (const value of ['overall', 'sailing', 'the_fractured_archive', 'wintertodt', 'ehp', 'ehb']) {
+  assert.ok(WOM_METRICS.some((m) => m.value === value),
+    `${value} is still a metric`);
+}
+
+// Every word, in any order, across the name and the group.
+assert.deepEqual(searchMetrics('zulrah').map((m) => m.value), ['zulrah'],
+  'search finds a boss by name');
+assert.ok(searchMetrics('raid tombs').length === 2,
+  'search matches words in any order, and knows the group');
+assert.equal(searchMetrics('').length, WOM_METRICS.length,
+  'an empty search is the whole list');
+assert.equal(searchMetrics('qqq').length, 0, 'a miss is a miss');
+
+console.log(`challenge selftest: ok (${WOM_METRICS.length} metrics, ${withArt.length} with art)`);
