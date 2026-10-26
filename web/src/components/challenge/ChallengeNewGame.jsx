@@ -62,19 +62,10 @@ export default function ChallengeNewGame({ busy, onCreate }) {
   // rule the weekly events run on, and the one the schema has enforced since
   // the mode existed.
   const [allAccounts, setAllAccounts] = useState(false);
-  // Typing one by hand is a deliberate choice, so it survives a metric the
-  // list does happen to know being typed into the box.
-  const [typed, setTyped] = useState(false);
-  // What the grid was last left on, so backing out of the typed box returns
-  // the organiser to their own choice rather than to whatever the default is.
-  const [picked, setPicked] = useState('clue_scrolls_all');
 
   const loot = kind === 'loot';
   const filled = teamNames.map((n) => n.trim()).filter(Boolean);
   const duplicate = new Set(filled.map((n) => n.toLowerCase())).size !== filled.length;
-  // The shape every WOM metric has. Checked only for one typed by hand; the
-  // list box cannot produce anything else.
-  const metricOk = /^[a-z0-9_]+$/.test(metric);
   // Only once both are given: a half-filled pair is not yet wrong, and an
   // error that appears the moment you pick a start is an error about nothing.
   const ordered = !startsAt || !endsAt || new Date(endsAt) > new Date(startsAt);
@@ -83,7 +74,6 @@ export default function ChallengeNewGame({ busy, onCreate }) {
     && startsAt
     && endsAt
     && ordered
-    && metricOk
     && (solo || (filled.length >= 1 && !duplicate));
 
   const setTeam = (i, value) => setTeamNames((prev) => prev.map((n, j) => (j === i ? value : n)));
@@ -167,10 +157,7 @@ export default function ChallengeNewGame({ busy, onCreate }) {
         </Pick>
       </PickSet>
 
-      {/* One column: the loot answer has something to say that does not fit on
-          a blurb's line, and side by side it would set the height of a box
-          with nothing in it. */}
-      <PickSet ask="What decides it?" wide>
+      <PickSet ask="What decides it?" even>
         <Pick
           name="challenge-kind" checked={!loot} disabled={busy}
           onChange={() => setKind('hiscores')}
@@ -182,23 +169,7 @@ export default function ChallengeNewGame({ busy, onCreate }) {
           onChange={() => setKind('loot')}
           title="Most loot from doing it"
           blurb="The count still runs and is still shown, but the loot wins it."
-        >
-          <p className="muted new-game-note">
-            Players give the figure themselves, in millions, and hang a
-            screenshot either side of it. The site cannot read a screenshot, so
-            an organiser checks the two against each other in Track and can
-            correct the number.
-          </p>
-          {/* The reason the loot wins rather than the count, said where the
-              decision is made. An organiser comparing loot against kills will
-              otherwise read the mismatch as a broken figure. */}
-          <p className="muted new-game-note">
-            The count keeps climbing after someone hands their screenshots in,
-            so a player who carries on afterwards will show more than their
-            loot covers. That is why the loot decides it and the count is only
-            shown.
-          </p>
-        </Pick>
+        />
       </PickSet>
 
       {/* Asked once, under both answers, because both count the same way. A
@@ -208,39 +179,7 @@ export default function ChallengeNewGame({ busy, onCreate }) {
           Pictures rather than a list: see MetricPicker for why. */}
       <fieldset className="pick-set">
         <legend className="pick-ask">What is counted?</legend>
-        {typed ? (
-          <>
-            <div className="row new-game-fields">
-              <label className="field-name">Its Wise Old Man name
-                <input
-                  value={metric}
-                  onChange={(e) => setMetric(e.target.value.trim())}
-                  placeholder="araxxor"
-                  disabled={busy}
-                  autoFocus
-                />
-              </label>
-              <button
-                type="button" className="ghost" disabled={busy}
-                onClick={() => { setTyped(false); setMetric(picked); }}
-              >
-                Back to the list
-              </button>
-            </div>
-            <p className="muted new-game-note">
-              Spelled the way Wise Old Man spells it, in lower case with
-              underscores. Their competition is created from this, so a name
-              they do not know is refused when the event starts.
-            </p>
-          </>
-        ) : (
-          <MetricPicker
-            value={metric}
-            disabled={busy}
-            onChange={(v) => { setMetric(v); setPicked(v); }}
-            onType={() => { setTyped(true); setMetric(''); }}
-          />
-        )}
+        <MetricPicker value={metric} disabled={busy} onChange={setMetric} />
 
         {/* HOW MANY ACCOUNTS COUNT PER PERSON. Off is the rule a weekly
             XP or kill-count event wants: one account each, or somebody
