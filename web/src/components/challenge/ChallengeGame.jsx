@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   challengeList, challengeMine, challengeStandings, challengeWomCompetition,
-  challengeJoin, challengeLeave, challengeDeclare, womPulse,
+  challengeJoin, challengeLeave, challengeDeclare, challengeTick, womPulse,
   myAccounts, challengeMyAccounts,
 } from '../../lib/supabase.js';
 import { signedUrls, uploadChallengeShot } from '../../lib/evidence.js';
 import {
-  MAX_EVIDENCE, WOM_PULSE_MS,
+  CLOCK_TICK_MS, MAX_EVIDENCE, WOM_PULSE_MS,
   figureLabel, figureToStored, metricLabel, rankedLabel, storedToInput,
   womCompetitionUrl, womLabel,
 } from '../../lib/challenge.js';
@@ -57,7 +57,11 @@ export default function ChallengeGame({
   const isFinished = game.status === 'finished';
   const joined = Boolean(mine);
   const unit = setup?.declared_unit ?? null;
-  const left = useCountdown(game.ends_at);
+  // The time the event is waiting on, which is not the same time all the way
+  // through: before it opens that is the start, and once it is running it is
+  // the end. One clock either way, because only one of them is ever next.
+  const waitingFor = isOpen ? game.starts_at : isActive ? game.ends_at : null;
+  const left = useCountdown(waitingFor);
 
   const load = useCallback(async () => {
     try {
@@ -165,6 +169,70 @@ export default function ChallengeGame({
     return () => { live = false; window.clearInterval(timer); };
   }, [isActive, setup?.wom_metric, game.id, load]);
 
+  /**
+   * The clock, which nothing on a server turns.
+   *
+   * An event carries a start time and an end time, and both are meant to act on
+   * their own -- nobody should have to be awake on a Monday morning to let an
+   * event begin. There is no scheduler on this project, so "on its own" means
+   * whoever has the page open: the same arrangement the Wise Old Man loop above
+   * runs on, and the one that settles a finished bingo.
+   *
+   * It is only read when there is something owed. Two cases:
+   *
+   *   OVERDUE -- the time the event is waiting on has gone by and the event has
+   *     not moved. Checked every ten seconds, which is also how the ending gets
+   *     its second pass: the first writes down whatever WOM has sent and asks
+   *     for fresh figures, the next one settles the ladder on them.
+   *   NO COMPETITION -- an event that opened before anybody had given a
+   *     RuneScape name has nothing for WOM to add latecomers to, so it needs
+   *     one made the moment somebody signs up. Checked on the slow beat,
+   *     because nothing about it is urgent.
+   *
+   * `challenge_tick` is idempotent, locks the row and refuses anything the
+   * clock has not earned, so fifty open phones do between them exactly what one
+   * would. Its answer is null when it did nothing, which is the common case and
+   * is not worth a reload.
+   */
+  const ticking = useRef(false);
+  const overdue = (isOpen || isActive) && left.set && left.started;
+  const noCompetition = isActive && Boolean(setup?.wom_metric) && !wom;
+  useEffect(() => {
+    if (!overdue && !noCompetition) return undefined;
+    let live = true;
+    let spent = false;
+    const turn = async () => {
+      if (spent || ticking.current) return;
+      ticking.current = true;
+      try {
+        const did = await challengeTick(game.id);
+        if (!live) return;
+        // The slow beat answering "nothing owed" is the normal case -- it is
+        // waiting for somebody to sign up -- and says nothing this screen does
+        // not already show.
+        if (!did && !overdue) return;
+        // Overdue and nothing owed means one of two things, and neither is
+        // worth asking about every ten seconds: another browser got there
+        // first, so this page is one reload behind, or the event is waiting on
+        // a person. One look, then leave it. A status that did change takes
+        // this effect down with it, so there is nothing to restart.
+        if (!did) spent = true;
+        // The status is the parent's to hold, so starting and finishing both
+        // need the refresh as well as the reload.
+        await load();
+        await onRefresh?.();
+      } catch {
+        // Same as the pulse: whatever went wrong, the times have not changed
+        // and the next turn will try again.
+      } finally {
+        ticking.current = false;
+      }
+    };
+    turn();
+    const timer = window.setInterval(turn, overdue ? CLOCK_TICK_MS : WOM_PULSE_MS);
+    return () => { live = false; window.clearInterval(timer); };
+  }, [overdue, noCompetition, game.id, load, onRefresh]);
+
   const run = async (fn, done) => {
     setBusy(true); setError(null); setNotice(null);
     try {
@@ -214,12 +282,23 @@ export default function ChallengeGame({
           </p>
 
           {/* The clock is the whole shape of a short event, so it leads the
-              card whichever phase it is in. */}
-          {game.ends_at && !isFinished && (
+              card whichever phase it is in: counting to the start while it is
+              waiting, and to the end once it is running.
+
+              At zero it says what is happening instead of showing 00:00:00,
+              because both times now act when they arrive and a stopped clock
+              over an event that is about to move reads as broken. */}
+          {left.set && !isFinished && (
             <p className="challenge-clock">
-              {left.days > 0 && `${left.days}d `}
-              {pad(left.hours)}:{pad(left.minutes)}:{pad(left.seconds)}
-              <span className="muted">{isOpen ? ' until the end time' : ' left'}</span>
+              {left.started ? (
+                <span className="muted">{isOpen ? 'Starting…' : 'Finishing…'}</span>
+              ) : (
+                <>
+                  {left.days > 0 && `${left.days}d `}
+                  {pad(left.hours)}:{pad(left.minutes)}:{pad(left.seconds)}
+                  <span className="muted">{isOpen ? ' until it starts' : ' left'}</span>
+                </>
+              )}
             </p>
           )}
 

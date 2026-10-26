@@ -155,19 +155,70 @@ Both are idempotent and both are rate-limited by `challenge_wom.fetched_at`, so
 a room full of open browsers costs one fetch, not thirty. WOM allows 20 requests
 a minute without a key.
 
+## Starting and finishing on the clock
+
+`20261026150000` gives an event a start time that is acted on, and the same
+no-scheduler arrangement does the acting: `challenge_tick(game_id)` is what an
+open page calls when a countdown reaches zero. It is granted to `authenticated`
+on purpose — a browser is the only clock there is — and that is safe because it
+reads the times on the event rather than who is asking, refuses anything the
+clock has not already earned, and takes `for update` on the games row so a
+clan's worth of phones do between them exactly what one would.
+
+The two transitions were split out as `challenge_do_start` and
+`challenge_do_end`, with no checks in them and no grants on them. `challenge_start`
+and `challenge_end` keep every check they had and call those; the tick calls
+them too, having checked the clock instead. One body each, so the button's path
+and the clock's path cannot drift.
+
+Three things the clock does differently from the button:
+
+- **It starts an event nobody has joined.** `challenge_start` refuses an empty
+  event, and a team event with anybody unseated. Those are right for a person
+  pressing a button too early and wrong for a Monday morning — an event that sat
+  in setup because nobody had signed up is the thing this removes. Affordable
+  only because sign-ups now stay open while it runs.
+- **It creates the WOM competition in two places.** `challenge_wom_create`
+  *raises* when nobody with a RuneScape name has joined, and the start calls it,
+  so an empty scheduled start would roll itself back. The tick therefore creates
+  the competition only when there is somebody to put in it — and creates it
+  later, on the first tick that finds a running event with entrants and no
+  competition, because `challenge_wom_add` returns null where there is no
+  competition to add to and an event that opened empty would otherwise score
+  nothing all week.
+- **Ending takes two passes.** `challenge_end` will not settle a ladder on
+  standings older than fifteen minutes, and `pg_net` is fire-and-forget, so
+  queueing the fetch and reading its reply are different transactions. The first
+  tick after the end time reconciles what has landed and asks for fresh figures;
+  the next one, ten seconds later, settles it. An event finishes shortly after
+  its end time rather than on it, which is what the right winner costs.
+
+Both buttons stay. Start event is now "go early", End event now is "call it
+early", and an organiser can move the start time while the event is waiting.
+
 ## Events
 
 `challenge_declared` and `challenge_ended` only. Joining emits nothing: with the
 whole clan opting in over a day it would bury the feed, the same judgement that
 keeps `bingo_open_tile` silent.
 
-## Sign-ups close when the event starts
+## Sign-ups stay open while it runs
 
-A limitation, not a rule anyone wanted. The WOM competition is created at the
-start from exactly the people who have joined, so a latecomer would sit on our
-ladder and not on WOM's, scoring zero for a week they actually played. WOM has
-an add-participants endpoint and a later migration should use it; until then
-`challenge_join` refuses clearly rather than entering someone who cannot score.
+They did close at the start, and that was a limitation rather than a rule
+anyone wanted: the WOM competition was created from exactly the people who had
+joined, so a latecomer would have sat on our ladder and not on WOM's, scoring
+zero for a week they actually played.
+
+`20261026120500` uses WOM's add-participants endpoint, so `challenge_join`
+takes somebody mid-event and `challenge_wom_add` puts them on the live
+competition. `challenge_entries.wom_added_at` is null until WOM confirms it, and
+the player's own screen says so in red while there is still time to fix it —
+being on this ladder and being on WOM's are two different things, and the one
+unacceptable outcome is finding that out at the end of the week.
+
+WOM measures every participant from the competition's own start, so a latecomer
+is credited with the days before they joined. The sign-up card says that before
+they sign up, not after.
 
 ## The shared functions are patched, not rewritten
 
@@ -246,11 +297,13 @@ Done:
   declaring a figure with the shots behind it, the organiser's review list with
   correct-and-verify, the ladder, starting, ending, and both halves of the Wise
   Old Man call.
+- `20261026150000_challenge_schedule.sql` — the start time, and the clock that
+  acts on both times. See *Starting and finishing on the clock*.
 - The console — Challenge in New game with its own body (what it is scored on,
-  rather than how big the board is), its own checklist, Start event, End event
-  now, and a Track pane with the ladder, the review list and a Refresh button
-  for the figures. Configure shows Game and Discord only: a challenge has no
-  board and no roster.
+  rather than how big the board is), its own checklist, both times, Start event,
+  End event now, and a Track pane with the ladder, the review list and a Refresh
+  button for the figures. Configure shows Game and Discord only: a challenge has
+  no board and no roster.
 - The player screen — `components/challenge/`. Sign up with the RSN WOM will
   match, give the number, hang the start and finish shots on it, and the
   ladder. It loads its own data rather than going through `board_for_me`:
@@ -260,7 +313,8 @@ Done:
 
 Still to come:
 
-1. Adding a latecomer to a running WOM competition, so sign-ups can stay open.
+1. Nothing outstanding. Latecomers landed in `20261026120500` and scheduling in
+   `20261026150000`; what is left is whatever the first scheduled event turns up.
 
 ## Who may run one
 

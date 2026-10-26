@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  MAX_EVIDENCE, MAX_FIGURE, METRIC_GROUPS, RAIDS, WOM_METRICS,
+  CLOCK_TICK_MS, MAX_EVIDENCE, MAX_FIGURE, METRIC_GROUPS, RAIDS, WOM_METRICS,
+  WOM_PULSE_MS,
   challengeEventText, figureLabel, figureToStored, isKnownMetric, metricIcon,
   metricInitials, metricLabel, rankedLabel, searchMetrics, storedToInput,
   womCompetitionUrl, womLabel,
@@ -125,12 +126,28 @@ assert.equal(
 );
 assert.match(
   challengeEventText({ type: 'game_started', payload: { mode: 'challenge', entrants: 1 } }, 'x'),
-  /1 entrant,/,
+  /1 entrant so far/,
   'one entrant is not "1 entrants"',
 );
 assert.match(
   challengeEventText({ type: 'game_started', payload: { mode: 'challenge', entrants: 12 } }, 'x'),
   /12 entrants/,
+);
+
+// Who started it, which the clock writes into the payload. An event started
+// before there was a clock carries no `scheduled` key at all, and has to read
+// the way it always did rather than claiming a start time it never had.
+assert.match(
+  challengeEventText({
+    type: 'game_started', payload: { mode: 'challenge', entrants: 3, scheduled: true },
+  }, 'x'),
+  /^The start time came/,
+  'the clock says so',
+);
+assert.match(
+  challengeEventText({ type: 'game_started', payload: { mode: 'challenge', entrants: 3 } }, 'x'),
+  /^The event has begun/,
+  'an older event, and an organiser going early, read the same',
 );
 
 const declared = challengeEventText({
@@ -204,8 +221,56 @@ const listSql = readFileSync(
   new URL('../../supabase/migrations/20261026120300_challenge_list.sql', import.meta.url),
   'utf8',
 );
-for (const key of ['solo', 'wom_metric', 'declared_label', 'declared_unit', 'ranked_by', 'joined', 'entrants']) {
+for (const key of ['solo', 'wom_metric', 'declared_label', 'declared_unit', 'ranked_by', 'joined', 'entrants',
+  // Both times, because both are acted on now: the clock on an open page is
+  // what starts and finishes an event, and it reads them from here.
+  'starts_at', 'ends_at']) {
   assert.ok(listSql.includes(`'${key}'`), `challenge_list answers with ${key}`);
+}
+
+// ---- The clock ----
+//
+// There is no scheduler, so a scheduled event is only as good as the function
+// an open page calls and the grants on it. None of this can be run here, so
+// what is checked is the shape of the migration that defines it -- which is
+// where the two mistakes that would matter live.
+
+const schedule = readFileSync(
+  new URL('../../supabase/migrations/20261026150000_challenge_schedule.sql', import.meta.url),
+  'utf8',
+);
+
+// The overdue beat has to outpace the idle one, or the ending's second pass --
+// the one that settles the ladder on fresh figures -- waits a whole minute.
+assert.ok(CLOCK_TICK_MS < WOM_PULSE_MS, 'the clock is read faster than the hiscores are');
+
+// Granting a transition to every signed-in player is the one mistake in here
+// that would not show on screen: `challenge_do_end` with no checks in front of
+// it ends anybody's event.
+for (const fn of ['challenge_do_start(uuid, uuid)', 'challenge_do_end(uuid)']) {
+  assert.ok(
+    new RegExp(`revoke execute on function ${fn.replace(/[()]/g, '\\$&')}[\\s\\S]{0,80}authenticated`)
+      .test(schedule),
+    `${fn} is not something a player can call`,
+  );
+}
+assert.ok(/grant execute on function challenge_tick\(uuid\)\s*\n?\s*to authenticated/.test(schedule),
+  'challenge_tick is something a player can call -- an open page is the scheduler');
+assert.ok(/for update/.test(schedule),
+  'the tick locks the row, so a clan of open browsers starts an event once');
+
+// `create or replace` cannot change an argument list, so the old signature is
+// dropped by hand. Getting one of the three lists wrong leaves either a stale
+// overload PostgREST can pick or a function nobody may execute -- and the
+// start time went in the middle of the list, so every one of them moved.
+const OLD_ARGS = 'text, timestamptz, boolean, text, text, text, text, text[], boolean';
+const NEW_ARGS = 'text, timestamptz, timestamptz, boolean, text, text, text, text, text[], boolean';
+assert.ok(schedule.includes(`drop function if exists admin_new_challenge(${OLD_ARGS})`),
+  'the nine-argument admin_new_challenge is dropped');
+for (const verb of ['revoke', 'grant']) {
+  assert.ok(new RegExp(`${verb} execute on function admin_new_challenge\\(${NEW_ARGS
+    .replace(/[[\]]/g, '\\$&')}\\)`).test(schedule),
+  `the ten-argument admin_new_challenge is ${verb}ed`);
 }
 
 // ---- The artwork the metric picker shows ----
