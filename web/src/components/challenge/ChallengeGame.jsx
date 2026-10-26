@@ -266,6 +266,12 @@ export default function ChallengeGame({
   const startShots = (mine?.evidence ?? []).filter((e) => e.phase === 'start');
   const finishShots = (mine?.evidence ?? []).filter((e) => e.phase === 'finish');
 
+  // Whether the head card has anything to say about the competition: the link
+  // once Wise Old Man has made it, and the line explaining its absence once
+  // the event is running without one. While it is still open there is nothing
+  // missing yet, so neither is true and the slot stays empty.
+  const womSlot = Boolean(setup?.wom_metric) && (Boolean(wom) || !isOpen);
+
   return (
     <div className="challenge-layout">
       <div className="challenge-main">
@@ -334,49 +340,69 @@ export default function ChallengeGame({
             <p className="banner">{winner ? `${winner.name} wins.` : 'The event is over.'}</p>
           )}
 
-          <ul className="challenge-asks">
-            {setup?.wom_metric && (
-              <li>
-                <strong>{metricLabel(setup.wom_metric)}</strong>
-                <span className="muted">
-                  {' — counted off the hiscores by Wise Old Man. Nothing to send in.'}
-                </span>
-                {/* The competition is public, so the honest thing is to link
-                    it: this ladder is a copy of theirs, and anyone who thinks
-                    a figure is wrong should be able to go and look rather than
-                    take our word for it. Participants is its own link because
-                    it is the page that says who is actually being counted. */}
-                {wom ? (
-                  <span className="challenge-wom-link">
-                    <a href={womCompetitionUrl(wom)} target="_blank" rel="noreferrer noopener">
-                      On Wise Old Man ↗
-                    </a>
-                    <a
-                      href={womCompetitionUrl(wom, 'participants')}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                    >
-                      Who is in it ↗
-                    </a>
-                  </span>
-                ) : isOpen ? null : (
-                  <span className="muted challenge-wom-link">
-                    Waiting for Wise Old Man to create the competition.
-                  </span>
-                )}
-              </li>
-            )}
-            {setup?.declared_label && (
-              <li>
-                <strong>{setup.declared_label}</strong>
-                <span className="muted">
-                  {' — the number you give'}
-                  {setup.declared_unit === 'gp' ? ', in millions' : ''}
-                  {', with a screenshot from the start and one from the finish.'}
-                </span>
-              </li>
-            )}
-          </ul>
+          {(!joined || womSlot) && (
+            <div className="challenge-head-more">
+              {/* ---- What it asks of you ----
+                  Only while a player is still outside it. Once they are in,
+                  every line here is said again further down the same screen
+                  with their own number in it: the hiscores figure carries
+                  "counted off the hiscores since the start", the declared one
+                  is labelled "in millions" over the box they type it into, and
+                  the two screenshots have a section to themselves. Said in
+                  both places it read as two sets of rules that did not quite
+                  match — which is the whole reason the card was confusing. */}
+              {!joined && (
+                <ul className="challenge-asks">
+                  {setup?.wom_metric && (
+                    <li>
+                      <strong>{metricLabel(setup.wom_metric)}</strong>
+                      <span className="muted">
+                        {' — counted off the hiscores by Wise Old Man. Nothing to send in.'}
+                      </span>
+                    </li>
+                  )}
+                  {setup?.declared_label && (
+                    <li>
+                      <strong>{setup.declared_label}</strong>
+                      <span className="muted">
+                        {' — the number you give'}
+                        {setup.declared_unit === 'gp' ? ', in millions' : ''}
+                        {', with a screenshot from the start and one from the finish.'}
+                      </span>
+                    </li>
+                  )}
+                </ul>
+              )}
+
+              {/* ---- The competition behind it ----
+                  The competition is public, so the honest thing is to link it:
+                  this ladder is a copy of theirs, and anyone who thinks a
+                  figure is wrong should be able to go and look rather than
+                  take our word for it.
+
+                  One link, and a button rather than prose. Participants was a
+                  second link beside it, answering "who is being counted" --
+                  which is an organiser's question, and the console pane has
+                  it; the competition's own page lists them anyway. Nothing in
+                  this app styles a bare <a>, so the pair came out in the
+                  browser's underlined blue in the middle of a card that is
+                  otherwise all tint and fill. */}
+              {womSlot && (wom ? (
+                <a
+                  className="challenge-wom-button"
+                  href={womCompetitionUrl(wom)}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                >
+                  See it on Wise Old Man ↗
+                </a>
+              ) : (
+                <p className="muted challenge-wom-wait">
+                  Waiting for Wise Old Man to create the competition.
+                </p>
+              ))}
+            </div>
+          )}
         </section>
 
         {/* Open for as long as the event runs. A latecomer is added to the

@@ -5290,16 +5290,48 @@ body.dragging-jump * { cursor: grabbing !important; user-select: none; }
 }
 
 /* Under a rule: the heading says what the event is, this says what it asks
-   of you, and they are two different readings of the same card. */
+   of you and where it is kept, and they are two different readings of the
+   same card. The rule lives here rather than on the list, because the list is
+   only drawn for a player who has not joined yet and the button under it
+   outlives it. */
+.challenge-head-more {
+  padding: var(--s-3) 0 0;
+  border-top: 1px solid var(--hairline);
+  display: grid;
+  gap: var(--s-3);
+  justify-items: start;
+}
+
 .challenge-asks {
   list-style: none;
   margin: 0;
-  padding: var(--s-3) 0 0;
-  border-top: 1px solid var(--hairline);
+  padding: 0;
   display: grid;
   gap: .4rem;
 }
 .challenge-asks li { font-size: .875rem; }
+
+/* The one way off this screen, so it is shaped like something you press.
+   A bare <a> takes no house style in this app at all, which is how two of
+   these ended up as the browser's underlined blue on an otherwise tinted
+   card. Not a <button>, because it really is a link and middle-clicking it
+   should open a tab. */
+.challenge-wom-button {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .5rem .9rem;
+  border-radius: var(--r-pill);
+  background: var(--fill);
+  color: var(--gold);
+  font-size: .875rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background .25s var(--ease-out), color .25s var(--ease-out);
+}
+.challenge-wom-button:hover { background: var(--fill-2); color: var(--gold-lit); }
+
+.challenge-wom-wait { font-size: .875rem; margin: 0; }
 
 /* ---- the ladder ----
  *
@@ -5357,22 +5389,24 @@ body.dragging-jump * { cursor: grabbing !important; user-select: none; }
    is not what this card is for. */
 .challenge-wom-when { font-size: .9375rem; }
 
-/* Its own line under the metric, not trailing the sentence: two links reading
-   as part of the prose would be read as part of the prose. */
-.challenge-wom-link { display: flex; flex-wrap: wrap; gap: .1rem .9rem; margin-top: .2rem; }
-.challenge-wom-link a { font-size: .8125rem; }
-/* In the console they are the way off this screen to another site, so there
-   they are set as chips. On the player's own card (.challenge-asks) they stay
-   links in a line of prose, which is what they are there. */
-.challenge-wom .challenge-wom-link { gap: .4rem; margin: 0; }
-.challenge-wom .challenge-wom-link a {
+/* The console's pair, which keep both pages: an organiser setting an event up
+   does want to know who Wise Old Man has actually got on it, and that is the
+   participants page's whole job. The player's card carries one of them, as a
+   button -- see .challenge-wom-button. Chips here, because they are the way
+   off this screen to another site rather than prose to be read. */
+.challenge-wom-link { display: flex; flex-wrap: wrap; gap: .4rem; }
+.challenge-wom-link a {
+  font-size: .8125rem;
   padding: .3rem .7rem;
   border: 1px solid var(--hairline);
   border-radius: var(--r-pill);
   background: var(--fill-3);
+  /* Tinted, not left to the browser: nothing in this app styles a bare <a>,
+     so without this the chips carry their text in the default blue. */
+  color: var(--gold);
   text-decoration: none;
 }
-.challenge-wom .challenge-wom-link a:hover {
+.challenge-wom-link a:hover {
   border-color: var(--line-lit);
   background: var(--fill);
 }
