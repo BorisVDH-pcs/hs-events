@@ -17,6 +17,14 @@ import { fileURLToPath } from 'node:url';
 // The `^.*` matters: Vite substitutes the MATCHED SUBSTRING, so a pattern of
 // just `/lib/supabase.js$` would leave the leading `..` behind and resolve to
 // `..C:/…`. The pattern has to span the whole specifier.
+//
+// AND IT MATCHES `/supabase.js`, NOT `/lib/supabase.js`. The modules inside
+// lib/ import each other as siblings -- games.js asks for './supabase.js' --
+// so the narrower pattern missed every one of them, and the App harness was
+// quietly running the REAL lib/supabase.js there: a null client, a console
+// warning, and listMyGames returning an empty list before it read a thing.
+// The fixtures the harness set were never looked at. `stub-supabase.js` ends
+// in `-supabase.js` rather than `/supabase.js`, so it does not alias itself.
 const here = (p) => fileURLToPath(new URL(p, import.meta.url));
 
 export default defineConfig({
@@ -24,8 +32,8 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: [
-      { find: /^.*\/lib\/supabase\.js$/, replacement: here('./src/preview/stub-supabase.js') },
-      { find: /^.*\/lib\/evidence\.js$/, replacement: here('./src/preview/stub-evidence.js') },
+      { find: /^.*\/supabase\.js$/, replacement: here('./src/preview/stub-supabase.js') },
+      { find: /^.*\/evidence\.js$/, replacement: here('./src/preview/stub-evidence.js') },
     ],
   },
   // No `open`: the page is driven from the Browser pane, and a config that

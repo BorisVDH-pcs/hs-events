@@ -3,6 +3,7 @@ import Guide from './components/Guide.jsx';
 import NextMove from './components/NextMove.jsx';
 import {
   supabase, isSupabaseConfigured, claimTile, spendPetJar, myModeratorModes,
+  gameSignupJoin, gameSignupLeave,
 } from './lib/supabase.js';
 import { useGame } from './hooks/useGame.js';
 import { subscribeToGameEvents } from './lib/gameEvents.js';
@@ -48,6 +49,7 @@ export default function App() {
   // signup no captain has picked yet -- both fall back below.
   const [myGames, setMyGames] = useState([]);
   const [notice, setNotice] = useState(null);
+  const [signupBusy, setSignupBusy] = useState(false);
   const [shot, setShot] = useState(null);
   const [shotResult, setShotResult] = useState(null);
   const [busyTileId, setBusyTileId] = useState(null);
@@ -327,6 +329,13 @@ export default function App() {
     playerScreen && !game.loading && Boolean(game.game)
     && game.game.mode !== 'challenge' && !game.myTeamId;
 
+  // Sign-ups are open while the organiser is still making the teams, and shut
+  // when the game starts: a board event is played by teams formed before it
+  // began, so the button goes rather than staying up for the whole event. An
+  // organiser can still add a latecomer by hand, which is their call to make.
+  const signupsOpen =
+    waitingForTeam && (game.game.status === 'setup' || game.game.status === 'placement');
+
   // Rostered ahead of time, but nothing to do yet: preparation may not even
   // be open, or it is open but placing the fleet is the captain's job, not
   // this player's. Either way the alternative is a placement screen that
@@ -437,6 +446,29 @@ export default function App() {
       setNotice(err.message);
     } finally {
       setBusyTileId(null);
+    }
+  }
+
+  /**
+   * Put a hand up for the game on screen, or take it down again.
+   *
+   * Reloads the games list rather than the board. Nothing on the board changes
+   * -- a sign-up is not a seat -- but Home's cards and the count on this screen
+   * are both read off that list, and the ten-second poll above keeps the count
+   * moving while they sit here watching it.
+   */
+  async function onSignUp(join) {
+    if (!game.game) return;
+    setSignupBusy(true);
+    setNotice(null);
+    try {
+      if (join) await gameSignupJoin(game.game.id);
+      else await gameSignupLeave(game.game.id);
+      await loadGames();
+    } catch (err) {
+      setNotice(err.message);
+    } finally {
+      setSignupBusy(false);
     }
   }
 
@@ -769,6 +801,15 @@ export default function App() {
           startsAt={game.game?.starts_at}
           assigned={notYetOpen}
           teamName={myTeam?.name}
+          signupsOpen={signupsOpen}
+          // `picked` is the same row Home's card was drawn from. A rostered
+          // game carries no sign-up row, which is right: this screen only shows
+          // while they are not on a team.
+          signedUp={picked?.joined === true}
+          signups={picked?.signups ?? 0}
+          signupBusy={signupBusy}
+          onSignUp={() => onSignUp(true)}
+          onLeave={() => onSignUp(false)}
         />
       )}
 
