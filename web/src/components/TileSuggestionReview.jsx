@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { draftFromRow, nameKey, payloadFromDraft, ruleSummary } from '../lib/tileDraft.js';
 import { SUGGESTION_STATUS } from '../lib/tileSuggestions.js';
+import CardHead from './CardHead.jsx';
 import TileForm from './TileForm.jsx';
 import TileIcon from './TileIcon.jsx';
 
@@ -82,12 +83,12 @@ export default function TileSuggestionReview({
 
   return (
     <section className="card suggestions">
-      <h2>Tile suggestions</h2>
-      <p className="muted">
-        Tiles players have suggested. Accepting copies the tile — as you have
-        edited it — into the catalogue, credited to the player. Refusing keeps
-        it on record with your note, which the player can read.
-      </p>
+      <CardHead
+        title={pending.length ? `Tile suggestions (${pending.length})` : 'Tile suggestions'}
+        lead="Tiles players have asked for in the catalogue."
+        more={'Accepting copies the tile — as you have edited it — into the catalogue, credited to the '
+          + 'player. Refusing keeps it on record with your note, which the player can read.'}
+      />
 
       {error && <p className="error">{error}</p>}
 
@@ -132,7 +133,7 @@ export default function TileSuggestionReview({
           />
         </div>
       ) : pending.length === 0 ? (
-        <p className="muted">Nothing waiting for review.</p>
+        <p className="suggestion-empty">Nothing waiting for review.</p>
       ) : (
         <ul className="suggestion-list">
           {pending.map((row) => (
