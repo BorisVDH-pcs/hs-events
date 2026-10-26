@@ -1097,15 +1097,9 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
                       // make the caller name the game rather than trusting a click.
                       // The dialog holds its confirm button disabled until the
                       // name matches, so there is no mismatch to report anymore.
-                      // A challenge says so out loud: deleting it also deletes the
-                      // competition on wiseoldman.net, which is the one part of this
-                      // that reaches outside the site and the one WOM will not undo.
                       if (!(await confirm(
-                        g.mode === 'challenge'
-                          ? `Delete "${g.name}" and everything in it — every entry, the roster and the feed. `
-                            + 'The Wise Old Man competition behind it is deleted too, and WOM does not undo that.'
-                          : `Delete "${g.name}" and everything in it — the ${g.grid_size * g.grid_size} tiles, `
-                            + 'every submission and claim, the roster and the feed.',
+                        `Delete "${g.name}" and everything in it — the ${g.grid_size * g.grid_size} tiles, `
+                        + 'every submission and claim, the roster and the feed.',
                         {
                           title: 'Delete this game?',
                           confirmLabel: 'Delete it',
