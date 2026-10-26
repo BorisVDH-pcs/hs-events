@@ -21,6 +21,8 @@ import App from '../App.jsx';
 import { preview, previewGames, previewSignups } from './stub-supabase.js';
 import { previewBoardGames, tableFixtures } from './stub-admin.js';
 import '../styles.css';
+import '../seasons.css';
+import '../lib/season.js';
 
 const SESSION = {
   user: {

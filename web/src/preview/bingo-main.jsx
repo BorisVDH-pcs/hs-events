@@ -17,6 +17,8 @@ import { rpcFixtures } from './stub-supabase.js';
 import { cardCells } from '../lib/bingo.js';
 import { coordLabel, fromPosition } from '../lib/board.js';
 import '../styles.css';
+import '../seasons.css';
+import '../lib/season.js';
 
 const SIZE = 5;
 const ago = (mins) => new Date(Date.now() - mins * 60000).toISOString();

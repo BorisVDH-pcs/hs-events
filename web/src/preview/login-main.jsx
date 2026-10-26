@@ -11,6 +11,8 @@ import { createRoot } from 'react-dom/client';
 import Login from '../components/Login.jsx';
 import { tableFixtures } from './stub-admin.js';
 import '../styles.css';
+import '../seasons.css';
+import '../lib/season.js';
 
 const inHours = (h) => new Date(Date.now() + h * 3600000).toISOString();
 

@@ -14,6 +14,8 @@ import Wordmark from '../components/Wordmark.jsx';
 import { snakesHandlers } from './stub-supabase.js';
 import { DEFAULT_JUMPS, LAST_TILE } from '../lib/snakes.js';
 import '../styles.css';
+import '../seasons.css';
+import '../lib/season.js';
 
 const ago = (mins) => new Date(Date.now() - mins * 60000).toISOString();
 const inHours = (h) => new Date(Date.now() + h * 3600000).toISOString();

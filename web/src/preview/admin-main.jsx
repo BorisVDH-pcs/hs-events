@@ -11,6 +11,8 @@ import Admin from '../components/Admin.jsx';
 import { challengeFixtures, previewGames, rpcFixtures } from './stub-supabase.js';
 import { previewChallenge } from './stub-admin.js';
 import '../styles.css';
+import '../seasons.css';
+import '../lib/season.js';
 
 // The evidence log is the evidence harness's fixture; an empty one here.
 rpcFixtures.admin_list_evidence = [];
