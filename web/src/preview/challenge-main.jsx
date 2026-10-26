@@ -17,6 +17,8 @@ import ChallengeGame from '../components/challenge/ChallengeGame.jsx';
 import { previewGames, challengeFixtures, accountFixtures } from './stub-supabase.js';
 import { evidenceHandlers } from './stub-evidence.js';
 import '../styles.css';
+import '../seasons.css';
+import '../lib/season.js';
 
 const GAME_ID = 'c1';
 

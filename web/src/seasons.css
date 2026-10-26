@@ -1,0 +1,214 @@
+/* ============================================================
+   Seasons
+   ============================================================
+ *
+ * lib/season.js puts data-season on <html> for a window of days around a
+ * date, and everything in this file hangs off that attribute. Nothing here
+ * is loaded conditionally: it is a few hundred bytes of rules that match
+ * nothing for fifty weeks of the year.
+ *
+ * WHAT A SEASON MAY DO. Repaint. It redeclares colours on tokens :root
+ * already defines, and repaints the two atmosphere layers that sit behind
+ * the app at z-index -1. It may add a decoration to a pseudo-element that
+ * nothing else uses.
+ *
+ * WHAT IT MAY NOT DO. Set a width, a height, a margin, a padding, a font
+ * size or a display on anything a player reads or touches. Not because a
+ * rule forbids it but because that is the property that makes this safe to
+ * leave switched on with nobody watching the calendar: the worst a season
+ * can get wrong is the mood. It cannot move a control, crowd a board or
+ * break a layout, and it is never the explanation for a bug report.
+ *
+ * The accent is not seasonal either. --gold is load-bearing -- the active
+ * tab, the primary button, the number that answers the question on screen --
+ * and the board colours carry game state: --hit is systemRed, --strike is
+ * systemGreen, --miss is a cold blue a player reads as a spent square. A
+ * season that repainted those would be a season that made a sunk ship
+ * ambiguous. So the tint stays exactly as it is, in every season.
+ */
+
+/* ============================================================
+   Halloween
+   ============================================================
+ *
+ * Old School's Halloween is not orange. It is candlelight on black --
+ * Draynor at night, the fog over Mort Myre, a moon you can see through the
+ * trees. The app is already black and gold, which is most of the way there,
+ * so almost nothing here is a new colour: the cold slate-blue wash behind
+ * the boards turns a damp graveyard green, the grid behind it stops being
+ * graph paper and starts being fog, and the sonar ring in the corner
+ * becomes a low moon.
+ *
+ * Three greens and a bone white, used at single-digit alphas throughout:
+ *   fog    rgb(126, 156, 116)  the lit edge of mist, for the grid
+ *   grave  rgb( 14,  38,  24)  the pool of dark the content floats on
+ *   moon   rgb(230, 236, 214)  bone, never white
+ * plus the ember at the top of the page, which is the one warm thing left.
+ */
+
+/* One ember at the top where the gold glow was, and the ground going green
+   underfoot. Both stay under 7% -- the black is still the clan's black. */
+html[data-season='halloween'] body {
+  background-image:
+    radial-gradient(ellipse 80% 42% at 50% -12%, rgba(255, 149, 0, .05), transparent 72%),
+    radial-gradient(ellipse 130% 34% at 50% 114%, rgba(96, 140, 96, .07), transparent 72%);
+}
+
+/* ---- the dense screens: boards, lists, the console ---- */
+
+/* MOONLIGHT HERE, NOT MOSS, and the reason is the board.
+   A bingo marks a finished tile in --strike, a territory map fills a held
+   region, a fleet shows a hit in --hit: on these screens green is a word in
+   the game's own vocabulary. The first pass washed the whole page in the
+   graveyard green and a completed tile stopped being the only green thing on
+   screen -- the season was quietly taking meaning away from the board. So the
+   dark here is cold and barely tinted, the grid is bone rather than leaf, and
+   the green is left to the scene that has no board in it. */
+html[data-season='halloween'] .game-app:not(.waiting-app)::before {
+  background:
+    linear-gradient(rgba(150, 168, 150, .042) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(150, 168, 150, .042) 1px, transparent 1px),
+    radial-gradient(ellipse 85% 70% at 50% 8%, rgba(16, 36, 34, .42), transparent 76%);
+  background-size: 72px 72px, 72px 72px, auto;
+  /* What turns a grid into weather. Solid where the content is, gone by the
+     edges, so the page is not framed by ruled paper -- it fades into the
+     dark the way the far end of a field does. */
+  -webkit-mask-image: radial-gradient(ellipse 85% 80% at 50% 25%, #000 40%, transparent 95%);
+  mask-image: radial-gradient(ellipse 85% 80% at 50% 25%, #000 40%, transparent 95%);
+}
+
+/* The sonar ring, risen and turned into a moon: lit from the upper left, and
+   brought up out of the corner where the ring was hiding. The gradient stops
+   short of the edge on purpose, so the limb falls off into the sky instead of
+   ending on a drawn line.
+   Small and high. The first pass put a 260px moon at 8vh and on a laptop it
+   came down squarely behind the tab row -- a decoration you have to read
+   through is not atmosphere, it is a watermark. It sits above and outside the
+   content column now, and it is dim enough that finding it takes a moment. */
+html[data-season='halloween'] .game-app:not(.waiting-app)::after {
+  width: min(22vw, 184px); height: min(22vw, 184px);
+  right: 3.5vw; bottom: auto; top: 4vh;
+  border: 0;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 36% 32%,
+      rgba(230, 236, 214, .11) 0%,
+      rgba(230, 236, 214, .065) 46%,
+      rgba(230, 236, 214, .02) 68%,
+      transparent 73%);
+  box-shadow: 0 0 110px 44px rgba(205, 220, 186, .022);
+  animation: season-moon 14s ease-in-out infinite;
+}
+
+/* ---- the waiting screen ---- */
+
+html[data-season='halloween'] .waiting-app::before {
+  background:
+    linear-gradient(rgba(150, 178, 132, .04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(150, 178, 132, .04) 1px, transparent 1px),
+    radial-gradient(ellipse 85% 70% at 50% 52%, rgba(14, 38, 24, .86), transparent 72%),
+    linear-gradient(135deg, #050b06 0%, #000 55%, #0b0703 100%);
+  background-size: 58px 58px, 58px 58px, auto, auto;
+  -webkit-mask-image: radial-gradient(ellipse 92% 88% at 50% 45%, #000 45%, transparent 98%);
+  mask-image: radial-gradient(ellipse 92% 88% at 50% 45%, #000 45%, transparent 98%);
+}
+
+html[data-season='halloween'] .waiting-app::after {
+  width: min(26vw, 230px); height: min(26vw, 230px);
+  right: 5vw; top: 7%;
+  border: 0;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 36% 32%,
+      rgba(230, 236, 214, .16) 0%,
+      rgba(230, 236, 214, .09) 46%,
+      rgba(230, 236, 214, .03) 68%,
+      transparent 73%);
+  box-shadow: 0 0 120px 46px rgba(205, 220, 186, .028);
+  animation: season-moon 14s ease-in-out infinite;
+}
+
+/* A moon does not blink; it is seen through more or less air. Fourteen
+   seconds, which is slow enough to be noticed only by somebody who was
+   already looking, and well clear of the one-cycle-per-five-seconds band
+   that makes a moving background unpleasant to sit in front of. */
+@keyframes season-moon {
+  0%, 100% { opacity: .82; }
+  50%      { opacity: 1; }
+}
+
+/* The card the scene is built around. Its own material is a cold blue-grey,
+   which read as the odd one out once everything behind it had turned; this
+   is the same gradient with the blue walked round to moss. The gold border
+   stays -- it is the accent, and the accent does not do seasons. */
+html[data-season='halloween'] .waiting {
+  background: linear-gradient(145deg, rgba(16, 28, 18, .80), rgba(10, 10, 12, .84));
+}
+
+/* ---- cobwebs ---- */
+
+/* Two corners of the one card in the app that is a scene rather than a
+   screen. Drawn rather than photographed: six threads from the corner and
+   three rings that sag toward it, which is what makes it read as a web and
+   not as a spider's logo.
+   .waiting already makes a stacking context (backdrop-filter), but that is
+   a side effect of a material, so isolation says it outright -- the webs
+   are at z-index -1 and need the card's own background beneath them and
+   its text above. */
+html[data-season='halloween'] .waiting { isolation: isolate; }
+
+html[data-season='halloween'] .waiting::before,
+html[data-season='halloween'] .waiting::after {
+  content: '';
+  position: absolute; top: 0; z-index: -1;
+  width: 8.5rem; height: 8.5rem;
+  background-repeat: no-repeat;
+  background-size: contain;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cg fill='none' stroke='%23e6ecd6' stroke-width='1.1' stroke-linecap='round'%3E%3Cpath d='M0 0L112 0 M0 0L106.5 34.6 M0 0L90.6 65.8 M0 0L65.8 90.6 M0 0L34.6 106.5 M0 0L0 112'/%3E%3Cpath d='M26 0Q22.6 3.6 24.7 8Q20.4 10.4 21 15.3Q16.2 16.2 15.3 21Q10.4 20.4 8 24.7Q3.6 22.6 0 26'/%3E%3Cpath d='M52 0Q45.2 7.2 49.5 16.1Q40.8 20.8 42.1 30.6Q32.4 32.4 30.6 42.1Q20.8 40.8 16.1 49.5Q7.2 45.2 0 52'/%3E%3Cpath d='M78 0Q67.8 10.7 74.2 24.1Q61.2 31.2 63.1 45.8Q48.5 48.5 45.8 63.1Q31.2 61.2 24.1 74.2Q10.7 67.8 0 78'/%3E%3C/g%3E%3C/svg%3E");
+  opacity: .085;
+  pointer-events: none;
+}
+html[data-season='halloween'] .waiting::before { left: 0; }
+html[data-season='halloween'] .waiting::after  { right: 0; transform: scaleX(-1); }
+
+/* ---- the pumpkin ---- */
+
+/* One, beside the wordmark, which is the spot a site has always used to say
+   it knows what month it is. It is the Old School pumpkin at its own size --
+   23x20, drawn at about that -- so there is no scaling to soften it, and
+   image-rendering keeps the pixels square where a browser would otherwise
+   smooth them on a retina screen. Pixel art is the one case where crisp is
+   correct.
+   .wordmark is a flex row of crest and name, so ::after lands after the name
+   without the component knowing anything about it. */
+html[data-season='halloween'] .wordmark::after {
+  content: '';
+  width: 1.45rem; height: 1.45rem;
+  background: url('./season-art/pumpkin.png') center / contain no-repeat;
+  image-rendering: pixelated;
+  /* It sits on the baseline of a row that is centred, which leaves it looking
+     a shade high next to a capital; a hair down and it belongs there. */
+  transform: translateY(1px);
+  opacity: .92;
+}
+
+/* ---- what the reader asked for ---- */
+
+/* Reduced motion does not mean no atmosphere, it means nothing that moves.
+   The moon stays; it just stops breathing. */
+@media (prefers-reduced-motion: reduce) {
+  html[data-season='halloween'] .game-app:not(.waiting-app)::after,
+  html[data-season='halloween'] .waiting-app::after { animation: none; }
+}
+
+/* Asked for more contrast, the fog is the first thing to go: it is the one
+   layer here that sits between the eye and the text. */
+@media (prefers-contrast: more) {
+  html[data-season='halloween'] .game-app:not(.waiting-app)::before,
+  html[data-season='halloween'] .waiting-app::before {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+  html[data-season='halloween'] .waiting::before,
+  html[data-season='halloween'] .waiting::after { opacity: .04; }
+}

@@ -3,6 +3,8 @@ import { createRoot } from 'react-dom/client';
 import App from './App.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import './styles.css';
+import './seasons.css';
+import './lib/season.js';
 
 // Outside StrictMode, not inside it. StrictMode double-invokes render in
 // development and re-throws what a boundary caught so it reaches the console;

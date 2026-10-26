@@ -21,6 +21,8 @@ import {
 } from '../lib/territory.js';
 import { THEMED_TASKS, readBoard } from './territory-tasks.js';
 import '../styles.css';
+import '../seasons.css';
+import '../lib/season.js';
 
 const ago = (mins) => new Date(Date.now() - mins * 60000).toISOString();
 const inHours = (h) => new Date(Date.now() + h * 3600000).toISOString();

@@ -11,6 +11,8 @@ import { createRoot } from 'react-dom/client';
 import EvidenceReview from '../components/EvidenceReview.jsx';
 import { resetDemo } from './stub-supabase.js';
 import '../styles.css';
+import '../seasons.css';
+import '../lib/season.js';
 
 function Harness() {
   const [run, setRun] = useState(0);

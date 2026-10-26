@@ -18,6 +18,8 @@ import Wordmark from '../components/Wordmark.jsx';
 import SideNav from '../components/SideNav.jsx';
 import { accountFixtures } from './stub-supabase.js';
 import '../styles.css';
+import '../seasons.css';
+import '../lib/season.js';
 
 const ago = (days) => new Date(Date.now() - days * 86400000).toISOString();
 
