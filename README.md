@@ -1,290 +1,183 @@
-# Contributors
-
-- [iftach21](https://github.com/iftach21)
-- [BorisVDH-PCS](https://github.com/BorisVDH-pcs)
-
 # High Society Events
 
-A browser-based platform for High Society clan events: teams complete Old School
-RuneScape challenges, submit screenshots as evidence, and the site keeps score
-live. It started as a single game, Battleships, and now runs several **game
-modes** on the same database, accounts, tile catalogue and admin console.
+Clan events for Old School RuneScape, run in a browser. Players get a task, go
+and do it in game, and send a screenshot; the site keeps score live and tells
+the Discord channel what happened.
 
-Every game has a `mode`, picked when the organiser creates it:
+**[borisvdh-pcs.github.io/hs-events](https://borisvdh-pcs.github.io/hs-events/)**
 
-| Mode | Teams | In one line |
+It began as one game — Battleships — and now runs five kinds of event on the
+same accounts, the same tile catalogue and the same organiser's console. An
+organiser picks the kind when they create it.
+
+## The five kinds of event
+
+| | In one line | Rules |
 |---|---|---|
-| **Battleships** | exactly 2 | Hidden fleets; every completed tile fires a shot at the enemy board. |
-| **Bingo** | any number | One open card for everyone; every tile can be worked at any time, most tiles completed wins. |
+| **Battleships** | Two teams, hidden fleets, one shot per tile. | below |
+| **Bingo** | Any number of teams on one card. Most tiles wins. | below |
+| **Snakes & Ladders** | Teams race up a 100-tile board, snakes and all. | [rules](docs/snakes-and-ladders-rules.md) |
+| **Territory** | Teams take ground on the OSRS map. Biggest empire wins. | [rules](docs/territory-rules.md) |
+| **Challenge** | No board. Boss, raid or skill of the week. | [rules](docs/challenge-mode.md) |
 
-More modes are planned. What they share, and how a new one slots in, is in
-[docs/multi-game-plan.md](docs/multi-game-plan.md).
+**Battleships.** Two teams, each hiding a fleet on its own grid. You fire by
+picking a square on the enemy board, doing the task hidden behind it and sending
+the evidence. Ships cannot touch, not even diagonally, and are locked once the
+match starts. Sink the other fleet to win. Nobody waits for a turn: a team can
+act whenever it has a free slot, and it can only work on a few tiles at once.
 
-## Battleships
+**Bingo.** One card, 3×3 up to 10×10, the same for every team. Every square is
+open from the moment the organiser starts the game — no claiming, no order, no
+limit on how many a team works at once. One point per square. It ends when a
+team fills the card or the end time passes, and a tie goes to whoever reached
+their total first. You can see which squares another team has finished, but not
+their screenshots or their half-done progress.
 
-Each team secretly places a fleet on its own grid. Players select concealed
-positions on the opposing board, complete the associated in-game objective, and
-submit evidence to fire at that position.
+**Snakes & Ladders.** A hundred squares. Finish the task you are standing on,
+then roll — any player on the team may do it, and the die is rolled on the
+server. Snake heads drop you to the tail, ladder feet lift you to the top, and
+squares your team has already done are skipped automatically. Overshooting 100
+bounces you back down. A team stuck on a task it does not want can spend a
+**rollback** — earned the first time it finishes a square at 40 or above — and
+slide backwards onto a different one. First team to *finish* square 100 wins:
+landing on it is not enough.
 
-### Rules and mechanics
+**Territory.** The real Old School map, 64 real places, played like Risk. A team
+takes a place by finishing the task on it, and can only reach out from land it
+already holds. The biggest empire at the end wins.
 
-- There is no fixed turn order; teams can act whenever they have an available task
-  slot.
-- Objectives remain concealed until a position is claimed or previewed through an
-  earned game mechanic.
-- A team can work on only a limited number of claimed objectives at once.
-- Completing an objective and submitting the required evidence resolves the shot
-  as a hit or miss.
-- Ships cannot touch, including diagonally, and their positions are locked when the
-  match begins.
-- A ship sinks when all of its occupied positions have been hit.
-- The first team to sink the opposing fleet wins.
-- Match activity and team statistics update live for the players.
+**Challenge.** No board and no tiles. Boss, raid, clue or skill of the week:
+everybody signs up with their RuneScape name, Wise Old Man counts the hiscores,
+and a ladder ranks whoever gained the most. Some events are won on loot instead,
+where players send the figure in with a screenshot either side of it. A challenge
+takes a start time and an end time and **runs itself** — it opens when the start
+comes round and settles shortly after the end, so nobody has to be awake to let
+it begin.
 
-## Bingo
+## For players
 
-A square card, 3×3 up to 10×10, the same for every team. Any number of teams
-play it at once.
+- **Signing in is a username and a password.** There is no email anywhere, so
+  there is also no self-service password reset — an organiser sets a new one
+  from the console.
+- **Home** is where you land: your events with the one that needs you first,
+  anything open to join, a Finished tab once you have some history, and a
+  warning if one of your names is not being found.
+- **My accounts**, on the side rail and beside a challenge's sign-up field, is
+  where your RuneScape names live. Wise Old Man matches on the exact name, so
+  an event that counts the hiscores finds you only if what is on the list is
+  what is in game. If a name has never been found, the site says so in red while
+  there is still time to fix it, rather than scoring you zero for a week.
+- **Sending evidence** is a drag, a paste or a file. Screenshots are kept
+  privately and only an organiser, and your own team, can see them.
+- **Suggest a tile** is in the header. You fill in the same form the board
+  builder uses and can follow what happens to it; an organiser accepts it into
+  the catalogue, possibly after an edit, or refuses it with a note you can read.
 
-- The card is revealed when the organiser starts the game. Until then it is
-  hidden, so nobody can start working ahead.
-- **Every tile is open from the start**, in any order. There is nothing to lock
-  in and no limit on how many tiles a team works at once.
-- A tile is **completed** by submitting the evidence its completion rule asks for,
-  exactly as in Battleships. The first submission on a tile quietly opens it for
-  that team, so players never see a claim step.
-- **One point per completed tile.** Standings are live, and anyone can look at
-  another team's card to see which tiles they have completed (their screenshots
-  and part-done progress stay private).
-- The game ends when **a team fills the whole card**, or when the **end time**
-  passes, whichever comes first. The end time is optional. Without one, the game
-  runs until a card is full or the organiser presses *End game now*.
-- The winner has the most completed tiles. A tie goes to the team that reached
-  its total first. If nobody completed anything, nobody wins.
+## For organisers
 
-There is no scheduler behind the timer. From the end time onwards the database
-refuses every submission, which fixes the result at that moment. The first open
-page whose countdown reaches zero then asks the server to record it
-(`bingo_settle`), and every page after that is a no-op.
+The console is the same whichever kind of event you are running.
 
-Line bonuses (a full row or column) are not scored yet. The standings carry each
-team's completed tile ids, so adding them later does not need another table.
+- **Games** creates one and picks its kind.
+- **Configure** holds the board builder, the teams, the roster and the Discord
+  webhooks. A setup checklist tells you what is still missing — two teams with
+  placed fleets for battleships, a full card and a player on every team for
+  bingo, tasks on every place for territory — and the Start button waits until
+  the list is clear.
+- **Track** shows the live boards, the evidence log and, for a challenge, the
+  ladder with the figures behind it.
+- **Suggestions** is the queue of tiles players have proposed.
+- **Accounts** creates players, resets a password, and hands out moderator
+  rights.
 
-## Organising
+A **moderator** is given one or more kinds of event to run. They can do
+everything an organiser does within those, and nothing outside them: see
+[docs/moderator-role.md](docs/moderator-role.md).
 
-The admin console is the same for every mode. **Games** creates a game and
-chooses its mode. **Configure** holds the board builder, teams, roster and
-Discord. **Track** shows the live boards and the evidence log. The setup
-checklist changes per mode: Battleships needs two teams, captains and placed
-fleets, while Bingo needs a full card and at least one player on every team.
+A wrong submission can be taken back one screenshot at a time, rather than
+scrapping the whole tile, and the dialog shows exactly what will happen before
+it does it — including undoing a sinking or reopening a finished match. The
+other team is told only *that* a shot was withdrawn, never which square.
 
-**Suggestions** is where tiles proposed by players arrive. Any signed-in player
-can press *Suggest a tile* in the header, fill in the same tile form the board
-builder uses, and follow what happens to it. The organiser accepts a suggestion
-(after editing it, if needed) into the tile catalogue, or refuses it with a
-note the player can read. Players never see the catalogue itself and cannot
-delete anything; see [docs/architecture.md](docs/architecture.md#tile-suggestions).
-
-## Stack
-
-| Layer | Choice |
-|---|---|
-| Database | Supabase (Postgres) — schema in `supabase/migrations/` |
-| Game logic | Postgres `security definer` functions, one migration per change |
-| Live updates | Supabase Realtime on `game_events` |
-| Frontend | Vite + React |
-| Notifications | Discord relay driven off the `game_events` feed |
-| Hosting | GitHub Pages, built by `.github/workflows/deploy.yml` |
-
-## Why the logic lives in the database
-
-Two things must stay secret from the opposing team: **ship placement** and the
-**contents of tiles they have not claimed** (teams pick blind). Putting the rules in
-the client would make both reachable. Instead, Row Level Security hides them and
-every mutation goes through an RPC that validates server-side — so there is no
-request a player can craft to peek or cheat.
-
-Bingo keeps different secrets, through the same mechanism: the whole card until
-the game starts, and each team's screenshots and part-done progress always.
-`tiles_for_me()` decides what each player can see for both modes. The bingo end
-time is enforced in `add_evidence` itself, not by the page's countdown.
-
-## How a tile is finished
-
-Each tile carries a **completion rule** deciding when its evidence is enough.
-`claim_is_complete()` in the database is the only authority; `tileProgress.js`
-mirrors it so the interface can predict the same answer.
-
-| rule | finishes when |
-|---|---|
-| `points` | option points reach the target; repeats count |
-| `one_set` | any one group is fully collected |
-| `each_set` | every group has N **distinct** options |
-| `points_per_set` | every group has N points; **repeats count** |
-| `value` | the submitter types what each drop was worth, and the total reaches the target |
-
-A `value` tile is typed in **millions** and stored in **tenths** of one, so half a
-million is a real submission: `0.5` and `0,5` both work, `0.55` is refused. Every
-screen divides back — only the database sees the tenths. See
-[docs/tile-fixes-handover.md](docs/tile-fixes-handover.md).
-
-Cutting across all five, a **drop may cap its own repeats**: `tile_options.max_times`
-is how many times that one drop may count, and null — every option saved before
-the column existed — is unlimited. It lives on the option rather than the rule,
-so "2 points, up to four times" and "7 points, once" sit on the same price list.
-
-The builder can **play a tile** before anyone else does: pick a drop, press
-**Test submit**, and watch the counter move exactly as a player's card would —
-one screenshot at a time, refusals and all, up to the submission that fires the
-shot. Each press replays the session through `admin_test_tile()`, which asks the
-real `claim_is_complete()` inside a transaction it rolls back, so no claim, no
-evidence and no shot survive it. It shows `tileProgress.js`'s answer alongside
-the database's, so the two copies of the rules are checked against each other
-every time the button is pressed.
-
-A whole board can be **saved under a name and laid down again** — the builder's
-*Saved boards* panel. A preset is a snapshot of all hundred squares, stored as
-JSONB rather than a third copy of the tile schema, so it survives
-`admin_clear_board`, carries repeats and hand-placed one-offs that the random
-deal cannot reproduce, and does not change when the catalogue is edited. Loading
-one replaces the board, and is refused once a game is past placement or any tile
-on it has been claimed.
-
-Two different things are meant by "randomize the board", and the builder now
-offers both. **Shuffle** moves the tiles already on the board between the squares
-they occupy: the catalogue is never consulted, so no square can come out empty, a
-task placed three times stays placed three times, and a one-off typed straight
-onto a square survives. **Re-deal** clears the board and draws a new one, which
-is the only route to different *tiles* rather than different *places* — but
-`admin_autofill_board` uses each catalogue entry at most once, so dealing a
-hundred squares from an eighty-six entry label leaves fourteen holes. The dialog
-now says how many before you press it.
-
-A square can be **fixed while the game runs**, as long as no team has locked it
-in — a wrong drop list spotted in the second hour is no longer unfixable. A
-claimed square stays frozen, and not only for fairness: `admin_set_tile`
-replaces a tile's drops wholesale and `tile_evidence.option_id` is
-`on delete set null`, so editing one mid-progress would silently reset a set
-tile's collected evidence to zero. Release the claim first if it really has to
-change. Whole-board tools (clear, autofill, load a preset) stay pre-game only.
-
-A **wrong submission can be taken back**, one screenshot at a time — the
-*Revoke* button on **Admin → Evidence**. The case it exists for: a team finishes
-a tile, picks the wrong drop off the list, and banks the wrong points. Releasing
-the claim (below) is too blunt for that — it destroys every other screenshot on
-the tile and refuses once the tile has fired — so `admin_revoke_evidence` removes
-the one piece and puts the claim back exactly where it stood before it arrived.
-The team then resubmits against the right drop.
-
-A revoked tile comes back **unlocked, not handed back**. The claim and every
-other screenshot on it survive — nine of ten stays nine of ten, and the task
-stays readable on the board — but it holds none of the team's three slots and
-takes no more evidence until somebody locks it in again. Without that, a revoke
-quietly bought the team a fourth active tile: firing had already freed the slot,
-they had spent it elsewhere, and the active-tile limit is a trigger on INSERT
-that an un-firing UPDATE walked straight past. Re-locking now costs a slot like
-any other claim, and is refused while all three are busy.
-
-Almost nothing about a shot is stored, so most of the rollback is automatic:
-scores count fired claims, and a ship is sunk when its cells are hit rather than
-because a column says so. What the RPC does by hand is un-fire and park the
-claim, take back the free squares revealed around a ship that is no longer sunk,
-and reopen a game whose win rested on the shot.
-
-The other team is told **that** a shot was taken back, and nothing else — no
-square, no tile name, no drop. That is a deliberate middle: saying nothing is
-not the safe option, because a withdrawn shot is already visible to them as a
-mark vanishing off their own fleet, and a change with no cause invites exactly
-the guessing the secrecy exists to prevent. The full account — tile, square,
-drop, counts — goes only to the team it happened to, on their own feed and their
-own Discord channel. Locking the tile back in is team-private too, so the enemy
-never sees the same coordinate announced twice.
-
-It **refuses nothing** — a hit, a sinking,
-and a finished match can all be undone — so every press previews first: the
-dialog lists what will happen, and that list is the real function run against
-the real rows and rolled back, not a second description of it. A claim that
-still meets its target without the revoked piece stays fired, since the team
-earned that shot. The submitting team is told on their own feed and Discord
-channel.
-
-Boards are assembled in the **board builder** against a reusable tile catalogue.
-Details, and the `each_set` / `points_per_set` distinction that is easy to get
-wrong, are in [docs/v4-handover.md](docs/v4-handover.md).
-
-## Setup
-
-The migrations in `supabase/migrations/` are applied to the **Battleships**
-Supabase project by CI (`supabase db push`) when they reach `main`. Don't apply
-them by hand, because that leaves the migration ledger out of step. For a fresh
-project, run them in order in the SQL Editor.
+## Running it yourself
 
 ```bash
 npm install --prefix web
 ```
 
-Copy `.env.example` to `web/.env` and set `VITE_SUPABASE_URL` and
-`VITE_SUPABASE_ANON_KEY`, then:
+Copy `.env.example` to `web/.env` and fill in `VITE_SUPABASE_URL` and
+`VITE_SUPABASE_ANON_KEY`. The rest is optional: without `VITE_IMGBB_API_KEY`
+everything still works, the Discord posts just carry no picture. Then:
 
 ```bash
 npm run dev --prefix web
 ```
 
-The dev server runs on **port 5174**, so it can sit alongside HighSocietyScape on 5173.
+The dev server is on **port 5174**, so it can sit beside HighSocietyScape on
+5173.
 
-Two screens can be looked at **without a database**, since the dev server talks
-to the live project. `npm run preview:evidence --prefix web` starts a harness on
-port 5176 that swaps `lib/supabase.js` for canned data:
+Most screens can also be looked at **with no database at all**.
+`npm run preview:evidence --prefix web` starts a harness on port 5176 that swaps
+the Supabase client for canned data, with a page per screen —
+`/preview-home.html`, `/preview-admin.html`, `/preview-bingo.html`,
+`/preview-snakes.html`, `/preview-territory.html`, `/preview-challenge.html`,
+`/preview-evidence.html`, `/preview-login.html` and `/preview-app.html`. They
+show what the screens look like. They prove nothing about the rules, which live
+in the database.
 
-- `/preview-evidence.html`: the evidence review and revoke dialog.
-- `/preview-bingo.html`: a 5×5 bingo with four teams, from a player's side
-  (running, finished, preparation) and the organiser's.
+`npm run test:all --prefix web` runs the self-tests. For the database side,
+paste `scripts/bingo-smoke-test.sql` into the Supabase SQL editor: it plays
+three small games through the real functions as throwaway accounts and then
+rolls everything back. The editor reports the result as an error on purpose —
+that error text is the pass/fail report, and nothing is saved.
 
-They show what the screens look like. They prove nothing about the SQL.
+## How it is built
 
-`npm run test:all --prefix web` runs the self-tests for the pure helpers, bingo
-included.
+| Layer | Choice |
+|---|---|
+| Database | Supabase (Postgres) — one migration per change, in `supabase/migrations/` |
+| The rules | Postgres functions, not the browser |
+| Live updates | Supabase Realtime on the event feed |
+| Frontend | Vite + React |
+| Notifications | A Discord relay driven off the same feed |
+| Hosting | GitHub Pages, built on every push to `main` |
 
-`scripts/bingo-smoke-test.sql` is the SQL side. Paste it into the Supabase SQL
-editor and run it: it plays three small bingo games through the real functions,
-as throwaway accounts that exist only inside the run, then rolls everything
-back. The editor shows the result as an error on purpose: that error text is
-the PASS/FAIL report, and nothing is saved.
+**The rules live in the database because some of them are secrets.** Ship
+placement, the contents of a tile nobody has claimed, another team's
+screenshots: if the browser knew them, a player could read them. So the browser
+is never told, and every move goes through a function on the server that checks
+it. That is also why the harnesses above prove nothing — they have no server to
+refuse them.
 
-## Deploying
+There is **no scheduler**. Nothing fires by itself; the page that is open calls
+an idempotent function when its own countdown reaches zero, and every page after
+it is a no-op. That is how a bingo's end time, the Wise Old Man figures and a
+challenge's start and finish all work.
 
-Every push to `main` builds the site and publishes it to
-**https://borisvdh-pcs.github.io/hs-events/**.
+Deeper detail lives in [docs/](docs/): the shape of the whole thing in
+[architecture.md](docs/architecture.md), how a tile decides it is finished in
+[v4-handover.md](docs/v4-handover.md), and a rules sheet per mode.
 
-The Supabase project URL and anon key live in `web/.env.production`, committed on
-purpose: Vite inlines them into the bundle, so they are public the moment the site
-is served either way. RLS and the security-definer RPCs are what protect the data —
-not the secrecy of the anon key. Repo secrets named `VITE_SUPABASE_URL` and
-`VITE_SUPABASE_ANON_KEY` override the file if you ever want to rotate the key
-without a commit, but none are needed for a working deploy.
+## Two settings that have to be right
 
-> **One-time setting:** GitHub → Settings → Pages → Source must be **"GitHub
-> Actions"**, not "Deploy from a branch" — `dist/` is gitignored, so branch mode
-> would serve the README instead of the app.
+> **GitHub → Settings → Pages → Source** must be **GitHub Actions**, not "Deploy
+> from a branch". `dist/` is gitignored, so branch mode serves this README
+> instead of the site.
 
-## Sign-in: username only, no email
+> **Supabase → Authentication → Sign In / Providers → Email → Confirm email**
+> must be **off**. Usernames are mapped to an address at a reserved `.invalid`
+> domain that can never receive mail, so a confirmation email would fail and
+> take the sign-up down with it.
 
-Players sign in with a **username and password**. There is no email anywhere in
-the flow. Supabase Auth keys on email, so the username is mapped to a synthetic
-address at `@players.hs-battleships.invalid` that players never see or type
-(`web/src/lib/auth.js`). `.invalid` is IANA-reserved, so no mail can ever reach a
-real domain.
+The Supabase URL and anon key are committed in `web/.env.production` on purpose:
+Vite builds them into the bundle, so they are public the moment the site is
+served either way. Row Level Security and the server-side functions are what
+protect the data, not the secrecy of that key.
 
-The trade-off, accepted deliberately: **there is no self-service password reset**,
-because there is no mailbox to send a link to. An admin resets a password from
-the console instead — **Admin → Accounts**, which lists every player, sets a new
-password on the one you pick, and logs who did it. `supabase/admin/player-accounts.sql`
-still covers the same job in SQL, plus creating accounts and putting players on
-teams.
+Migrations reach the live project through CI when they land on `main`. Don't
+apply them by hand — that leaves the migration ledger out of step with the
+database.
 
-> **Required setting:** turn **off** Authentication → Sign In / Providers → Email →
-> "Confirm email" in the Supabase dashboard. Otherwise Supabase tries to send a
-> confirmation to an address that cannot receive one, and sign-ups fail with
-> `email rate limit exceeded`. Accounts created through the admin SQL work either
-> way, since they set `email_confirmed_at` directly.
+## Built by
 
+- [iftach21](https://github.com/iftach21)
+- [BorisVDH-PCS](https://github.com/BorisVDH-pcs)
