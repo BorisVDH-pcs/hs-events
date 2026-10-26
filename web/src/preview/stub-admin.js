@@ -160,6 +160,32 @@ teams.filter((t) => t.game_id === snk).forEach((t, i) => {
   });
 });
 
+// Sign-ups for the bingo, and deliberately NONE for the snakes game.
+//
+// That contrast is the change itself, one game switch apart: Roster opens on a
+// three-name shortlist for the bingo, and on every registered account for the
+// snakes game, which is how every mode worked before this existed. An event
+// filled from Discord has to keep working, so the fallback is not a corner
+// case to be tidied away -- it is half of what the picker does.
+//
+// Everyone already on a bingo team signed up, and three more have not been
+// placed yet: shortlist of three, five further accounts behind "Show everyone".
+const signups = [];
+{
+  const signUp = (gameId, profileId, hoursAgo) => signups.push({
+    game_id: gameId,
+    profile_id: profileId,
+    rsn: profiles.find((p) => p.id === profileId)?.display_name ?? null,
+    created_at: new Date(Date.now() - hoursAgo * 3600000).toISOString(),
+  });
+  members
+    .filter((m) => teams.some((t) => t.id === m.team_id && t.game_id === bingo))
+    .forEach((m, i) => signUp(bingo, m.profile_id, 72 - i));
+  ['Velma', 'Tbow Tom', 'Raid Ronnie'].forEach((name, i) => {
+    signUp(bingo, profiles.find((p) => p.display_name === name).id, 6 - i);
+  });
+}
+
 // Territory: the themed tasks as a saved 8x8 board, one per place, so
 // "load a template" has something to load. A task for every place, homes
 // included -- loading it onto a game skips that game's homes.
@@ -229,6 +255,15 @@ const ch = addGame({
   teamNames: ['The Crimson Tide', 'Wise Old Men'],
   endsAt: inHours(72),
 });
+
+/**
+ * The two board events the App harness hangs its sign-up fixture on.
+ *
+ * It has to be the real ids: a sign-up row for a game this stub has never
+ * heard of draws a card on Home that opens on "No game yet", because
+ * board_for_me above answers from these same tables.
+ */
+export const previewBoardGames = { bingo, snakes: snk };
 
 /** The ids the harness needs to hang its challenge fixture on. */
 export const previewChallenge = {
@@ -359,6 +394,26 @@ export function adminFrom(table) {
 
 /** RPCs the Track pane calls through `supabase.rpc`. */
 export const adminRpc = {
+  /**
+   * The one call every mode's board comes through, so the App harness can open
+   * a game at all rather than stopping at "stub: no board_for_me".
+   *
+   * `memberships` is always empty, which is not a shortcut: the App harness
+   * signs in as an id no seeded profile has, so nobody here is on a team, and
+   * a game opened from Home lands on the waiting-and-sign-up screen. That is
+   * the screen this answer exists to reach. Only what useGame reads off the
+   * top -- the game row, its teams, the card -- is filled in; everything else
+   * it defaults, and a mode that needs more than that is not clickable here.
+   */
+  board_for_me: ({ p_game_id }) => {
+    const g = game(p_game_id);
+    return !g ? null : {
+      game: structuredClone(g),
+      teams: teamsOf(p_game_id).map(({ id, name, slot }) => ({ id, name, slot })),
+      memberships: [],
+      tiles: structuredClone(tilesOf(p_game_id)),
+    };
+  },
   admin_tile_progress: ({ p_game_id }) => teamsOf(p_game_id).flatMap((t) => tilesOf(p_game_id).map((tile) => ({
     team_id: t.id, team_name: t.name, tile_id: tile.id, position: tile.position,
     tile_name: tile.name, required_evidence: tile.required_evidence ?? 1,
@@ -518,6 +573,26 @@ export function adminSetMember(teamId, profileId, role) {
   else members.push({ team_id: teamId, profile_id: profileId, role });
   return wait(null);
 }
+
+/**
+ * Who put their hand up for this event, and whether each is on a team yet --
+ * the shortlist the Roster picker opens on. Mirrors admin_game_signups: oldest
+ * first, and `rostered` worked out against THIS game's teams, so somebody on a
+ * team in another game still counts as unplaced here.
+ */
+export const adminGameSignups = (gameId) => wait(
+  signups
+    .filter((s) => s.game_id === gameId)
+    .sort((a, b) => a.created_at.localeCompare(b.created_at))
+    .map((s) => ({
+      profile_id: s.profile_id,
+      display_name: profiles.find((p) => p.id === s.profile_id)?.display_name ?? 'unknown',
+      rsn: s.rsn,
+      created_at: s.created_at,
+      rostered: members.some((m) => m.profile_id === s.profile_id
+        && teams.some((t) => t.id === m.team_id && t.game_id === gameId)),
+    }))
+);
 
 export function adminRemoveMember(teamId, profileId) {
   const i = members.findIndex((x) => x.team_id === teamId && x.profile_id === profileId);

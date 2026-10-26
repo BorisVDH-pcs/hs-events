@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   supabase, startGame,
-  adminCreateGame, adminSetMember, adminRemoveMember,
+  adminCreateGame, adminSetMember, adminRemoveMember, adminGameSignups,
   adminOpenPlacement, adminSetStartTime, adminSetFeaturedGame, adminListTiles, adminDeleteGame, adminResetGame,
   adminDeleteAccount,
   adminListShipCells, adminListWebhooks,
@@ -136,7 +136,7 @@ const worked = (result) => result !== FAILED;
  * slice costs a few queries rather than leaving a stale checklist on screen.
  * `tiles` is absent because `detail` already covers it.
  */
-const ALL_SLICES = ['games', 'detail', 'library', 'challenge'];
+const ALL_SLICES = ['games', 'detail', 'library', 'challenge', 'signups'];
 
 /**
  * What a deal from the catalogue could not do, appended to whatever the caller
@@ -262,6 +262,9 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
   // The open event's entrants, with their figures and the shots behind them,
   // and the ladder those figures make.
   const [challengeEntries, setChallengeEntries] = useState([]);
+  // Who put their hand up for the open board event, and whether each is on a
+  // team yet. The Roster picker's shortlist (20261026160000).
+  const [signups, setSignups] = useState([]);
   const [challengeWom, setChallengeWom] = useState(null);
   const [challengeLadder, setChallengeLadder] = useState([]);
   // Loaded only once the Accounts pane is opened: nobody else on the console
@@ -397,6 +400,28 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
     }
   }, []);
 
+  /**
+   * Who signed up for the open event, when it has a board.
+   *
+   * Its own read for the same reason loadChallenge is: a challenge keeps its
+   * entrants in challenge_entries and has no row here at all, so the mode
+   * decides which of the two to ask. Keyed on nothing, so `run` is not rebuilt
+   * every time the games list changes.
+   *
+   * FAILS SOFT, like the readiness badges and the catalogue. A console whose
+   * database has not had this migration must still build a roster the way it
+   * did yesterday -- from every registered account -- rather than meet an
+   * organiser with a red line about a function they have never heard of.
+   */
+  const loadSignups = useCallback(async (id, mode) => {
+    if (!id || mode === 'challenge') { setSignups([]); return; }
+    try {
+      setSignups((await adminGameSignups(id)) ?? []);
+    } catch {
+      setSignups([]);
+    }
+  }, []);
+
   const loadGameDetail = useCallback(async (id) => {
     if (!id) { setTiles([]); setShipCells([]); setWebhooks([]); return; }
     try {
@@ -480,6 +505,7 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
   useEffect(() => { loadGames(); }, [loadGames]);
   useEffect(() => { loadGameDetail(gameId); }, [gameId, loadGameDetail]);
   useEffect(() => { loadChallenge(gameId, game?.mode); }, [gameId, game?.mode, loadChallenge]);
+  useEffect(() => { loadSignups(gameId, game?.mode); }, [gameId, game?.mode, loadSignups]);
   useEffect(() => { loadLibrary(); }, [loadLibrary]);
   useEffect(() => { loadSuggestions(); }, [loadSuggestions]);
   useEffect(() => { if (isAdmin) loadModerators(); }, [isAdmin, loadModerators]);
@@ -563,6 +589,7 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
         // query, not a second opinion.
         want.has('tiles') && !want.has('detail') ? loadTiles(gameId) : null,
         want.has('challenge') ? loadChallenge(gameId, game?.mode) : null,
+        want.has('signups') ? loadSignups(gameId, game?.mode) : null,
         want.has('library') ? loadLibrary() : null,
         want.has('suggestions') ? loadSuggestions() : null,
       ].filter(Boolean));
@@ -614,6 +641,22 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
   // Bingo's list is shorter because start_game asks less of it: a full card,
   // at least one team, and somebody on every team. Captains are still useful
   // (they can rename their team) but nothing waits on them.
+  // NEVER A GATE, and the only row here that restates nothing the database
+  // enforces. An organiser can roster anybody, signed up or not -- the events
+  // that ran before sign-ups existed have rosters and none at all -- so this
+  // says how many put their hand up and leaves the decision alone. It earns its
+  // place because "nobody has signed up yet" and "the link never reached the
+  // clan" look identical from the console without it.
+  const signupCheck = {
+    key: 'signups', label: 'Sign-ups', required: false,
+    ok: signups.length > 0,
+    detail: signups.length
+      ? `${signups.length} signed up, ${signups.filter((x) => !x.rostered).length} not yet placed`
+      : 'none yet',
+    fix: 'Players sign themselves up from their own screen. Tell the clan it is open, '
+      + 'or just add them to a team yourself.',
+  };
+
   const cardChecks = game ? [
     {
       key: 'tiles', label: 'Tiles', required: true,
@@ -637,6 +680,7 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
         ? `Nobody yet on ${teamsWithoutPlayers.map((t) => t.name).join(', ')}.`
         : 'Nobody assigned yet.',
     },
+    signupCheck,
     {
       key: 'discord', label: 'Discord', required: false,
       ok: webhooks.length > 0,
@@ -775,6 +819,7 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
           : ''
       }.`,
     },
+    signupCheck,
     {
       key: 'fleets', label: 'Fleets placed', required: true,
       ok: gameTeams.length === 2 && teamsWithoutFleet.length === 0,
@@ -1788,6 +1833,7 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
             gameTeams={gameTeams}
             profiles={profiles}
             members={members}
+            signups={signups}
             busy={busy}
             onSet={(teamId, profileId, role) =>
               run(() => adminSetMember(teamId, profileId, role), 'Roster updated.')
@@ -2618,19 +2664,39 @@ function TimeEditor({ label, hint, value: saved, resetKey, busy, onSave }) {
  * the ticked ones to picked at the bottom. It used to be one copy of this list
  * under each team -- the same 46 names twice in a two-team game, and eight
  * times in an eight-team bingo.
+ *
+ * SIGN-UPS FIRST (20261026160000). `signedUp` holds who put their hand up, and
+ * while anybody has, they are the list: picking eleven players for this week's
+ * bingo out of 46 accounts that have ever registered was the whole reason
+ * sign-ups were added. Everyone else is one press away and ticks into the same
+ * batch, because a sign-up is a shortlist and not a gate -- somebody who asked
+ * in Discord still has to be addable. An event that never had sign-ups falls
+ * straight through to the list exactly as it was.
  */
-function FreePlayerPicker({ teams, free, busy, onAddMany }) {
+function FreePlayerPicker({ teams, free, signedUp, busy, onAddMany }) {
   const [query, setQuery] = useState('');
   const [checked, setChecked] = useState(() => new Set());
   const [teamId, setTeamId] = useState('');
+  const [showEveryone, setShowEveryone] = useState(false);
   // The chosen team, or the first one while none is chosen -- or the chosen
   // one has just been deleted.
   const team = teams.find((t) => t.id === teamId) ?? teams[0] ?? null;
 
+  const shortlist = signedUp ? free.filter((p) => signedUp.has(p.id)) : [];
+  // An empty shortlist means nobody signed up, or everybody who did is already
+  // placed. Either way, a disclosure hiding the only list there is would read
+  // as "there is nobody to add" -- so it opens.
+  //
+  // Both views keep `free`'s order, which is display_name ascending from the
+  // profiles read, so widening the list adds names rather than reshuffling the
+  // ones already on screen.
+  const everyone = showEveryone || shortlist.length === 0;
+  const pool = everyone ? free : shortlist;
+
   const q = query.trim().toLowerCase();
   const matches = q
-    ? free.filter((p) => p.display_name.toLowerCase().includes(q))
-    : free;
+    ? pool.filter((p) => p.display_name.toLowerCase().includes(q))
+    : pool;
   // Stale ids (picked, then filtered out by a new search, or added by someone
   // else in another tab) never make it into the batch below — this is
   // recomputed against the live `free` list every render, not trusted from
@@ -2657,15 +2723,18 @@ function FreePlayerPicker({ teams, free, busy, onAddMany }) {
 
   return (
     <div className="team-add free-players">
-      <h3>Players without a team <span className="team-count">{free.length}</span></h3>
+      <h3>
+        {everyone ? 'Players without a team' : 'Signed up, no team yet'}
+        {' '}<span className="team-count">{pool.length}</span>
+      </h3>
       <input
         type="search"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder={`Search ${free.length} player${free.length === 1 ? '' : 's'}…`}
-        disabled={free.length === 0}
+        placeholder={`Search ${pool.length} player${pool.length === 1 ? '' : 's'}…`}
+        disabled={pool.length === 0}
       />
-      {free.length === 0 ? (
+      {pool.length === 0 ? (
         <p className="muted">Everyone available is already on a team.</p>
       ) : (
         <>
@@ -2679,6 +2748,11 @@ function FreePlayerPicker({ teams, free, busy, onAddMany }) {
                     onChange={() => toggle(p.id)}
                   />
                   {p.display_name}
+                  {/* Only in the wide view: in the shortlist every name has
+                      signed up, so saying so on each would be noise. */}
+                  {everyone && signedUp?.has(p.id) && (
+                    <span className="muted"> · signed up</span>
+                  )}
                 </label>
               </li>
             ))}
@@ -2719,6 +2793,17 @@ function FreePlayerPicker({ teams, free, busy, onAddMany }) {
             )}
           </div>
         </>
+      )}
+      {shortlist.length > 0 && free.length > shortlist.length && (
+        <button
+          type="button"
+          className="ghost free-players-widen"
+          onClick={() => setShowEveryone((v) => !v)}
+        >
+          {showEveryone
+            ? `Just the ${shortlist.length} who signed up`
+            : `Show everyone (${free.length - shortlist.length} more)`}
+        </button>
       )}
     </div>
   );
@@ -2981,7 +3066,7 @@ function AddTeam({ busy, onAdd }) {
   );
 }
 
-function Roster({ bingo, snakes = false, gameTeams, profiles, members, busy, onSet, onRemove, onAddMany }) {
+function Roster({ bingo, snakes = false, gameTeams, profiles, members, signups = [], busy, onSet, onRemove, onAddMany }) {
   const taken = new Set(
     members
       .filter((m) => gameTeams.some((g) => g.id === m.team_id))
@@ -2990,6 +3075,9 @@ function Roster({ bingo, snakes = false, gameTeams, profiles, members, busy, onS
   // Admin accounts are run-the-event accounts, not players — keep them
   // out of the picker so nobody drafts the organiser onto a team.
   const free = profiles.filter((p) => !taken.has(p.id) && !p.is_admin);
+  // Who put their hand up, as ids. Empty for an event that never had sign-ups,
+  // and the picker then shows the list it always showed.
+  const signedUp = new Set(signups.map((s) => s.profile_id));
   return (
     <section className="card">
       <h2>Roster</h2>
@@ -3033,9 +3121,13 @@ function Roster({ bingo, snakes = false, gameTeams, profiles, members, busy, onS
           );
         })}
       </div>
-      <FreePlayerPicker teams={gameTeams} free={free} busy={busy} onAddMany={onAddMany} />
+      <FreePlayerPicker
+        teams={gameTeams} free={free} signedUp={signedUp}
+        busy={busy} onAddMany={onAddMany}
+      />
       <p className="muted" style={{ marginTop: '.8rem' }}>
-        Players appear here once they have signed up on the login screen.
+        Players appear here once they have registered an account, and sign
+        themselves up for this event from their own screen.
         {snakes
           ? ' A captain can rename their team; anyone on a team can roll and complete its tiles.'
           : bingo

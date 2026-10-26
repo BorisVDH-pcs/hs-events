@@ -197,6 +197,43 @@ export const challengeList = () => rpc('challenge_list');
 export const challengeMyAccounts = (gameId) =>
   rpc('challenge_my_accounts', { p_game_id: gameId });
 
+// ---- Signing up for a board event (20261026160000) --------------------------
+// The challenge's sign-up step, for the four modes that have a board. One row
+// per person per event: no figure, no evidence, no ladder. Reads go through the
+// RPCs because game_signups is closed to clients, as challenge_entries is.
+
+/**
+ * Every board event worth showing this player: the ones open for sign-ups, and
+ * the ones they signed up for in the last fortnight. Each carries a count of
+ * who is in, never a list -- who signed up stays the organiser's business.
+ */
+export const gameSignupList = () => rpc('game_signup_list');
+
+/**
+ * Put your hand up. The name is snapshotted from profiles.rsn at sign-up, so a
+ * profile tidied up in March does not rewrite what January's roster was built
+ * from.
+ *
+ * Closes when the event starts, unlike a challenge: a board game is played by
+ * teams formed before it began, and somebody arriving afterwards has nowhere to
+ * go that does not change a game already in progress. An organiser can still
+ * add them to a team by hand.
+ */
+export async function gameSignupJoin(gameId, rsn = null) {
+  assertWritable();
+  return rpc('game_signup_join', { p_game_id: gameId, p_rsn: rsn });
+}
+
+/**
+ * Take it down again, while it is still only a name on a list. Refused once an
+ * organiser has put them on a team -- a row quietly deleted then would leave
+ * somebody rostered into a game they think they are out of.
+ */
+export async function gameSignupLeave(gameId) {
+  assertWritable();
+  return rpc('game_signup_leave', { p_game_id: gameId });
+}
+
 // ---- My Account (20261026130000) --------------------------------------------
 //
 // NO assertWritable ON THESE. That guard is about "view as team": an organiser
@@ -507,6 +544,14 @@ export const adminSnakesUncompleteTile = (teamId, tile) =>
  */
 export const adminSnakesEndGame = (gameId, winnerId) =>
   rpc('admin_snakes_end_game', { p_game_id: gameId, p_winner_team_id: winnerId });
+
+/**
+ * Who put their hand up for this event, and whether each is already on a team.
+ * The roster picker's shortlist: without it, team-making starts from every
+ * account that has ever registered on the site.
+ */
+export const adminGameSignups = (gameId) =>
+  rpc('admin_game_signups', { p_game_id: gameId });
 
 export const adminSetMember = (teamId, profileId, role) =>
   rpc('admin_set_member', { p_team_id: teamId, p_profile_id: profileId, p_role: role });

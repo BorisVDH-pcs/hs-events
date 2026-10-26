@@ -52,6 +52,10 @@ a challenge's clock.
 
 ## 5. Organiser controls
 
+- **Build the roster from the sign-ups.** Players put their hand up on the
+  event's own screen while it is being set up; Roster opens on who did and
+  has every other account one press behind it. Signing up is not a condition
+  of being picked — anyone can still be added by hand.
 - Build the card: autofill, presets, shuffle, swap, clear a tile, or edit one
   mid-game.
 - **Try a tile out** before anybody sees it: the counter moves exactly as a

@@ -62,6 +62,10 @@ I picked so it could be played. Each one is easy to change.
 ## 2. Setting up a game (organiser)
 
 - **Teams**: 2–6.
+- **Build the roster from the sign-ups.** Players put their hand up on the
+  event's own screen while it is being set up; Roster opens on who did and
+  has every other account one press behind it. Signing up is not a condition
+  of being picked — anyone can still be added by hand.
 - **Homes**: the organiser picks each team's home on the Board tab.
   **(decided, 2026-10-13)**
   - A home has no task. The team holds it from the start, and **it can never be

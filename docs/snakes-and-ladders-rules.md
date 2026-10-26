@@ -82,6 +82,10 @@ everyone else stops. Reaching 100 is not enough; its task has to be done.
 
 ## 6. Organiser controls
 
+- **Build the roster from the sign-ups.** Players put their hand up on the
+  event's own screen while it is being set up; Roster opens on who did and
+  has every other account one press behind it. Signing up is not a condition
+  of being picked — anyone can still be added by hand.
 - **Punish**: send a team back one d6 (then skips and snakes apply, as for a
   rollback).
 - **Move team** to a given tile.

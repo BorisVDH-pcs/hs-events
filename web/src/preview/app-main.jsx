@@ -18,8 +18,8 @@
 import { StrictMode, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from '../App.jsx';
-import { preview, previewGames } from './stub-supabase.js';
-import { tableFixtures } from './stub-admin.js';
+import { preview, previewGames, previewSignups } from './stub-supabase.js';
+import { previewBoardGames, tableFixtures } from './stub-admin.js';
 import '../styles.css';
 
 const SESSION = {
@@ -35,6 +35,22 @@ previewGames.rows = [
   { game_id: 'g5', name: 'Slayer Week 44', status: 'active', created_at: ago(3), joined: true },
   { game_id: 'g6', name: 'Clues Week 45', status: 'setup', created_at: ago(0), joined: false },
   { game_id: 'g9', name: 'Clues Week 40', status: 'finished', created_at: ago(35), joined: true },
+];
+
+// One board event open for sign-ups and one already signed up for, so Home
+// draws a card in each place -- "Open to join" below, and the list above it --
+// and either one opens on the screen that carries the button.
+previewSignups.rows = [
+  {
+    game_id: previewBoardGames.bingo, name: 'Clan Bingo — Autumn',
+    mode: 'bingo', status: 'setup',
+    starts_at: null, created_at: ago(1), signups: 11, joined: false,
+  },
+  {
+    game_id: previewBoardGames.snakes, name: 'Snakes and Ladders — Winter',
+    mode: 'snakes', status: 'setup',
+    starts_at: null, created_at: ago(2), signups: 6, joined: true,
+  },
 ];
 
 function Harness() {

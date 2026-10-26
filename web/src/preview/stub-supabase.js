@@ -316,6 +316,33 @@ export const previewGames = { rows: [] };
 export const challengeList = () => Promise.resolve(previewGames.rows);
 
 /**
+ * The board events open for sign-ups, for the App harness.
+ *
+ * Putting a hand up really does move the row, so Home can be clicked through:
+ * sign up, watch the card leave "Open to join" for the list above it, take it
+ * back out again. Rows are REPLACED rather than mutated, for the same reason
+ * challengeFixtures.entry is below -- App re-reads them through listMyGames,
+ * and a mutation in place does not survive React's own equality checks.
+ */
+export const previewSignups = { rows: [] };
+export const gameSignupList = () => Promise.resolve(previewSignups.rows);
+
+const setSignup = (gameId, joined) => {
+  previewSignups.rows = previewSignups.rows.map((r) => (r.game_id === gameId
+    ? {
+      ...r,
+      joined,
+      // Only when it actually changed: pressing Sign me up twice is one
+      // sign-up, which is what the unique constraint says in the real thing.
+      signups: Math.max(0, (r.signups ?? 0) + (r.joined === joined ? 0 : joined ? 1 : -1)),
+    }
+    : r));
+  return Promise.resolve(null);
+};
+export const gameSignupJoin = (gameId) => setSignup(gameId, true);
+export const gameSignupLeave = (gameId) => setSignup(gameId, false);
+
+/**
  * What the challenge harness fills in before it renders.
  *
  * Empty here, which is deliberate: the App smoke test imports this same
@@ -358,6 +385,9 @@ export const challengeMine = () => Promise.resolve(challengeFixtures.entry);
 export const challengeStandings = () => Promise.resolve(challengeFixtures.standings);
 export const challengeMyAccounts = () => Promise.resolve(challengeFixtures.entryAccounts);
 export const challengeWomCompetition = () => Promise.resolve(challengeFixtures.womId);
+// Nothing is ever taken: the harness has no catalogue to collide with, and a
+// suggestion form that said "taken" about every name would be untestable.
+export const tileNameStatus = nothing;
 export const myTileSubmissions = none;
 export const myModeratorModes = none;
 

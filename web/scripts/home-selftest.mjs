@@ -22,6 +22,53 @@ const open = { gameId: 'c', gameName: 'Next week', mode: 'challenge', status: 's
   assert.deepEqual(invites.map((g) => g.gameId), ['c']);
 }
 
+// ---- A board event signed up for, and one merely open ----
+//
+// The same two fields carry a fourth kind of row now: a bingo or a snakes
+// event this player signed up for but has not been put on a team for yet
+// (game_signup_list, 20261026160000). groupGames needed no change at all for
+// it, which is the part worth pinning -- the rule was always about teamId and
+// `joined`, never about the mode.
+
+const signedUpBoard = { gameId: 'e', gameName: 'Autumn bingo', mode: 'bingo', status: 'setup', teamId: null, teamName: null, joined: true, signups: 11, createdAt: '2026-10-04' };
+const openBoard = { gameId: 'f', gameName: 'Winter snakes', mode: 'snakes', status: 'setup', teamId: null, teamName: null, joined: false, signups: 3, createdAt: '2026-10-05' };
+
+{
+  const { mine, open: invites } = groupGames([rostered, signedUpBoard, openBoard]);
+  assert.deepEqual(mine.map((g) => g.gameId), ['a', 'e'], 'a board event signed up for is theirs');
+  assert.deepEqual(invites.map((g) => g.gameId), ['f'], 'and one they have not is an invitation');
+}
+
+// A rostered board event must never arrive twice -- once through team_members
+// and once through game_signup_list, which lists every open event to everybody.
+// The drop happens inside listMyGames, where both of the other lists are folded
+// against the rostered map, so it is asserted at the source: a duplicate would
+// draw two cards for one game, the second of them with no team name on it.
+{
+  const games = readFileSync(new URL('../src/lib/games.js', import.meta.url), 'utf8');
+  assert.ok(games.includes('listOpenEvents()'),
+    'listMyGames asks for the open board events at all');
+  assert.ok(games.includes('.filter((g) => !byGame.has(g.gameId))'),
+    'and drops anything already rostered from both of the other lists');
+  assert.ok(games.includes('signups: g.signups ?? 0'),
+    'the count reaches the row the waiting screen reads it off');
+}
+
+// ---- The roster picker still works without sign-ups ----
+//
+// Five events were running when sign-ups arrived, every one of them with a
+// roster and no sign-ups at all, and an organiser may always fill a team from
+// whoever asked in Discord. So an empty shortlist opens on the list the picker
+// always showed, rather than on nothing, and the checklist row never gates a
+// start.
+{
+  const admin = readFileSync(new URL('../src/components/Admin.jsx', import.meta.url), 'utf8');
+  assert.ok(admin.includes('const everyone = showEveryone || shortlist.length === 0;'),
+    'an empty shortlist falls through to every free account');
+  assert.ok(admin.includes("key: 'signups', label: 'Sign-ups', required: false,"),
+    'and the Sign-ups row is informative, never required');
+}
+
 // An empty read must draw an empty Home, not throw on the way.
 assert.deepEqual(groupGames([]), { mine: [], open: [] });
 assert.deepEqual(groupGames(null), { mine: [], open: [] });

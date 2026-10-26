@@ -33,6 +33,7 @@ games ────────────────────────�
 | `games` | A single match: status, grid size, fleet composition, active-tile limit, winner |
 | `teams` | Exactly two per game (enforced by trigger), plus the Discord role to ping |
 | `team_members` | Who plays for whom, and who is captain (captains place the fleet) |
+| `game_signups` | Who put their hand up for a board event, before anybody was put on a team |
 | `tiles` | The 100 tasks — coordinate, name, icon, target, and the **completion rule** |
 | `tile_options` | The drops a tile lists, their points, and the set (`grp`) each belongs to |
 | `tile_claims` | Claim → fire. A completed claim *is* a shot |
@@ -105,6 +106,40 @@ of a valid catalogue entry, and sets the entry's `created_by` to the player.
 - At most 10 pending suggestions per player.
 
 Checked by [scripts/submissions-smoke-test.sql](../scripts/submissions-smoke-test.sql).
+
+### Signing up for a board event
+A challenge has always been opt-in: players sign themselves up and
+`challenge_entries` is the list an organiser works from. The other four modes
+had nothing of the kind, so making teams meant working through `profiles` —
+every account that has ever registered — whether or not that person was playing
+this week. `game_signups` (20261026160000) is the same step for the modes that
+have a board: one row per person per event, with the RSN snapshotted as
+`challenge_entries` snapshots it, and nothing else.
+
+- **It is a shortlist, not a gate.** No mode's rules read it and `start_game`
+  does not look at it. An organiser can put anybody on a team, signed up or not
+  — the events that were running when this was added have rosters and no
+  sign-ups at all, and somebody who asked in Discord still has to be addable.
+  So the Roster picker opens on who signed up and keeps every other account one
+  press behind a disclosure, rather than refusing the ones who did not.
+- **A challenge is refused, by trigger.** A sign-up row for a challenge would
+  be a second, emptier answer to a question `challenge_entries` already
+  answers, and the two would drift apart the first time anybody read the wrong
+  one. Widening `challenge_entries` to cover five modes was the alternative:
+  four modes' worth of null columns on the one table a finished ladder is
+  scored from.
+- **A count, never a list.** `game_signup_list` tells every player how many
+  have signed up and whether they themselves have, the same line
+  `challenge_list` draws. Who signed up comes from `admin_game_signups`, gated
+  on `may_manage_game`.
+- **Sign-ups close when the game starts**, unlike a challenge's, which stay
+  open for the whole event. A board game is played by teams formed before it
+  began, so a latecomer is an organiser's decision rather than a stranger's.
+- The table has RLS on, no policies, and every grant revoked; the four
+  functions above are the only way in.
+
+Checked by [scripts/game-signups-smoke-test.sql](../scripts/game-signups-smoke-test.sql),
+and rolled back by [scripts/rollback-game-signups.sql](../scripts/rollback-game-signups.sql).
 
 ## Game rules, and where each is enforced
 

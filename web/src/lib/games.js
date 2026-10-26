@@ -1,4 +1,4 @@
-import { challengeList, supabase } from './supabase.js';
+import { challengeList, gameSignupList, supabase } from './supabase.js';
 
 /**
  * Every challenge this player can reach: the ones they have entered, and the
@@ -31,6 +31,42 @@ async function listMyChallenges() {
       teamId: null,
       teamName: null,
       joined: c.joined === true,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Every board event this player could still sign up for, and the ones they
+ * already signed up for but have not been put on a team for yet.
+ *
+ * The same gap listMyChallenges fills, for the four modes that have a board.
+ * `team_members` answers "which games am I in", which says nothing at all about
+ * an event nobody has rostered this player into -- and that is precisely the
+ * event a Sign up button is for.
+ *
+ * Fails soft on its own, exactly as listMyChallenges does: a client ahead of
+ * its migration keeps the games it could already see.
+ */
+async function listOpenEvents() {
+  try {
+    const rows = await gameSignupList();
+    return (rows ?? []).map((g) => ({
+      gameId: g.game_id,
+      gameName: g.name,
+      mode: g.mode,
+      status: g.status,
+      createdAt: g.created_at,
+      // How many are in, which is what makes somebody else join. A count and
+      // never a list: who signed up is the organiser's business.
+      signups: g.signups ?? 0,
+      // Signing up is not being rostered. An organiser puts them on a team
+      // afterwards, and from then on the read above finds the same game with
+      // its team name on it.
+      teamId: null,
+      teamName: null,
+      joined: g.joined === true,
     }));
   } catch {
     return [];
@@ -96,15 +132,19 @@ export async function listMyGames(uid) {
   }
 
   const rostered = [...byGame.values()];
-  const challenges = (await listMyChallenges()).filter((c) => !byGame.has(c.gameId));
+  // Both lists are asked at once, and both drop anything already rostered: the
+  // same game arriving twice would draw two cards on Home, one of them with no
+  // team name on it.
+  const [challenges, open] = await Promise.all([listMyChallenges(), listOpenEvents()]);
+  const notRostered = [...challenges, ...open].filter((g) => !byGame.has(g.gameId));
 
-  // Rostered games first, then challenges this player entered, then the ones
-  // merely open. The order is not cosmetic: Home leads with the first card of
-  // `mine`, so sorting the whole list by date alone would push the bingo
-  // somebody is mid-way through below next week's event the moment an
-  // organiser creates it.
+  // Rostered games first, then the events this player has put their hand up
+  // for, then the ones merely open. The order is not cosmetic: Home leads with
+  // the first card of `mine`, so sorting the whole list by date alone would
+  // push the bingo somebody is mid-way through below next week's event the
+  // moment an organiser creates it.
   const rank = (g) => (g.teamId ? 0 : g.joined ? 1 : 2);
-  return [...rostered, ...challenges].sort(
+  return [...rostered, ...notRostered].sort(
     (a, b) => rank(a) - rank(b) || new Date(b.createdAt) - new Date(a.createdAt)
   );
 }
