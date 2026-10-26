@@ -70,9 +70,7 @@ create table challenge_wom_deleted (
 );
 
 comment on table challenge_wom_deleted is
-  'Competitions this site asked WOM to delete as their game was deleted. '
-  'CREDENTIALS: keeps the verification code so an orphan can still be cleaned up by hand. '
-  'RLS on with no policies, so no client can read this.';
+  'Competitions this site asked WOM to delete as their game was deleted. CREDENTIALS: keeps the verification code so an orphan can still be cleaned up by hand. RLS on with no policies, so no client can read this.';
 
 alter table challenge_wom_deleted enable row level security;
 revoke all on challenge_wom_deleted from anon, authenticated;
