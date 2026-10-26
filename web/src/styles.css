@@ -58,6 +58,9 @@
      legibility, so nested surfaces go opaque. */
   --panel:     rgba(28, 28, 30, .72);
   --panel-2:   rgba(44, 44, 46, .72);
+  /* Opaque, for a surface that floats ABOVE a card: the cards are glass,
+     and glass on glass stops being readable. */
+  --panel-raise: #2a2a2d;
   --panel-solid:   #1c1c1e;
   --panel-2-solid: #2c2c2e;
 
@@ -6081,26 +6084,206 @@ body.dragging-jump * { cursor: grabbing !important; user-select: none; }
 }
 .wizard-fields > label { margin: 0; gap: var(--s-2); }
 .wizard-fields > .field-wide { grid-column: 1 / -1; }
-.wizard-fields :is(input, select) {
+/* The wizard's OWN fields, which are each wrapped in a label. Written as a
+   descendant it also reached inside the date picker's panel and shrank its
+   clock back to a form field. */
+.wizard-fields > label :is(input, select) {
   padding: .65rem .8rem;
   font-size: .9375rem;
   border-radius: var(--r-lg);
 }
 
-/* The picker button is the platform's own, drawn light by color-scheme: dark.
-   Quiet until you go for it, like everything else on this screen. */
-.wizard-fields input[type="datetime-local"]::-webkit-calendar-picker-indicator {
-  opacity: .45;
-  cursor: pointer;
-  transition: opacity .2s var(--ease-out);
+/* ---- Date and time (components/DateTimeField.jsx) ----
+
+   The browser's own picker is two controls in a trench coat: a calendar, and
+   beside it twenty-four hours and sixty minutes in scrolling columns two rows
+   tall. Nobody setting a clan event wants 14:37, and scrolling to 20:00 past
+   nineteen other hours is the part that felt messy.
+
+   So the calendar stays, quietly, because everyone can already read one, and
+   the time becomes the one loud thing on the panel -- a figure you read and
+   type, with the four this app actually uses under it. The boldness is spent
+   on the half that was wrong; the rest is deliberately ordinary. */
+
+.datetime-field { position: relative; display: grid; gap: var(--s-2); min-width: 0; }
+.datetime-label {
+  font-size: .8125rem; font-weight: 500;
+  color: var(--label-2); letter-spacing: -.002em;
 }
-.wizard-fields input[type="datetime-local"]:hover::-webkit-calendar-picker-indicator,
-.wizard-fields input[type="datetime-local"]:focus::-webkit-calendar-picker-indicator {
-  opacity: 1;
+/* Wide enough for "Wed 28 Oct 2026, 10:54" and no wider. The label it
+   replaced inherited `.row > label { flex: 1 1 10rem }` and grew to 600px,
+   which is a lot of button for eleven characters of date. */
+.row > .datetime-field { flex: 0 1 15rem; }
+
+/* It has to read as the field it replaces. The global button rule is a solid
+   gold fill, which would make an empty date the loudest thing on the step. */
+.datetime-trigger {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--s-3); width: 100%;
+  padding: .65rem .8rem;
+  border: 1px solid var(--hairline); border-radius: var(--r-lg);
+  background: var(--fill-3); color: var(--text);
+  font: inherit; font-size: .9375rem; font-weight: 400;
+  letter-spacing: inherit; text-align: left;
+  font-variant-numeric: tabular-nums;
+}
+.datetime-trigger.empty { color: var(--label-3); }
+.datetime-trigger:hover:not(:disabled) { filter: none; border-color: var(--label-3); }
+.datetime-trigger:active:not(:disabled) { transform: none; filter: none; background: var(--fill-2); }
+.datetime-trigger:focus-visible { border-color: transparent; box-shadow: var(--glow-md); outline: none; }
+.datetime-trigger:disabled { opacity: .5; cursor: default; }
+.datetime-icon {
+  flex: none; width: 1rem; height: 1rem;
+  fill: none; stroke: var(--label-3); stroke-width: 1.3; stroke-linecap: round;
+  transition: stroke .2s var(--ease-out);
+}
+.datetime-trigger:hover:not(:disabled) .datetime-icon { stroke: var(--gold); }
+
+/* A floating layer over the form, not a block cut out of it: a bright top edge
+   where the light catches it, and a shadow deep enough to say how far above
+   the card it sits.
+
+   Solid, and deliberately so. The card underneath is already blurred glass,
+   and a second translucent surface stacked on the first is where legibility
+   goes -- this reads as nearer precisely by being the one opaque thing in the
+   stack. It is also the only thing that works: Chromium clips a
+   backdrop-filter element to its nearest backdrop-filtered ancestor, and a
+   blurred panel inside a blurred .card lost every row below the card's own
+   bottom edge. */
+/* A popover rendered into the body, so it is drawn in the top layer and has
+   no blurred card in its ancestry. Its top and left are set from JavaScript,
+   in viewport coordinates, because the top layer is positioned against the
+   viewport and not against the field.
+
+   The z-index is for a browser with no top layer, where it falls back to
+   being an ordinary floating box -- still a child of the body, so still above
+   the cards. */
+.datetime-panel {
+  position: fixed; inset: auto; z-index: 40; margin: 0;
+  width: max-content; max-width: calc(100vw - 1rem);
+  padding: var(--s-4);
+  overflow: visible;
+  border: 1px solid var(--hairline);
+  border-top-color: rgba(255, 255, 255, .14);
+  border-radius: var(--r-xl);
+  background: var(--panel-raise);
+  box-shadow: 0 1.25rem 3rem rgba(0, 0, 0, .55);
+  /* Out of the field it belongs to, and back into it on the way out. */
+  transform-origin: top left;
+  animation: datetime-in .28s var(--ease-out);
+}
+.datetime-panel.up { transform-origin: bottom left; }
+.datetime-panel.right { transform-origin: top right; }
+.datetime-panel.up.right { transform-origin: bottom right; }
+/* Blur and scale together, so it reads as a material arriving rather than a
+   rectangle fading up. No overshoot: nothing threw it, you pressed a field. */
+@keyframes datetime-in {
+  from { opacity: 0; transform: scale(.94); }
+  to   { opacity: 1; transform: none; }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .wizard-fields input[type="datetime-local"]::-webkit-calendar-picker-indicator {
-    transition: none;
-  }
+.datetime-month {
+  display: grid; grid-template-columns: 2rem 1fr 2rem;
+  align-items: center; margin-bottom: var(--s-3);
 }
+.datetime-month strong {
+  text-align: center;
+  font-family: var(--display); font-size: var(--t-subhead); font-weight: 600;
+  letter-spacing: var(--tr-title); color: var(--text);
+}
+.datetime-month button.ghost {
+  width: 2rem; height: 2rem; padding: 0;
+  border-radius: var(--r-md); background: transparent;
+  color: var(--label-2); font-size: 1.15rem; line-height: 1;
+}
+.datetime-month button.ghost:hover:not(:disabled) { background: var(--fill-2); color: var(--text); }
+
+.datetime-weekdays, .datetime-grid {
+  display: grid; grid-template-columns: repeat(7, 2.25rem); gap: 2px;
+}
+.datetime-weekdays {
+  margin-bottom: var(--s-1);
+  font-size: var(--t-caption); letter-spacing: var(--tr-caps);
+  color: var(--label-3); text-align: center;
+}
+
+/* Whole cells, not the numbers in them: a 36px target you can hit without
+   aiming, which is the same argument the choice boxes make. */
+.datetime-day {
+  height: 2.25rem; padding: 0;
+  border-radius: var(--r-md); background: transparent; color: var(--text);
+  font-size: .875rem; font-weight: 400; font-variant-numeric: tabular-nums;
+}
+.datetime-day.outside { color: var(--label-4, var(--label-3)); }
+.datetime-day:hover:not(:disabled) { background: var(--fill-2); filter: none; }
+.datetime-day:active:not(:disabled) { transform: scale(.9); }
+/* Today is marked in the gold's own colour; the day you picked is filled with
+   it. The same distinction the rest of the console draws. */
+.datetime-day.today { color: var(--gold); font-weight: 600; }
+.datetime-day.on { background: var(--gold); color: var(--on-gold); font-weight: 600; }
+.datetime-day.on:hover:not(:disabled) { background: var(--gold); filter: brightness(1.08); }
+.datetime-day:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--gold); }
+
+.datetime-time {
+  margin-top: var(--s-4); padding-top: var(--s-4);
+  border-top: 1px solid var(--hairline);
+}
+/* The hero. Large, so negative tracking -- letters read too far apart as they
+   grow -- and tabular figures so the colon does not shift as you type. */
+.datetime-clock {
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono); font-size: var(--t-title1);
+  line-height: var(--lh-tight); letter-spacing: var(--tr-large);
+  font-variant-numeric: tabular-nums; color: var(--text);
+}
+/* The separator is not the point; the two figures are. */
+.datetime-clock > span { opacity: .4; }
+.datetime-num {
+  width: 2.6ch; padding: .1rem .15rem;
+  border: 1px solid transparent; border-radius: var(--r-md);
+  background: transparent; color: inherit;
+  font: inherit; letter-spacing: inherit; text-align: center;
+}
+.datetime-num:hover { background: var(--fill-3); }
+.datetime-num:focus { background: var(--fill-3); border-color: transparent; box-shadow: var(--glow-md); outline: none; }
+
+.datetime-common {
+  display: flex; justify-content: center; flex-wrap: wrap;
+  gap: var(--s-2); margin-top: var(--s-3);
+}
+.datetime-quick {
+  padding: .25rem .65rem;
+  border: 1px solid var(--hairline); border-radius: var(--r-pill);
+  background: var(--fill-3); color: var(--label-2);
+  font-size: var(--t-footnote); font-weight: 500; font-variant-numeric: tabular-nums;
+}
+.datetime-quick:hover:not(:disabled) { filter: none; border-color: var(--label-2); color: var(--text); }
+.datetime-quick.on {
+  border-color: rgba(242, 193, 78, .6);
+  background: rgba(242, 193, 78, .12);
+  color: var(--gold-lit);
+}
+
+.datetime-foot {
+  display: flex; align-items: center; gap: var(--s-2);
+  margin-top: var(--s-4); padding-top: var(--s-3);
+  border-top: 1px solid var(--hairline);
+}
+/* Done sits apart from the two that only move things about. */
+.datetime-foot > :last-child { margin-left: auto; }
+.datetime-foot button { padding: .4rem .9rem; font-size: var(--t-footnote); }
+
+@media (max-width: 420px) {
+  .datetime-weekdays, .datetime-grid { grid-template-columns: repeat(7, 2.1rem); }
+  .datetime-day { height: 2.1rem; }
+}
+
+@media (prefers-contrast: more) {
+  .datetime-panel { border-color: var(--label-3); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .datetime-panel { animation: datetime-fade .18s var(--ease-out); }
+  .datetime-day:active:not(:disabled) { transform: none; }
+  .datetime-icon { transition: none; }
+}
+@keyframes datetime-fade { from { opacity: 0; } to { opacity: 1; } }

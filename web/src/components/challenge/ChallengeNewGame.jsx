@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { METRIC_GROUPS, WOM_METRICS } from '../../lib/challenge.js';
 import { Pick, PickSet } from '../Pick.jsx';
+import DateTimeField from '../DateTimeField.jsx';
 
 /** The list box's escape hatch. Not a metric, so it can never be one. */
 const OTHER = '\u0000other';
@@ -73,14 +74,12 @@ export default function ChallengeNewGame({ busy, onCreate }) {
         {/* Required, unlike every other mode's end time. A challenge is a
             window: the figures are what changed between the start and this
             moment, so there is nothing to measure without it. */}
-        <label><span>End time</span>
-          <input
-            type="datetime-local"
-            value={endsAt}
-            onChange={(e) => setEndsAt(e.target.value)}
-            disabled={busy}
-          />
-        </label>
+        <DateTimeField
+          label="End time"
+          value={endsAt}
+          onChange={setEndsAt}
+          disabled={busy}
+        />
       </div>
 
       <PickSet ask="Who competes?">
