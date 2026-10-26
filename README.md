@@ -14,24 +14,21 @@ organiser picks the kind when they create it.
 
 | | In one line | Rules |
 |---|---|---|
-| **Battleships** | Two teams, hidden fleets, one shot per tile. | below |
-| **Bingo** | Any number of teams on one card. Most tiles wins. | below |
+| **Battleships** | Two teams, hidden fleets, one shot per tile. | [rules](docs/battleships-rules.md) |
+| **Bingo** | Any number of teams on one card. Most tiles wins. | [rules](docs/bingo-rules.md) |
 | **Snakes & Ladders** | Teams race up a 100-tile board, snakes and all. | [rules](docs/snakes-and-ladders-rules.md) |
 | **Territory** | Teams take ground on the OSRS map. Biggest empire wins. | [rules](docs/territory-rules.md) |
 | **Challenge** | No board. Boss, raid or skill of the week. | [rules](docs/challenge-mode.md) |
 
-**Battleships.** Two teams, each hiding a fleet on its own grid. You fire by
-picking a square on the enemy board, doing the task hidden behind it and sending
-the evidence. Ships cannot touch, not even diagonally, and are locked once the
-match starts. Sink the other fleet to win. Nobody waits for a turn: a team can
-act whenever it has a free slot, and it can only work on a few tiles at once.
+**Battleships.** Two teams, each hiding a fleet on one shared grid of tasks. You
+fire by picking a square, doing the task behind it and sending the evidence —
+whether that is a hit depends only on whether a hull is under it. No turn order,
+two squares at a time, and the first team to sink the other fleet wins.
 
 **Bingo.** One card, 3×3 up to 10×10, the same for every team. Every square is
 open from the moment the organiser starts the game — no claiming, no order, no
-limit on how many a team works at once. One point per square. It ends when a
-team fills the card or the end time passes, and a tie goes to whoever reached
-their total first. You can see which squares another team has finished, but not
-their screenshots or their half-done progress.
+limit on how many a team works at once. One point each, most squares wins, and a
+tie goes to whoever got there first.
 
 **Snakes & Ladders.** A hundred squares. Finish the task you are standing on,
 then roll — any player on the team may do it, and the die is rolled on the
