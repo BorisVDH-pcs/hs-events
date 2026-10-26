@@ -151,15 +151,36 @@ function EntryRow({ entry, setup, teams, busy, hasWom, hasDeclared, solo, onSetF
   );
 }
 
+/**
+ * One phase's shots.
+ *
+ * The newest is the one that counts: a player who replaced a picture cropped
+ * wrong meant the second one. So that is the link, and the tries before it
+ * follow quietly rather than as equal numbered siblings -- which is what they
+ * were, leaving an organiser to guess which of "1 2 3" to open.
+ */
 function ShotLinks({ label, shots }) {
+  const current = shots.length ? shots[shots.length - 1] : null;
+  const earlier = shots.slice(0, -1);
   return (
     <span>
       <span className="muted">{label}: </span>
-      {shots.length === 0 ? <span className="muted">none</span> : shots.map((s, i) => (
-        <a key={s.id} href={s.url} target="_blank" rel="noreferrer" title={s.note ?? undefined}>
-          {i + 1}
-        </a>
-      ))}
+      {!current ? <span className="muted">none</span> : (
+        <>
+          <a href={current.url} target="_blank" rel="noreferrer" title={current.note ?? undefined}>
+            open
+          </a>
+          {earlier.map((s, i) => (
+            <a
+              key={s.id} className="shot-earlier-link"
+              href={s.url} target="_blank" rel="noreferrer"
+              title={s.note ?? undefined}
+            >
+              try {i + 1}
+            </a>
+          ))}
+        </>
+      )}
     </span>
   );
 }

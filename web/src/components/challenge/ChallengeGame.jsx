@@ -533,7 +533,8 @@ export default function ChallengeGame({
                 <h3 className="shots-head">The shots behind it</h3>
                 <p className="muted shots-intro">
                   The site cannot read a screenshot, so these are what make the
-                  number checkable. Paste the link to an uploaded image —
+                  number checkable. One from before you started and one from
+                  when you finished — paste the link to an uploaded image,
                   anywhere an organiser can open it.
                 </p>
 
@@ -580,7 +581,7 @@ export default function ChallengeGame({
 }
 
 /**
- * One phase's shots: what is already up, and the box to add to it.
+ * One phase's shot: the one that counts, and the way to replace it.
  *
  * WHY TWO OF THESE, rather than the one form with a Start/Finish dropdown
  * that this replaces. The dropdown existed only because a single form served
@@ -588,38 +589,67 @@ export default function ChallengeGame({
  * then working out which of two lists further up the page had grown by one. A
  * box per phase deletes the control and the hunt together: what you add turns
  * up in the box you added it to.
+ *
+ * WHY ONE SHOT, where this drew five numbered slots. The cap was never an ask
+ * for five -- challenge_max_evidence() allows a handful so that a picture
+ * cropped wrong can be taken again, and says so -- but a box headed "0 of 5"
+ * beside an empty list reads as a demand for five. A loot tracker needs one
+ * picture. So one shows, and the second try is a Replace rather than four
+ * slots standing empty under it.
+ *
+ * Replace SUPERSEDES; it does not delete. Evidence is immutable for players on
+ * purpose -- 0021 grants no delete policy and says why -- so an earlier try
+ * stays where an organiser can still open it, folded away rather than gone.
  */
 function ShotBox({ phase, title, hint, shots, max, busy, closed, onAdd }) {
   const [url, setUrl] = useState('');
   const [note, setNote] = useState('');
+  const [replacing, setReplacing] = useState(false);
+
+  /* The server hands these back ordered by added_at, in both the player's
+     entry and the organiser's review list, so the last one is the newest --
+     and the newest is the one the player meant. */
+  const current = shots.length ? shots[shots.length - 1] : null;
+  const earlier = shots.slice(0, -1);
   const full = shots.length >= max;
+  const asking = !closed && !full && (!current || replacing);
 
   return (
     <section className="shot-box">
       <header className="shot-box-head">
         <h4>{title}</h4>
-        <span className="shot-box-count">{shots.length} of {max}</span>
       </header>
       <p className="muted shot-box-hint">{hint}</p>
 
-      {/* Numbered, not named after whoever uploaded them: these are all one
-          player's own shots, so a name on each would say nothing. */}
-      {shots.length === 0 ? (
+      {current ? (
+        <p className="shot-current">
+          <a href={current.url} target="_blank" rel="noreferrer">The picture</a>
+          {current.note && <span className="muted"> — {current.note}</span>}
+        </p>
+      ) : !asking && (
         <p className="muted shot-box-empty">Nothing here yet.</p>
-      ) : (
-        <ol className="shot-list">
-          {shots.map((s, i) => (
-            <li key={s.id}>
-              <a href={s.url} target="_blank" rel="noreferrer">Shot {i + 1}</a>
-              {s.note && <span className="muted"> — {s.note}</span>}
-            </li>
-          ))}
-        </ol>
       )}
 
-      {!closed && (full ? (
-        <p className="muted shot-box-full">That is {max} already, which is as many as this takes.</p>
-      ) : (
+      {/* Folded away rather than listed beside the one that counts: these are
+          the tries that did not come out, and an organiser only wants them
+          when the current one does not settle it. */}
+      {earlier.length > 0 && (
+        <details className="shot-earlier">
+          <summary>
+            {earlier.length === 1 ? 'An earlier try' : `${earlier.length} earlier tries`}
+          </summary>
+          <ol className="shot-list">
+            {earlier.map((s, i) => (
+              <li key={s.id}>
+                <a href={s.url} target="_blank" rel="noreferrer">Try {i + 1}</a>
+                {s.note && <span className="muted"> — {s.note}</span>}
+              </li>
+            ))}
+          </ol>
+        </details>
+      )}
+
+      {asking && (
         <div className="shot-add">
           <label>
             <span>Link to the picture</span>
@@ -639,16 +669,31 @@ function ShotBox({ phase, title, hint, shots, max, busy, closed, onAdd }) {
               disabled={busy}
             />
           </label>
-          <button
-            disabled={busy || !url.trim()}
-            onClick={async () => {
-              const ok = await onAdd(phase, url.trim(), note.trim() || null);
-              if (ok) { setUrl(''); setNote(''); }
-            }}
-          >
-            Add it
-          </button>
+          <div className="shot-add-buttons">
+            <button
+              disabled={busy || !url.trim()}
+              onClick={async () => {
+                const ok = await onAdd(phase, url.trim(), note.trim() || null);
+                if (ok) { setUrl(''); setNote(''); setReplacing(false); }
+              }}
+            >
+              {current ? 'Replace it' : 'Add it'}
+            </button>
+            {current && (
+              <button className="ghost" disabled={busy} onClick={() => setReplacing(false)}>
+                Keep the one I have
+              </button>
+            )}
+          </div>
         </div>
+      )}
+
+      {current && !closed && !replacing && (full ? (
+        <p className="muted shot-box-full">That is as many tries as this takes.</p>
+      ) : (
+        <button className="ghost shot-replace" disabled={busy} onClick={() => setReplacing(true)}>
+          Replace it
+        </button>
       ))}
     </section>
   );

@@ -5776,12 +5776,6 @@ body.dragging-jump * { cursor: grabbing !important; user-select: none; }
   align-items: start;
 }
 
-.shot-box-count {
-  font-size: var(--t-caption);
-  font-variant-numeric: tabular-nums;
-  color: var(--label-2);
-}
-
 .shot-box-hint {
   margin: 0 0 var(--s-3);
   font-size: var(--t-footnote);
@@ -5831,7 +5825,35 @@ body.dragging-jump * { cursor: grabbing !important; user-select: none; }
   font-size: var(--t-footnote);
 }
 
+.shot-add-buttons { display: flex; gap: var(--s-2); flex-wrap: wrap; }
 .shot-add button { justify-self: start; }
+
+/* The shot that counts, and the tries before it folded away under it. */
+.shot-current { margin: 0 0 var(--s-2); font-size: var(--t-footnote); }
+.shot-current a { color: var(--gold); border-bottom: 1px solid transparent; }
+.shot-current a:hover { border-bottom-color: var(--gold); }
+/* Quieter than `.ghost` leaves it. The picture is what this box is about,
+   and a 16px gold-bordered button under a 13px line is the loudest thing in
+   it -- which is backwards for something only a bad screenshot calls for. */
+.shot-box .shot-replace,
+.shot-add-buttons .ghost {
+  margin-top: var(--s-2);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--label-2);
+  font-size: var(--t-footnote);
+  font-weight: 400;
+}
+.shot-add-buttons .ghost { margin-top: 0; }
+.shot-box .shot-replace:hover,
+.shot-add-buttons .ghost:hover { background: none; color: var(--gold); }
+.shot-earlier { margin: 0 0 var(--s-2); font-size: var(--t-footnote); }
+.shot-earlier summary { color: var(--label-3); cursor: pointer; }
+.shot-earlier summary:hover { color: var(--label-2); }
+.shot-earlier .shot-list { margin-top: var(--s-2); }
+/* Quieter than the one that counts, in the organiser's review row. */
+.shot-earlier-link { color: var(--label-3); }
 
 /* ---- Admin console card heads (components/CardHead.jsx) ----
 

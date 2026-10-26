@@ -74,8 +74,19 @@ A number the player types, backed by two screenshots: one at the start, one at
 the finish. The site cannot read a screenshot, so the figure is the player's
 word and the evidence is what makes it checkable.
 
-- The organiser names it per event — `declared_label` ("Total loot"), and a
-  `declared_unit` of `gp` or `count`.
+**One picture a phase.** `challenge_max_evidence()` allows five, and always
+did, so that a shot cropped wrong can be taken again — it was never an ask for
+five. The screen shows the newest one, with a Replace under it and any earlier
+try folded away; the cap is a backstop nobody meets. Replacing supersedes
+rather than deletes, because evidence is immutable for players on purpose
+(`0021` grants no delete policy), so the organiser can still see what came
+before.
+
+- The model names it per event — `declared_label` and a `declared_unit` of
+  `gp` or `count` — but **the form no longer asks**. There is no third thing a
+  player hands in, so it writes "Loot value" in `gp` and nothing else. The
+  columns stay as they are: an event made before this, or by hand, keeps its
+  own label and scores exactly as it did.
 - `gp` is stored in **tenths of a million**, the unit `web/src/lib/millions.js`
   already uses everywhere, so 0.5m is 5 and the existing formatting works. The
   column is `bigint`, not the `smallint` a value tile uses: that caps at 1000m,
@@ -83,6 +94,30 @@ word and the evidence is what makes it checkable.
 - The organiser sees every entry with its screenshots in one list and **can
   alter the number**. An altered figure records who altered it, so a ladder
   always says whose number it is showing.
+
+## The two events the form makes
+
+The model carries both figures and lets `ranked_by` pick the winner, which is
+more shapes than anybody runs. The New game form asks one question with two
+answers:
+
+| | What it counts | What wins it | Handed in |
+| --- | --- | --- | --- |
+| **Hiscores** | the metric, off WOM | the same count | nothing |
+| **Loot** | the metric, off WOM | the loot value | two screenshots |
+
+Both count a metric, so the metric is asked once, under either answer.
+
+A loot event **shows both figures and ranks on the loot**, which is the point
+rather than a detail: the WOM count keeps climbing after a player hands their
+finish screenshot in, so somebody who carries on will show a count their loot
+does not cover. The count is there to read; the loot decides.
+
+This narrows the form, not the model. A declared-only event, a figure called
+something else, a plain `count` and a WOM-ranked event that also collects a
+number are all still valid `challenge_setup` rows and still score, draw and end
+as they did — they are simply not among the things the form makes. Nothing was
+migrated, so widening it again is one file.
 
 ## How it is scored
 
