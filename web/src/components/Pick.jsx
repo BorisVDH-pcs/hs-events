@@ -61,12 +61,18 @@ export function Pick({
  *
  * `label` instead of `ask` where the step has already asked the question in
  * its own heading: the legend stays, and only stops being drawn.
+ *
+ * `even` where no box opens anything, so a row of them stands at one height
+ * whatever its blurb runs to. Not the default: where a box DOES open, matching
+ * its neighbour to it would leave that neighbour mostly empty.
  */
-export function PickSet({ ask, label, children, wide = false }) {
+export function PickSet({ ask, label, children, wide = false, even = false }) {
   return (
     <fieldset className="pick-set">
       <legend className={ask ? 'pick-ask' : 'pick-ask-hidden'}>{ask ?? label}</legend>
-      <div className={`pick-grid${wide ? ' wide' : ''}`}>{children}</div>
+      <div className={`pick-grid${wide ? ' wide' : ''}${even ? ' even' : ''}`}>
+        {children}
+      </div>
     </fieldset>
   );
 }

@@ -5929,13 +5929,17 @@ body.dragging-jump * { cursor: grabbing !important; user-select: none; }
 
 .pick-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  /* 17rem rather than 15: five modes across a wide card came out four and a
+     lone fifth, and three and two is the better half of a bad split. */
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
   gap: var(--s-2);
   /* A box that opens its settings must not stretch the one beside it. */
   align-items: start;
 }
 /* One column, for answers that each open a panel of their own. */
 .pick-grid.wide { grid-template-columns: minmax(0, 1fr); }
+/* One height, where none of them opens anything. */
+.pick-grid.even { align-items: stretch; }
 
 .pick {
   border: 1px solid var(--hairline);
@@ -6052,4 +6056,51 @@ body.dragging-jump * { cursor: grabbing !important; user-select: none; }
 
 @media (prefers-reduced-motion: reduce) {
   .pick, .pick-chip, .pick-mark { transition: none; }
+}
+
+/* ---- The wizard's own fields ----
+
+   Fixed 15rem boxes left whichever field a mode did not ask for as a gap in
+   the middle of the form, and a lone name field floating at the left of a card
+   twice its width. The caption-above-control was sized for a dense pane, which
+   this is not: the Details step's whole job is these three answers.
+
+   They fill the line instead, and the name -- the thing the organiser came
+   here to type -- takes the whole of its own. */
+
+.wizard-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13.5rem, 1fr));
+  gap: var(--s-3);
+  /* A form, not a pane: left to fill a wide card it gave three date fields a
+     quarter of the screen each and the name the whole of it, which is a width
+     nobody types a title at. Three columns is what this asks for at most. */
+  max-width: 46rem;
+  margin-bottom: var(--s-4);
+  align-items: end;
+}
+.wizard-fields > label { margin: 0; gap: var(--s-2); }
+.wizard-fields > .field-wide { grid-column: 1 / -1; }
+.wizard-fields :is(input, select) {
+  padding: .65rem .8rem;
+  font-size: .9375rem;
+  border-radius: var(--r-lg);
+}
+
+/* The picker button is the platform's own, drawn light by color-scheme: dark.
+   Quiet until you go for it, like everything else on this screen. */
+.wizard-fields input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  opacity: .45;
+  cursor: pointer;
+  transition: opacity .2s var(--ease-out);
+}
+.wizard-fields input[type="datetime-local"]:hover::-webkit-calendar-picker-indicator,
+.wizard-fields input[type="datetime-local"]:focus::-webkit-calendar-picker-indicator {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wizard-fields input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+    transition: none;
+  }
 }

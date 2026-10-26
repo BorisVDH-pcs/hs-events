@@ -61,8 +61,8 @@ export default function ChallengeNewGame({ busy, onCreate }) {
 
   return (
     <>
-      <div className="row new-game-fields">
-        <label className="field-name">Event name
+      <div className="wizard-fields">
+        <label className="field-wide">Event name
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -73,7 +73,7 @@ export default function ChallengeNewGame({ busy, onCreate }) {
         {/* Required, unlike every other mode's end time. A challenge is a
             window: the figures are what changed between the start and this
             moment, so there is nothing to measure without it. */}
-        <label className="field-time"><span>End time</span>
+        <label><span>End time</span>
           <input
             type="datetime-local"
             value={endsAt}

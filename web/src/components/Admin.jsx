@@ -2227,12 +2227,21 @@ function CheckGroup({ title, items, onGo, quiet = false }) {
   );
 }
 
+/*
+ * One line each, and near enough the same length.
+ *
+ * These ran from eight words to thirty-three, so the five boxes came out at
+ * five different heights -- which is what you see first, before you have read
+ * a word of any of them. The job here is to tell five modes apart, not to
+ * teach one: whichever you pick, the step after it explains itself, and
+ * Configure explains it again.
+ */
 const MODES = [
-  { key: 'battleships', label: 'Battleships', blurb: 'Two teams, hidden fleets, one shot per completed tile.' },
-  { key: 'bingo', label: 'Bingo', blurb: 'Any number of teams on the same card. Every tile is open at once; most tiles completed wins.' },
-  { key: 'snakes', label: 'Snakes & Ladders', blurb: 'Any number of teams racing up a 100-tile board. Finish your tile, roll, and mind the snakes; first to complete tile 100 wins.' },
-  { key: 'territory', label: 'Territory', blurb: 'Risk on the OSRS map. Teams march out from home and take places by finishing their tasks, even from each other; the biggest empire when time runs out wins.' },
-  { key: 'challenge', label: 'Challenge', blurb: 'A short event with no board: Clue, Boss, Raid or Skill of the Week. Everyone signs up, Wise Old Man counts the hiscores, players declare what it cannot see, and the ladder sorts it out.' },
+  { key: 'battleships', label: 'Battleships', blurb: 'Two teams, hidden fleets, one shot per tile.' },
+  { key: 'bingo', label: 'Bingo', blurb: 'Any number of teams on one card. Most tiles wins.' },
+  { key: 'snakes', label: 'Snakes & Ladders', blurb: 'Teams race up a 100-tile board, snakes and all.' },
+  { key: 'territory', label: 'Territory', blurb: 'Teams take ground on the OSRS map. Biggest empire wins.' },
+  { key: 'challenge', label: 'Challenge', blurb: 'No board. Boss, raid or skill of the week.' },
 ];
 
 /** The screen name of a mode, for a sentence that has only its key. */
@@ -2249,7 +2258,7 @@ function ModePicker({ modeChoices, mode, onPick }) {
   return (
     /* The step has already asked "What kind of event is this?" above it, so
        the legend names the group without saying it a second time. */
-    <PickSet label="Game mode">
+    <PickSet label="Game mode" even>
       {modeChoices.map((m) => (
         <Pick
           key={m.key}
@@ -2381,13 +2390,16 @@ function NewGame({ busy, onCreate, modeChoices = MODES }) {
           <>
             <p className="wizard-ask">What is it called, and when does it run?</p>
 
-            <div className="row new-game-fields">
-              <label className="field-name">Event name
+            {/* One grid, not a row per kind of field: what a mode asks for
+                differs, and two fixed rows left whichever field a mode did not
+                want as a gap in the middle of the form. */}
+            <div className="wizard-fields">
+              <label className="field-wide">Event name
                 <input value={name} onChange={(e) => setName(e.target.value)}
                        placeholder={bingo ? 'Clan Bingo' : snakes ? 'Snakes and Ladders' : territory ? 'Conquest of Gielinor' : 'Battleships V4'} />
               </label>
               {bingo && (
-                <label className="field-size">Card size
+                <label>Card size
                   <select value={gridSize} onChange={(e) => setGridSize(Number(e.target.value))}>
                     {[3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
                       <option key={n} value={n}>{n}×{n} — {n * n} tiles</option>
@@ -2395,18 +2407,14 @@ function NewGame({ busy, onCreate, modeChoices = MODES }) {
                   </select>
                 </label>
               )}
-            </div>
-
-            <div className="row new-game-fields">
               {/* Optional: teams can be rostered and fleets placed well before
                   this moment. Left blank, players just see "time to be
                   announced" until one is set from Configure. */}
-              <label className="field-time"><span>Start time <span className="muted">(optional)</span></span>
+              <label><span>Start time <span className="muted">(optional)</span></span>
                 <input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} />
               </label>
               {(bingo || territory) && (
                 <label
-                  className="field-time"
                   title={territory
                     ? 'The biggest empire at this moment wins.'
                     : 'Without an end time, the game runs until a team fills the card.'}
