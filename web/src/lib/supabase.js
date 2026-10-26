@@ -325,12 +325,13 @@ export async function womPulse(gameId) {
 
 /** Its own call, not admin_new_game: that one has no room for a metric or a ranking. */
 export const adminNewChallenge = ({
-  name, endsAt, solo = true, womMetric = null,
+  name, startsAt, endsAt, solo = true, womMetric = null,
   declaredLabel = null, declaredUnit = null, rankedBy = null, teams = [],
   allAccounts = false,
 }) =>
   rpc('admin_new_challenge', {
-    p_name: name, p_ends_at: endsAt, p_solo: solo, p_wom_metric: womMetric,
+    p_name: name, p_starts_at: startsAt, p_ends_at: endsAt,
+    p_solo: solo, p_wom_metric: womMetric,
     p_declared_label: declaredLabel, p_declared_unit: declaredUnit,
     p_ranked_by: rankedBy, p_teams: teams, p_all_accounts: allAccounts,
   });
@@ -376,8 +377,27 @@ export const adminChallengeVerify = (entryId, ok = true) =>
 export const adminChallengeSetTeam = (entryId, teamId) =>
   rpc('admin_challenge_set_team', { p_entry_id: entryId, p_team_id: teamId });
 
-/** Sign-ups close and the Wise Old Man competition is created from whoever is in. */
+/**
+ * Open it now rather than at its start time, and create the Wise Old Man
+ * competition from whoever is in. Sign-ups stay open either way -- a latecomer
+ * is added to the live competition rather than turned away.
+ */
 export const challengeStart = (gameId) => rpc('challenge_start', { p_game_id: gameId });
+
+/**
+ * One look at the clock. There is no scheduler -- the same arrangement bingo's
+ * timer and `womPulse` already live with -- so whoever has the page open is
+ * what makes a scheduled event start and finish. Any signed-in player may call
+ * it, because it reads the times on the event rather than who is asking, and
+ * does nothing the clock has not already earned.
+ *
+ * Answers with what it did, or null for nothing: 'started', 'competition' (an
+ * event that opened before anybody had given a name finally got one), 'ending'
+ * (the end time has passed and fresh figures are on the way -- call again in a
+ * few seconds), 'ended', or 'unscored' (the end time passed on an event whose
+ * competition was never created, which needs an organiser).
+ */
+export const challengeTick = (gameId) => rpc('challenge_tick', { p_game_id: gameId });
 
 // ---- Admin API -----------------------------------------------------------
 // Every one of these re-checks is_admin() server-side, so hiding the admin tab

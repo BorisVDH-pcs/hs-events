@@ -421,3 +421,7 @@ export const challengeAddEvidence = (_gameId, phase, url, note) => {
 // Fire-and-forget in the real client, so it answers rather than refusing:
 // the pulse runs on a timer and a rejection every minute is just noise.
 export const womPulse = () => Promise.resolve(null);
+
+// Null is "the clock owed nothing", which is the truth here: a fixture's phase
+// is whatever the harness was pointed at, and it is not this stub's to move.
+export const challengeTick = () => Promise.resolve(null);

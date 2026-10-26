@@ -17,8 +17,10 @@ const LOOT_LABEL = 'Loot value';
  * The New game form, for a challenge.
  *
  * Its own body rather than more branches inside NewGame: a challenge has no
- * board, so not one of that form's fields applies to it -- no card size, no
- * grid, and a start time that decides nothing.
+ * board, so none of that form's board fields applies to it -- no card size and
+ * no grid. Its two times are the whole event, and unlike every other mode's
+ * they both decide something: the clock opens it at one and settles it at the
+ * other.
  *
  * WHAT IT ASKS, and why it is one question rather than three. The event has
  * always been able to carry two figures -- one off Wise Old Man, one the
@@ -49,6 +51,7 @@ const LOOT_LABEL = 'Loot value';
  */
 export default function ChallengeNewGame({ busy, onCreate }) {
   const [name, setName] = useState('');
+  const [startsAt, setStartsAt] = useState('');
   const [endsAt, setEndsAt] = useState('');
   const [solo, setSolo] = useState(true);
   const [teamNames, setTeamNames] = useState(['', '']);
@@ -72,9 +75,14 @@ export default function ChallengeNewGame({ busy, onCreate }) {
   // The shape every WOM metric has. Checked only for one typed by hand; the
   // list box cannot produce anything else.
   const metricOk = /^[a-z0-9_]+$/.test(metric);
+  // Only once both are given: a half-filled pair is not yet wrong, and an
+  // error that appears the moment you pick a start is an error about nothing.
+  const ordered = !startsAt || !endsAt || new Date(endsAt) > new Date(startsAt);
 
   const ready = name.trim()
+    && startsAt
     && endsAt
+    && ordered
     && metricOk
     && (solo || (filled.length >= 1 && !duplicate));
 
@@ -91,16 +99,27 @@ export default function ChallengeNewGame({ busy, onCreate }) {
             disabled={busy}
           />
         </label>
-        {/* Required, unlike every other mode's end time. A challenge is a
-            window: the figures are what changed between the start and this
-            moment, so there is nothing to measure without it. */}
+        {/* Both required, unlike every other mode's, and both acted on. A
+            challenge is a window: the figures are what changed between its two
+            ends, so there is nothing to measure without them -- and whoever
+            has the page open makes the clock turn, so nobody has to be awake
+            on a Monday morning to let an event begin. */}
+        <DateTimeField
+          label="Start time"
+          hint="(it opens itself then)"
+          value={startsAt}
+          onChange={setStartsAt}
+          disabled={busy}
+        />
         <DateTimeField
           label="End time"
+          hint="(it settles itself then)"
           value={endsAt}
           onChange={setEndsAt}
           disabled={busy}
         />
       </div>
+      {!ordered && <p className="error">The end time has to be after the start time.</p>}
 
       <PickSet ask="Who competes?">
         <Pick
@@ -265,6 +284,7 @@ export default function ChallengeNewGame({ busy, onCreate }) {
             const result = await onCreate({
               mode: 'challenge',
               name: name.trim(),
+              startsAt: new Date(startsAt).toISOString(),
               endsAt: new Date(endsAt).toISOString(),
               solo,
               womMetric: metric.trim(),
@@ -277,7 +297,7 @@ export default function ChallengeNewGame({ busy, onCreate }) {
               allAccounts,
             });
             if (result) {
-              setName(''); setEndsAt(''); setTeamNames(['', '']);
+              setName(''); setStartsAt(''); setEndsAt(''); setTeamNames(['', '']);
               setAllAccounts(false);
             }
           }}
@@ -285,7 +305,8 @@ export default function ChallengeNewGame({ busy, onCreate }) {
           Create
         </button>
         <span className="muted">
-          Sign-ups open the moment it is created, and close when you start it.
+          Sign-ups open the moment it is created and stay open while it runs.
+          You can still start or end it by hand.
         </span>
       </div>
     </>

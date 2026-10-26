@@ -386,6 +386,22 @@ export function rankedLabel(setup) {
 export const WOM_PULSE_MS = 60000;
 
 /**
+ * How often an open page looks at the clock once one of an event's two times
+ * has passed and the transition it owes has not happened yet.
+ *
+ * Ten seconds, which is the delay a scheduled start or finish actually costs:
+ * there is no scheduler, so the clock turns only while somebody is looking.
+ * Ending takes two of these on purpose -- the first writes down whatever Wise
+ * Old Man has sent and asks for fresh figures, the second settles the ladder on
+ * them -- so a few seconds of "finishing" is the price of the right winner.
+ *
+ * Idle pages do not pay it. The clock is only read while a time has gone by
+ * with nothing done about it, which on a week-long event is about a minute of
+ * its whole life.
+ */
+export const CLOCK_TICK_MS = 10000;
+
+/**
  * Where a competition lives on wiseoldman.net.
  *
  * Their own routes, from the app this talks to: `/competitions/[id]` is the
@@ -418,7 +434,12 @@ export function challengeEventText(e, who) {
     case 'game_started': {
       if (p.mode !== 'challenge') return null;
       const n = Number(p.entrants ?? 0);
-      return `The event has begun — ${n} ${n === 1 ? 'entrant' : 'entrants'}, and sign-ups are closed.`;
+      // Two things this used to get wrong. Sign-ups do not close -- a latecomer
+      // is added to the live competition -- and nobody need have started it:
+      // `scheduled` is what the clock writes, and is missing on every event
+      // started before there was a clock, which is exactly the old wording.
+      return `${p.scheduled ? 'The start time came' : 'The event has begun'}`
+        + ` — ${n} ${n === 1 ? 'entrant' : 'entrants'} so far, and you can still join.`;
     }
 
     case 'challenge_declared': {

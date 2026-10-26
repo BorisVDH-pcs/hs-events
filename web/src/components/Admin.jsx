@@ -100,10 +100,12 @@ const TERRITORY_STEP_HINT = {
 // between creating one and starting it is people signing up -- which is theirs
 // to do, not the organiser's.
 const CHALLENGE_STEP_HINT = {
-  setup:     'Sign-ups are open. Share it, wait for entrants, then start — starting closes sign-ups '
-           + 'and creates the Wise Old Man competition.',
-  placement: 'Sign-ups are open. Start the event when enough people are in.',
-  active:    'The event is running. Check the numbers and the screenshots behind them in Track.',
+  setup:     'Sign-ups are open. With a start time it opens itself then, and creates the Wise Old '
+           + 'Man competition — the button below is for going early, or for an event that has no '
+           + 'start time.',
+  placement: 'Sign-ups are open. With a start time it opens itself then.',
+  active:    'The event is running, and settles itself when the end time comes. Check the numbers '
+           + 'and the screenshots behind them in Track.',
   finished:  'This event is over.',
 };
 
@@ -969,7 +971,7 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
               : await adminNewGame({ name, mode, teams: teamList, gridSize, endsAt });
             if (id && startsAt) await adminSetStartTime(id, startsAt);
             return id;
-          }, mode === 'challenge' ? 'Event created — sign-ups are open. Start it when enough people are in.'
+          }, mode === 'challenge' ? 'Event created — sign-ups are open, and it opens itself at its start time.'
             : mode === 'bingo' ? 'Bingo created. Fill its card next.'
               : mode === 'snakes' ? 'Snakes and Ladders created. Place the snakes and ladders, then fill the board.'
                 : mode === 'territory' ? 'Territory created. Its places have no tasks yet — fill them on the Board tab.'
@@ -1199,7 +1201,7 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
                   // Creating the Wise Old Man competition is part of starting,
                   // and that belongs with the rest of the mode's own rules.
                   ? run(() => challengeStart(game.id),
-                    'The event has started — sign-ups are closed.')
+                    'The event has started — sign-ups stay open while it runs.')
                   : run(() => startGame(game.id), bingo
                     ? 'Bingo started — the card is open to every team.'
                     : snakesMode
@@ -1333,16 +1335,33 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
               )}
             </div>
 
-            {/* Display-only: nothing here gates Start game, which stays
-                available the moment its own checklist is met — earlier than
-                this if you're ready, later if you're not. It just gives
-                players rostered ahead of time something to count down to. */}
+            {/* Display-only in every mode but challenge: nothing here gates
+                Start game, which stays available the moment its own checklist
+                is met — earlier than this if you're ready, later if you're not.
+                It just gives players rostered ahead of time something to count
+                down to. */}
             {!challengeMode && game.status !== 'active' && game.status !== 'finished' && (
               <StartTimeEditor
                 game={game}
                 busy={busy}
                 onSave={(iso) => run(() => adminSetStartTime(game.id, iso),
                   iso ? 'Start time saved.' : 'Start time cleared.')}
+              />
+            )}
+
+            {/* The challenge's is acted on, so moving it moves the event. Only
+                while it is waiting: once it is running the start has happened,
+                and `started_at` is what records that. */}
+            {challengeMode && game.status === 'setup' && (
+              <TimeEditor
+                label="Start time"
+                hint="(it opens itself at this moment)"
+                value={game.starts_at}
+                resetKey={game.id}
+                busy={busy}
+                onSave={(iso) => run(() => adminSetStartTime(game.id, iso),
+                  iso ? 'Start time saved.'
+                    : 'Start time cleared — this one now waits for the button.')}
               />
             )}
 
