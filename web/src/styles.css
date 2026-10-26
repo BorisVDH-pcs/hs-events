@@ -3870,6 +3870,76 @@ button.danger.ghost:hover:not(:disabled) {
 .icon-choice.on { border-color: var(--gold); background: rgba(242, 193, 78, .12); }
 .icon-choice .tile-icon { width: 100%; height: 100%; object-fit: contain; }
 
+/* ---- what a challenge counts ---- */
+/* The same creature as `.icon-choice` above, grown a label: this picks a
+   METRIC and only wears the tile artwork, so it cannot simply be that control
+   with another list in it. Sized off the name rather than the picture, since
+   "Chambers Of Xeric (CM)" is what decides how wide a cell has to be. */
+
+.metric-picker { display: grid; gap: var(--s-2); }
+.metric-search { width: 100%; }
+
+.metric-groups { display: flex; flex-wrap: wrap; gap: var(--s-1); }
+.metric-group {
+  padding: .3rem .6rem;
+  border: 1px solid transparent;
+  border-radius: var(--r-pill);
+  background: var(--fill-3);
+  color: var(--label-2);
+  font-size: var(--t-footnote); font-weight: 500;
+  box-shadow: none;
+}
+.metric-group:hover:not(:disabled) { background: var(--fill); color: var(--text); filter: none; }
+.metric-group.on { background: rgba(242, 193, 78, .14); border-color: var(--gold); color: var(--gold); }
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(5.25rem, 1fr));
+  gap: var(--s-2);
+  /* Six rows of bosses before it scrolls. Taller and the question below it
+     goes off the bottom of the step; shorter and browsing turns into paging. */
+  max-height: 21rem;
+  overflow-y: auto;
+  padding: var(--s-1);
+  margin: 0 calc(var(--s-1) * -1);
+}
+.metric-choice {
+  display: grid; gap: var(--s-1); justify-items: center; align-content: start;
+  padding: var(--s-2) var(--s-1);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-md);
+  background: var(--fill-3);
+  color: var(--label-2);
+  font-size: var(--t-caption); font-weight: 400;
+  text-align: center;
+  box-shadow: none;
+}
+.metric-choice:hover:not(:disabled) {
+  background: var(--fill); border-color: transparent; color: var(--text); filter: none;
+}
+.metric-choice.on {
+  border-color: var(--gold); background: rgba(242, 193, 78, .12); color: var(--text);
+}
+/* Fixed, so a tile with a picture and a tile with a word are the same height
+   and the grid does not comb. */
+.metric-choice-art { display: grid; place-items: center; width: 2.4rem; height: 2.4rem; }
+.metric-choice-art .tile-icon { width: 100%; height: 100%; object-fit: contain; }
+.metric-choice-word {
+  font-family: var(--mono); font-size: .8125rem; font-weight: 600;
+  letter-spacing: .02em; color: var(--label-3);
+}
+.metric-choice.on .metric-choice-word { color: var(--gold); }
+.metric-choice-name { line-height: 1.25; overflow-wrap: anywhere; }
+
+.metric-empty { margin: 0; font-size: var(--t-footnote); }
+/* A way out of the list, not a third thing to weigh against it. */
+.metric-type {
+  justify-self: start;
+  padding: 0; border: 0; background: none;
+  color: var(--label-2); font-size: var(--t-footnote); font-weight: 400;
+}
+.metric-type:hover:not(:disabled) { background: none; color: var(--gold); }
+
 /* ---- the tile form ---- */
 
 .tile-form { display: grid; gap: .7rem; }

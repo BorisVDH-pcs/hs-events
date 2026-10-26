@@ -1,10 +1,7 @@
 import { useState } from 'react';
-import { METRIC_GROUPS, WOM_METRICS } from '../../lib/challenge.js';
 import { Pick, PickSet } from '../Pick.jsx';
 import DateTimeField from '../DateTimeField.jsx';
-
-/** The list box's escape hatch. Not a metric, so it can never be one. */
-const OTHER = '\u0000other';
+import MetricPicker from './MetricPicker.jsx';
 
 /*
  * What a loot event's second figure is called, everywhere it is shown.
@@ -65,6 +62,9 @@ export default function ChallengeNewGame({ busy, onCreate }) {
   // Typing one by hand is a deliberate choice, so it survives a metric the
   // list does happen to know being typed into the box.
   const [typed, setTyped] = useState(false);
+  // What the grid was last left on, so backing out of the typed box returns
+  // the organiser to their own choice rather than to whatever the default is.
+  const [picked, setPicked] = useState('clue_scrolls_all');
 
   const loot = kind === 'loot';
   const filled = teamNames.map((n) => n.trim()).filter(Boolean);
@@ -184,56 +184,43 @@ export default function ChallengeNewGame({ busy, onCreate }) {
 
       {/* Asked once, under both answers, because both count the same way. A
           fieldset because that is what a group of fields is -- the legend
-          names it, and `.pick-ask` is the voice the questions above use. */}
+          names it, and `.pick-ask` is the voice the questions above use.
+
+          Pictures rather than a list: see MetricPicker for why. */}
       <fieldset className="pick-set">
         <legend className="pick-ask">What is counted?</legend>
-        <div className="row new-game-fields">
-          {/* A list box, not an `input list=`. A datalist filters its
-              suggestions against whatever is already typed, so a field
-              arriving with a complete metric in it offered that metric
-              and nothing else -- 113 of them were unreachable without
-              clearing the box first, which nothing on screen said to do. */}
-          <label className="field-metric">Which metric
-            <select
-              value={typed ? OTHER : metric}
-              disabled={busy}
-              onChange={(e) => {
-                if (e.target.value === OTHER) { setTyped(true); return; }
-                setTyped(false);
-                setMetric(e.target.value);
-              }}
-            >
-              {METRIC_GROUPS.map((g) => (
-                <optgroup key={g} label={g}>
-                  {WOM_METRICS.filter((m) => m.group === g).map((m) => (
-                    <option key={m.value} value={m.value}>{m.name}</option>
-                  ))}
-                </optgroup>
-              ))}
-              {/* Still an open set: WOM adds bosses faster than this file
-                  is regenerated, and an event refused for a metric that
-                  exists would be our fault, not the organiser's. */}
-              <option value={OTHER}>Something else — type it</option>
-            </select>
-          </label>
-          {typed && (
-            <label className="field-name">Its Wise Old Man name
-              <input
-                value={metric}
-                onChange={(e) => setMetric(e.target.value.trim())}
-                placeholder="araxxor"
-                disabled={busy}
-                autoFocus
-              />
-            </label>
-          )}
-        </div>
-        {typed && (
-          <p className="muted new-game-note">
-            Spelled the way Wise Old Man spells it, in lower case with
-            underscores. Their competition is created from this, so a name
-            they do not know is refused when the event starts.
-          </p>
+        {typed ? (
+          <>
+            <div className="row new-game-fields">
+              <label className="field-name">Its Wise Old Man name
+                <input
+                  value={metric}
+                  onChange={(e) => setMetric(e.target.value.trim())}
+                  placeholder="araxxor"
+                  disabled={busy}
+                  autoFocus
+                />
+              </label>
+              <button
+                type="button" className="ghost" disabled={busy}
+                onClick={() => { setTyped(false); setMetric(picked); }}
+              >
+                Back to the list
+              </button>
+            </div>
+            <p className="muted new-game-note">
+              Spelled the way Wise Old Man spells it, in lower case with
+              underscores. Their competition is created from this, so a name
+              they do not know is refused when the event starts.
+            </p>
+          </>
+        ) : (
+          <MetricPicker
+            value={metric}
+            disabled={busy}
+            onChange={(v) => { setMetric(v); setPicked(v); }}
+            onType={() => { setTyped(true); setMetric(''); }}
+          />
         )}
 
         {/* HOW MANY ACCOUNTS COUNT PER PERSON. Off is the rule a weekly
