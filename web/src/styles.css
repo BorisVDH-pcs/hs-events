@@ -5230,8 +5230,6 @@ body.dragging-jump * { cursor: grabbing !important; user-select: none; }
 .challenge-asks { list-style: none; margin: .6rem 0 0; padding: 0; display: grid; gap: .4rem; }
 .challenge-asks li { font-size: .875rem; }
 
-.challenge-figure { font-size: 1.05rem; margin: .5rem 0; }
-
 /* Its own line under the metric, not trailing the sentence: two links reading
    as part of the prose would be read as part of the prose. */
 .challenge-wom-link { display: flex; flex-wrap: wrap; gap: .1rem .9rem; margin-top: .2rem; }
@@ -5260,22 +5258,95 @@ body.dragging-jump * { cursor: grabbing !important; user-select: none; }
 .challenge-shots ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .15rem; }
 .challenge-shot-form { align-items: end; }
 
-/* The organiser's review list: one entrant per row, everything needed to
-   check a number against the pictures behind it without leaving the pane. */
-.challenge-entry-list { list-style: none; margin: .6rem 0 0; padding: 0; display: grid; gap: .7rem; }
+/* ---- the organiser's review list ----
+ *
+ * One entrant per card. The screen's only job is holding a number against the
+ * two pictures behind it, so the pictures are thumbnails rather than links and
+ * the figures are set as figures: a label over a value, not a colon in a
+ * sentence. Everything else on the card gets out of their way.
+ */
+.challenge-entries-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: .4rem .9rem; flex-wrap: wrap;
+}
+.challenge-entries-head h2 { margin: 0; }
+.challenge-entries-head p { margin: 0; }
+.tabs.entries-tabs { margin: .9rem 0 0; }
+.entries-tabs .team-count { margin-left: .3rem; }
+
+.challenge-entry-list { list-style: none; margin: .9rem 0 0; padding: 0; display: grid; gap: .6rem; }
 .challenge-entry-list > li {
   border: 1px solid var(--hairline);
-  border-radius: var(--r-md);
-  padding: .7rem .8rem;
+  border-radius: var(--r-lg);
+  background: var(--fill-3);
+  padding: .85rem .9rem;
   display: grid;
-  gap: .4rem;
+  gap: .75rem;
 }
-.challenge-entry-list > li.checked { border-color: rgba(242, 193, 78, .45); }
-.challenge-entry-head { display: flex; align-items: end; gap: .8rem; flex-wrap: wrap; }
-.challenge-entry-figures { display: flex; gap: 1.2rem; flex-wrap: wrap; font-size: .875rem; }
-.challenge-entry-shots { display: flex; gap: 1.2rem; flex-wrap: wrap; font-size: .8125rem; }
-.challenge-entry-shots a { margin-right: .35rem; }
-.challenge-entry-actions { align-items: end; }
+/* Checked is a state, not a prize. The card goes quiet instead of gold, so in
+   a list of forty what stands out is the work that is left. */
+.challenge-entry-list > li.checked { background: none; }
+.challenge-entry-list > li.checked .challenge-figure strong { color: var(--label-2); }
+
+.challenge-entry-head {
+  display: flex; align-items: start; justify-content: space-between; gap: .8rem;
+}
+.challenge-entry-who { display: grid; gap: .1rem; min-width: 0; }
+.challenge-entry-who strong {
+  font-size: 1.0625rem; font-weight: 600; letter-spacing: -.01em;
+}
+/* The name they play under, when it is not the name they signed up under:
+   quiet, because it only matters when the hiscores disagree with it. */
+.challenge-entry-who .muted { font-size: .78rem; }
+.challenge-entry-head .pill { flex: 0 0 auto; }
+
+/* `start`, so every label sits on one line and every value on the next. With
+   `end` the figure carrying "set by an organiser" pushed its own value up and
+   left the others hanging below it. */
+.challenge-entry-figures { display: flex; gap: 1.1rem 1.6rem; flex-wrap: wrap; align-items: start; }
+.challenge-figure { display: grid; gap: .1rem; }
+.challenge-figure strong {
+  font-size: 1.125rem; font-weight: 600; letter-spacing: -.01em;
+  font-variant-numeric: tabular-nums;
+}
+.challenge-figure .muted { font-size: .72rem; }
+.challenge-figure-label {
+  font-size: .6875rem; letter-spacing: .04em; text-transform: uppercase;
+  font-weight: 600; color: var(--label-3);
+}
+.challenge-entry-team select { margin-top: .15rem; }
+
+/* Big enough to compare, which is the whole point of them being here: the same
+   thumbnail treatment the evidence review uses, in the shape a screenshot is. */
+/* `start`, or the column with no earlier tries under it stretches to match the
+   one that has them and drops its picture half a line down. */
+.challenge-entry-shots { display: flex; gap: .6rem; flex-wrap: wrap; align-items: start; }
+.challenge-shot { display: grid; gap: .3rem; justify-items: start; align-content: start; }
+.challenge-shot img {
+  width: 150px; height: 98px; object-fit: cover; display: block;
+  border-radius: var(--r-md); border: 1px solid var(--hairline);
+}
+.challenge-shot a:hover img { border-color: var(--line-lit); }
+.challenge-shot-empty {
+  width: 150px; height: 98px;
+  border: 1px dashed var(--hairline); border-radius: var(--r-md);
+  display: grid; place-items: center;
+  color: var(--label-3); font-size: .78rem;
+}
+.challenge-shot-earlier { display: flex; gap: .55rem; font-size: .78rem; }
+
+.challenge-entry-actions { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+.challenge-correct { align-items: end; margin: 0; }
+.challenge-entry-note { font-size: .78rem; margin: 0; }
+
+/* A phone: the pair still sits side by side, because one above the other is
+   not a comparison. */
+@media (max-width: 520px) {
+  .challenge-entry-shots { gap: .4rem; }
+  .challenge-shot img,
+  .challenge-shot-empty { width: 132px; height: 86px; }
+  .challenge-entry-figures { gap: .8rem 1.1rem; }
+}
 
 .cnew-create { margin-top: 1.3rem; align-items: center; }
 

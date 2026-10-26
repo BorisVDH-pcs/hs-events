@@ -37,23 +37,29 @@ previewGames.rows = [{
 }];
 
 // Mid-event, and deliberately uneven: one entrant checked, one whose number an
-// organiser corrected, one still on no team at all. A tidy fixture would hide
-// exactly the states this screen exists to handle.
+// organiser corrected, one still on no team at all, one who sent a second
+// picture after the first. A tidy fixture would hide exactly the states this
+// screen exists to handle.
+//
+// The shots point at files this harness actually serves, not at example.invalid
+// as they did while they were links: the review list draws the picture now, and
+// a fixture of broken images would say nothing about the screen.
 challengeFixtures.entries = [
   {
     entry_id: 'e1', name: 'Zezima', rsn: 'Zezima', team_id: tide.id,
     declared: 2500, wom_gained: 184, verified_at: null,
     altered_by: null, altered_by_name: null,
     evidence: [
-      { id: 's1', phase: 'start', url: 'https://example.invalid/start.png', note: 'Bank before' },
-      { id: 's2', phase: 'finish', url: 'https://example.invalid/finish.png', note: null },
+      { id: 's0', phase: 'start', url: '/icons/coins.png', note: 'Cropped wrong' },
+      { id: 's1', phase: 'start', url: '/territory/osrs-world.webp', note: 'Bank before' },
+      { id: 's2', phase: 'finish', url: '/logo.png', note: null },
     ],
   },
   {
     entry_id: 'e2', name: 'Hexis', rsn: 'Hexis', team_id: wise.id,
     declared: 4100, wom_gained: 301, verified_at: new Date().toISOString(),
     altered_by: null, altered_by_name: null,
-    evidence: [{ id: 's3', phase: 'finish', url: 'https://example.invalid/hexis.png', note: null }],
+    evidence: [{ id: 's3', phase: 'finish', url: '/icons/zulrah.png', note: null }],
   },
   {
     entry_id: 'e3', name: 'Fawkes', rsn: 'Fawkes Alt', team_id: tide.id,
