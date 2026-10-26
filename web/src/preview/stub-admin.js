@@ -213,6 +213,29 @@ jumpsByGame[live] = structuredClone(DEFAULT_JUMPS);
   });
 }
 
+/**
+ * A challenge in flight, so Track's ladder and entries have something to draw.
+ *
+ * Only the game row and its teams live here. The setup row, the entrants and
+ * the Wise Old Man link are the harness's fixture (preview/admin-main.jsx),
+ * because challenge_setup is not one of this stub's tables -- the console
+ * reads it through challenge_list, which stub-supabase.js answers.
+ *
+ * grid 0 on purpose: a challenge has no board, and a grid of 1 would have
+ * adminGameReadiness reporting the Games list one tile short forever.
+ */
+const ch = addGame({
+  name: 'BOTW — Zulrah', mode: 'challenge', grid: 0, status: 'active',
+  teamNames: ['The Crimson Tide', 'Wise Old Men'],
+  endsAt: inHours(72),
+});
+
+/** The ids the harness needs to hang its challenge fixture on. */
+export const previewChallenge = {
+  gameId: ch,
+  teams: teams.filter((t) => t.game_id === ch).map(({ id, name }) => ({ id, name })),
+};
+
 // ---- helpers --------------------------------------------------------------
 
 const game = (id) => games.find((g) => g.id === id);

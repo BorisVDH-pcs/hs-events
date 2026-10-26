@@ -1849,9 +1849,11 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
               {challengeSetup?.wom_metric && (
                 <div className="config-pane" hidden={trackTab !== 'wom'}>
                   <section className="card">
+                    {/* Not "Wise Old Man": the tab is called that, and so is
+                        ChallengeWom's own card directly below this one. */}
                     <CardHead
-                      title="Wise Old Man"
-                      lead="Read the hiscores again now, instead of waiting for the next pass."
+                      title="The figures"
+                      lead="Read them off the hiscores again now, instead of waiting for the next pass."
                       more={'There is no scheduler on this project, so nothing fetches on its own: an open '
                         + 'player screen asks every minute, and this is the same ask by hand. Reading WOM is '
                         + 'two steps — the request goes out, the reply lands a moment later — so a first press '

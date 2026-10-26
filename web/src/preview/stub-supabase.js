@@ -332,6 +332,10 @@ export const challengeFixtures = {
   standings: [],
   entryAccounts: [],
   womId: null,
+  // The organiser's half: every entrant, and the competition the figures are
+  // read from. Only the admin harness fills these.
+  entries: [],
+  wom: null,
 };
 
 /**
@@ -354,7 +358,6 @@ export const challengeMine = () => Promise.resolve(challengeFixtures.entry);
 export const challengeStandings = () => Promise.resolve(challengeFixtures.standings);
 export const challengeMyAccounts = () => Promise.resolve(challengeFixtures.entryAccounts);
 export const challengeWomCompetition = () => Promise.resolve(challengeFixtures.womId);
-export const adminChallengeEntries = none;
 export const myTileSubmissions = none;
 export const myModeratorModes = none;
 
@@ -364,7 +367,6 @@ export const removeAccount = noop;
 export const adminChallengeSetFigure = noop;
 export const adminChallengeSetTeam = noop;
 export const adminChallengeVerify = noop;
-export const adminChallengeWom = noop;
 export const adminChallengeWomLink = noop;
 export const adminChallengeWomRetry = noop;
 export const adminNewChallenge = noop;
@@ -384,6 +386,21 @@ export const withdrawTileSubmission = noop;
  * tests what it says it tests.
  */
 let shotSeq = 0;
+
+export const adminChallengeEntries = () => Promise.resolve(challengeFixtures.entries);
+
+/**
+ * The competition a challenge's figures are read from.
+ *
+ * `reveal` is the card's own button rather than part of the page load, so the
+ * verification code is never in a payload nobody asked for. Answering it here
+ * is what makes that button do something in the harness.
+ */
+export const adminChallengeWom = (_gameId, reveal = false) => Promise.resolve(
+  challengeFixtures.wom && reveal
+    ? { ...challengeFixtures.wom, verification_code: 'HS-PREVIEW-0000' }
+    : challengeFixtures.wom,
+);
 
 export const challengeDeclare = (_gameId, value) => {
   if (!challengeFixtures.entry) return noop();
