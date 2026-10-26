@@ -15,6 +15,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import ChallengeGame from '../components/challenge/ChallengeGame.jsx';
 import { previewGames, challengeFixtures, accountFixtures } from './stub-supabase.js';
+import { evidenceHandlers } from './stub-evidence.js';
 import '../styles.css';
 
 const GAME_ID = 'c1';
@@ -42,6 +43,9 @@ accountFixtures.push(
 // looks like for most of the week it is open.
 challengeFixtures.entry = {
   id: 'e1',
+  // What ChallengeGame builds the upload path from, so the harness exercises
+  // the same `challenge/{game}/{entry}/` shape the bucket policy checks.
+  entry_id: 'e1',
   team_id: 't1',
   rsn: 'Zezima',
   declared: 2500,
@@ -58,6 +62,24 @@ challengeFixtures.standings = [
   { place: 2, name: 'Zezima', declared: 2500, wom_gained: 184, entry_id: 'e1' },
   { place: 3, name: 'Fawkes', declared: 900, wom_gained: 77, entry_id: 'e7' },
 ];
+
+/*
+ * A dropped picture lands here.
+ *
+ * The stub's uploadChallengeShot has already made an object URL for the file
+ * under the path the real one would have used; this is the row that points at
+ * it. Shot zero stays a pasted link on purpose, so the screen is drawn with
+ * one of each -- which is exactly what a half-finished event will hold.
+ */
+let shots = 1;
+evidenceHandlers.addChallengeShot = ({ phase, storage_path, note }) => {
+  const entry = challengeFixtures.entry;
+  challengeFixtures.entry = {
+    ...entry,
+    evidence: [...(entry.evidence ?? []),
+               { id: `shot-${shots++}`, phase, storage_path, note }],
+  };
+};
 
 const GAME = {
   id: GAME_ID,

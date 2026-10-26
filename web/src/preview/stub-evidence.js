@@ -13,7 +13,7 @@ export const BUCKET = 'evidence';
  * `urls` maps the storage paths it invents to object URLs of the picked file.
  * Every other harness leaves it empty and uploads refuse, as they always did.
  */
-export const evidenceHandlers = { upload: null, urls: {} };
+export const evidenceHandlers = { upload: null, urls: {}, addChallengeShot: null };
 
 export async function signedUrls(paths) {
   const out = {};
@@ -40,6 +40,22 @@ export async function uploadEvidence(args) {
 
 export async function tradePet() {
   throw new Error('Uploads are not available in the evidence harness.');
+}
+
+/**
+ * The challenge harness simulates this one properly rather than refusing.
+ *
+ * Dropping a picture is the whole of what changed, so a stand-in that throws
+ * would leave the screen it changed the only one nobody can look at. The file
+ * never leaves the machine: it becomes an object URL under the same storage
+ * path the real upload would have used, which signedUrls above then hands back.
+ */
+export async function uploadChallengeShot({ gameId, entryId, phase, file, note = null }) {
+  const path = `challenge/${gameId}/${entryId}/${crypto.randomUUID()}.webp`;
+  evidenceHandlers.urls[path] = URL.createObjectURL(file);
+  const add = evidenceHandlers.addChallengeShot;
+  if (add) add({ phase, storage_path: path, note });
+  return path;
 }
 
 export function extFor() {

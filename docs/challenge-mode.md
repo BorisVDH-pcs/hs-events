@@ -74,6 +74,14 @@ A number the player types, backed by two screenshots: one at the start, one at
 the finish. The site cannot read a screenshot, so the figure is the player's
 word and the evidence is what makes it checkable.
 
+**The picture is a file.** It goes to the same private `evidence` bucket the
+tiles use, under `challenge/{game_id}/{entry_id}/{uuid}` — a namespace of its
+own, because that bucket's original policies gate on the team folder and a solo
+challenge has no team (20261026140000). `challenge_add_shot` rebuilds the
+prefix server-side and refuses a path that does not start with it, so the path
+is never taken on trust. Links pasted before uploads existed still open: `url`
+and `storage_path` sit side by side and a screen draws whichever it is handed.
+
 **One picture a phase.** `challenge_max_evidence()` allows five, and always
 did, so that a shot cropped wrong can be taken again — it was never an ask for
 five. The screen shows the newest one, with a Replace under it and any earlier
@@ -253,9 +261,6 @@ Done:
 Still to come:
 
 1. Adding a latecomer to a running WOM competition, so sign-ups can stay open.
-2. A storage policy for `challenge_evidence` paths (`{game}/{entry}/{uuid}`).
-   Until then a screenshot is a pasted link to an image uploaded elsewhere,
-   which the organiser opens from the review list.
 
 ## Who may run one
 
