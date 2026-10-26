@@ -14,6 +14,11 @@ import { metricLabel, womCompetitionUrl } from '../../lib/challenge.js';
  * to be screenshotted for a bug report or shared over a call, and WOM has no
  * way to issue a new code once one is out. It is not fetched until the click
  * either: `adminChallengeWom` only sends it when asked.
+ *
+ * FOUR STATES, SAID AT THE TOP. Linked, waiting, no reply, not yet — until
+ * 2026-10-26 you worked out which one you were in by reading which paragraph
+ * had appeared. The pill in the heading says it instead, and the rest of the
+ * card is what can be done about it.
  */
 export default function ChallengeWom({
   wom, setup, busy = false, onReveal, onLink, onRetry,
@@ -63,16 +68,47 @@ export default function ChallengeWom({
     }
   };
 
+  /*
+   * Which of the four, in a word.
+   *
+   * Green only when there is a competition to point at. Waiting is gold
+   * because it resolves on its own; a lost reply is red because it does not.
+   */
+  const [stateLabel, stateTone] = id ? ['Linked', 'active']
+    : wom?.pending ? ['Waiting', 'pending']
+      : wom?.tried ? ['No reply', 'refused']
+        : ['Not yet', ''];
+
   return (
     <section className="card challenge-wom">
-      <h2>Wise Old Man</h2>
-      <p className="muted">
+      <div className="challenge-wom-head">
+        <h2>Wise Old Man</h2>
+        <span className={stateTone ? `pill ${stateTone}` : 'pill'}>{stateLabel}</span>
+      </div>
+      <p className="muted challenge-wom-lead">
         {metricLabel(setup.wom_metric)} is counted by the competition this event
         made on Wise Old Man.
       </p>
 
       {id ? (
         <>
+          <div className="challenge-wom-figures">
+            <span className="challenge-figure">
+              <span className="challenge-figure-label">Competition</span>
+              <strong>{id}</strong>
+            </span>
+            <span className="challenge-figure">
+              <span className="challenge-figure-label">Standings last read</span>
+              <strong className="challenge-wom-when">
+                {wom.fetched_at
+                  ? new Date(wom.fetched_at).toLocaleString(undefined, {
+                    dateStyle: 'short', timeStyle: 'short',
+                  })
+                  : 'not yet'}
+              </strong>
+            </span>
+          </div>
+
           <div className="challenge-wom-link">
             <a href={womCompetitionUrl(id)} target="_blank" rel="noreferrer noopener">
               The competition ↗
@@ -82,45 +118,47 @@ export default function ChallengeWom({
             </a>
           </div>
 
-          <dl className="challenge-wom-facts">
-            <dt>Competition</dt>
-            <dd>{id}</dd>
-            <dt>Standings last read</dt>
-            <dd>{wom.fetched_at ? new Date(wom.fetched_at).toLocaleString() : 'not yet'}</dd>
-          </dl>
-
           {wom.has_code === false ? (
-            <p className="muted">
+            <p className="muted challenge-wom-caution">
               Wise Old Man sent no verification code back when this competition
               was made, so it cannot be edited from here.
             </p>
-          ) : code === null ? (
-            <div className="row">
-              <button className="ghost" disabled={busy || loading} onClick={reveal}>
-                {loading ? 'Fetching…' : 'Show the verification code'}
-              </button>
-            </div>
           ) : (
             <>
-              <p className="challenge-wom-code"><code>{code}</code></p>
-              <div className="row">
-                <button className="ghost" disabled={busy} onClick={copy}>
-                  {copied ? 'Copied' : 'Copy'}
-                </button>
-                <button className="ghost" onClick={() => { setCode(null); setCopied(false); }}>
-                  Hide it
-                </button>
+              {/* One box either way. The dots are the shape of what is behind
+                  them, so revealing the code changes what the card says and
+                  not where anything on it sits. */}
+              <div className="challenge-wom-secret">
+                <span className="challenge-figure-label">Verification code</span>
+                {code === null ? (
+                  <div className="challenge-wom-secret-body">
+                    <span className="challenge-wom-dots" aria-hidden="true">••••••••••••</span>
+                    <button className="ghost" disabled={busy || loading} onClick={reveal}>
+                      {loading ? 'Fetching…' : 'Show it'}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="challenge-wom-secret-body">
+                    <code>{code}</code>
+                    <button className="ghost" disabled={busy} onClick={copy}>
+                      {copied ? 'Copied' : 'Copy'}
+                    </button>
+                    <button className="link" onClick={() => { setCode(null); setCopied(false); }}>
+                      Hide it
+                    </button>
+                  </div>
+                )}
               </div>
+
+              <p className="muted challenge-wom-caution">
+                The code lets anyone edit or delete the competition on Wise Old
+                Man, and it cannot be replaced — treat it like a password.
+                Taking a participant off by hand is safe. Changing the metric or
+                the dates is not: nothing here reads those back, so the event
+                and the competition would be counting different things.
+              </p>
             </>
           )}
-
-          <p className="muted challenge-wom-caution">
-            The code lets anyone edit or delete the competition on Wise Old Man,
-            and it cannot be replaced — treat it like a password. Taking a
-            participant off by hand is safe. Changing the metric or the dates is
-            not: nothing here reads those back, so the event and the competition
-            would be counting different things.
-          </p>
         </>
       ) : wom?.pending ? (
         <p className="muted">
@@ -135,33 +173,37 @@ export default function ChallengeWom({
             name on Wise Old Man before you make a second.
           </p>
 
-          <label className="field-name">The competition number on Wise Old Man
-            <input
-              value={compId}
-              onChange={(e) => setCompId(e.target.value)}
-              placeholder="162883"
-              inputMode="numeric"
-              disabled={busy}
-            />
-          </label>
-          <label className="field-name">Verification code, if you have it
-            <input
-              value={linkCode}
-              onChange={(e) => setLinkCode(e.target.value)}
-              placeholder="Leave this empty if you do not"
-              disabled={busy}
-            />
-          </label>
+          <div className="challenge-wom-fields">
+            <label className="field-name">The competition number on Wise Old Man
+              <input
+                value={compId}
+                onChange={(e) => setCompId(e.target.value)}
+                placeholder="162883"
+                inputMode="numeric"
+                disabled={busy}
+              />
+            </label>
+            <label className="field-name">Verification code, if you have it
+              <input
+                value={linkCode}
+                onChange={(e) => setLinkCode(e.target.value)}
+                placeholder="Leave this empty if you do not"
+                disabled={busy}
+              />
+            </label>
+          </div>
 
-          <div className="row">
+          {/* Linking the competition it already made is the way out of this
+              state, so that is the filled button; making a second one is the
+              fallback and reads as a link. */}
+          <div className="row challenge-wom-actions">
             <button
-              className="ghost"
               disabled={busy || !/^[0-9]+$/.test(compId.trim())}
               onClick={() => onLink(Number(compId.trim()), linkCode.trim())}
             >
               Link that competition
             </button>
-            <button className="ghost" disabled={busy} onClick={onRetry}>
+            <button className="link" disabled={busy} onClick={onRetry}>
               Make a new one instead
             </button>
           </div>

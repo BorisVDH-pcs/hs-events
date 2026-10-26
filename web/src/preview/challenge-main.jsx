@@ -57,10 +57,16 @@ challengeFixtures.entry = {
   ],
 };
 
+// This event runs in teams, so challenge_standings answers a team ladder: one
+// row per team, with the entrants behind each number. These rows were people
+// with entry ids -- the solo shape -- which is why the ladder in this harness
+// could never draw the row that is yours, the one thing a player looks for.
+// The Crimson Tide is in the middle on purpose: first and yours are two
+// different marks and they should be seen apart.
 challengeFixtures.standings = [
-  { place: 1, name: 'Hexis', declared: 4100, wom_gained: 301, entry_id: 'e9' },
-  { place: 2, name: 'Zezima', declared: 2500, wom_gained: 184, entry_id: 'e1' },
-  { place: 3, name: 'Fawkes', declared: 900, wom_gained: 77, entry_id: 'e7' },
+  { place: 1, name: 'Wise Old Men', team_id: 't2', declared: 4100, wom_gained: 301, entrants: 1 },
+  { place: 2, name: 'The Crimson Tide', team_id: 't1', declared: 2500, wom_gained: 184, entrants: 2 },
+  { place: 3, name: 'Varrock Vanguard', team_id: 't3', declared: 900, wom_gained: 77, entrants: 3 },
 ];
 
 /*

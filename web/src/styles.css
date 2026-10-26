@@ -5230,28 +5230,105 @@ body.dragging-jump * { cursor: grabbing !important; user-select: none; }
 .challenge-asks { list-style: none; margin: .6rem 0 0; padding: 0; display: grid; gap: .4rem; }
 .challenge-asks li { font-size: .875rem; }
 
+/* ---- the ladder ----
+ *
+ * The rows bingo, snakes and territory already share, because a challenge is
+ * a mode like the others: a place, a name, the figure, and a bar against the
+ * leader. It was a bare .stats-table until 2026-10-26 — six small numbers in a
+ * grid, on the screen the whole event is read off.
+ */
+.challenge-ladder { display: grid; gap: .5rem; }
+.challenge-ladder > p { margin: 0; }
+.challenge-ladder-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: .4rem .9rem; flex-wrap: wrap;
+}
+.challenge-ladder-head h2 { margin: 0; }
+.challenge-ladder-head p { margin: 0; font-size: .8125rem; }
+.challenge-ladder ol { list-style: none; margin: .3rem 0 0; padding: 0; display: grid; gap: .25rem; }
+
+/* The figure that is not deciding it goes on the "sub" line snakes defines, so
+   both numbers are on the row without a second column of numbers to read.
+   Nothing here is clickable — bingo's rows open a team's card, a ladder is a
+   read-out — so a pointer and a hover lift would both promise wrong. */
+.challenge-ladder .standings-row {
+  grid-template-areas: "place team count" "place sub sub" "place bar bar";
+  cursor: default;
+}
+.challenge-ladder .standings-row:hover { background: none; }
+.challenge-ladder .standings-row .count {
+  color: var(--text);
+  font-size: 1.125rem; font-weight: 600; letter-spacing: -.01em;
+}
+.challenge-ladder .standings-row .sub { grid-area: sub; font-size: .75rem; }
+.challenge-ladder .standings-row .team { display: flex; align-items: baseline; gap: .35rem; }
+.challenge-ladder .standings-row .team .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.challenge-ladder .standings-row .team .you { flex: none; }
+.challenge-ladder li:first-child .place { color: var(--gold); }
+.challenge-ladder li.mine .team { color: var(--gold-lit); }
+
+/* ---- the organiser's competition card ----
+ *
+ * In bands: which of the four states this event is in, the two facts, the way
+ * out to Wise Old Man itself, then the credential. The code is a password, so
+ * it gets a box of its own instead of a line in the middle of the prose, and
+ * the box is the same size whether the code is in it or not.
+ */
+.challenge-wom { display: grid; gap: .75rem; }
+.challenge-wom p { margin: 0; }
+.challenge-wom-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: .4rem .9rem; flex-wrap: wrap;
+}
+.challenge-wom-head h2 { margin: 0; }
+.challenge-wom-figures { display: flex; gap: 1.1rem 1.6rem; flex-wrap: wrap; align-items: start; }
+/* A date and a time is a longer thing to set than a count, and reading it off
+   is not what this card is for. */
+.challenge-wom-when { font-size: .9375rem; }
+
 /* Its own line under the metric, not trailing the sentence: two links reading
    as part of the prose would be read as part of the prose. */
 .challenge-wom-link { display: flex; flex-wrap: wrap; gap: .1rem .9rem; margin-top: .2rem; }
 .challenge-wom-link a { font-size: .8125rem; }
+/* In the console they are the way off this screen to another site, so there
+   they are set as chips. On the player's own card (.challenge-asks) they stay
+   links in a line of prose, which is what they are there. */
+.challenge-wom .challenge-wom-link { gap: .4rem; margin: 0; }
+.challenge-wom .challenge-wom-link a {
+  padding: .3rem .7rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-pill);
+  background: var(--fill-3);
+  text-decoration: none;
+}
+.challenge-wom .challenge-wom-link a:hover {
+  border-color: var(--line-lit);
+  background: var(--fill);
+}
 
-/* The organiser's competition card. The code is a credential, so it is set in
-   a monospace face at a size that can be read off the screen and typed. */
-.challenge-wom-facts { display: grid; grid-template-columns: auto 1fr; gap: .2rem .8rem;
-                       margin: .7rem 0 0; font-size: .875rem; }
-.challenge-wom-facts dt { color: var(--muted); }
-.challenge-wom-facts dd { margin: 0; }
-.challenge-wom-code { margin: .7rem 0 .4rem; }
-.challenge-wom-code code { font-size: 1rem; letter-spacing: .04em; word-break: break-all;
-                           padding: .25rem .45rem; border-radius: 6px; background: var(--fill-2); }
-.challenge-wom-caution { font-size: .8125rem; margin-top: .8rem; }
+.challenge-wom-secret {
+  display: grid; gap: .45rem;
+  padding: .7rem .8rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  background: var(--fill-3);
+}
+.challenge-wom-secret-body { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.challenge-wom-secret code {
+  font-size: 1rem; letter-spacing: .04em; word-break: break-all;
+  padding: .25rem .45rem; border-radius: 6px; background: var(--fill-2);
+}
+.challenge-wom-dots { font-size: 1rem; letter-spacing: .2em; color: var(--label-3); }
 
-/* The column that decides the winner, in both ladders. The other figure is
-   still there -- Boss of the Week is kills and loot at once -- so the one that
-   settles it has to look different from the one that does not. */
-.challenge-ladder th.ranked, .challenge-ladder td.ranked { color: var(--gold); font-weight: 600; }
-.challenge-ladder .stats-table th[scope="row"] { font-weight: 600; }
-.challenge-ladder tr.mine th[scope="row"] { color: var(--gold-lit); }
+.challenge-wom-fields { display: grid; gap: .6rem; max-width: 24rem; }
+.challenge-wom-actions { margin: 0; }
+/* Under a rule, because it is the small print rather than the next thing to
+   read — and it is long, which is the price of saying what the code can do. */
+.challenge-wom-caution {
+  font-size: .8125rem;
+  padding-top: .75rem;
+  border-top: 1px solid var(--hairline);
+}
 
 .challenge-shots { margin: .4rem 0; font-size: .8125rem; }
 .challenge-shots h4 { margin: 0 0 .15rem; font-size: .8125rem; color: var(--label-2); font-weight: 600; }
