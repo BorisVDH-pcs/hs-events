@@ -649,6 +649,14 @@ export function adminProfileAccounts(profileId) {
   return wait(playerAccounts[profileId] ?? []);
 }
 
+/** Mirrors adminAllProfileAccounts: the same fixtures, flattened, names only. */
+export function adminAllProfileAccounts() {
+  return wait(Object.entries(playerAccounts).flatMap(([profileId, rows]) =>
+    rows.map((a) => ({
+      profile_id: profileId, rsn: a.rsn, is_primary: a.is_primary, created_at: a.created_at,
+    }))));
+}
+
 /**
  * Mirrors admin_game_signup_remove: the sign-up row and nothing else. A
  * rostered player loses their place in this list and keeps their team, which

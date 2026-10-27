@@ -257,6 +257,29 @@ export const adminProfileAccounts = (profileId) =>
   rpc('admin_profile_accounts', { p_profile_id: profileId });
 
 /**
+ * Every player's names at once, for the Accounts list.
+ *
+ * A plain select, not an RPC, and no migration: authenticated has had select
+ * on profile_accounts since the table was made, and the read policy has always
+ * let an admin or a moderator see every row. What this does NOT carry is the
+ * hiscores verdict -- that lives on challenge_entries, which nobody may read --
+ * so "found / never found" stays in admin_profile_accounts, one player at a
+ * time, where it is worth the two subqueries per row.
+ *
+ * Main first, then oldest first: the same order my_accounts gives the player.
+ */
+export async function adminAllProfileAccounts() {
+  const { data, error } = await supabase
+    .from('profile_accounts')
+    .select('profile_id, rsn, is_primary, created_at')
+    .order('is_primary', { ascending: false })
+    .order('created_at')
+    .order('id');
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+/**
  * Add one. The first account added becomes the primary whether or not it was
  * asked for, and the primary is what lands in profiles.rsn — which is the name
  * every challenge sign-up box starts from.

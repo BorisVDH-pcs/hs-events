@@ -9,7 +9,7 @@ import {
   adminListLibrary, adminSaveLibraryTile, adminDeleteLibraryTile,
   adminSetTile, adminClearTile, adminSwapTiles, adminAutofillBoard, adminShuffleBoard,
   adminClearBoard, adminGameReadiness, adminResetPassword, adminListPasswordResets,
-  adminListAccountDeletions, adminProfileAccounts,
+  adminListAccountDeletions, adminProfileAccounts, adminAllProfileAccounts,
   adminListModerators,
   adminSetModeratorModes,
   adminSaveBoardPreset, adminApplyBoardPreset, adminDeleteBoardPreset,
@@ -2841,6 +2841,25 @@ function Accounts({ profiles, busy, confirm, onReset, onDelete, resets, deletion
   // resetting their password, and the two dialogs must not fight over one slot.
   const [viewing, setViewing] = useState(null);
 
+  // Every name every player has told the site, keyed by profile. Null until
+  // the read lands, so a player is only ever called nameless once we know.
+  // Loaded here rather than by the console: nothing else reads it, and it is
+  // read fresh each time the pane opens, which is when anybody looks at it.
+  const [rsns, setRsns] = useState(null);
+  useEffect(() => {
+    let live = true;
+    adminAllProfileAccounts()
+      .then((rows) => {
+        if (!live) return;
+        const byProfile = {};
+        for (const r of rows) (byProfile[r.profile_id] ??= []).push(r);
+        setRsns(byProfile);
+      })
+      // Fails soft: a list without names is the list this pane always was.
+      .catch(() => { if (live) setRsns({}); });
+    return () => { live = false; };
+  }, []);
+
   // One feed rather than two disclosures — the whole point of the log is a
   // quick "did I actually do that", and reset vs delete is one word to add,
   // not a reason to make an admin open two panels to find an entry.
@@ -2851,14 +2870,20 @@ function Accounts({ profiles, busy, confirm, onReset, onDelete, resets, deletion
 
   // Same reasoning as the roster picker: an admin account is not a player.
   const players = profiles.filter((p) => !p.is_admin);
-  const q = query.trim().toLowerCase();
-  const matches = q ? players.filter((p) => p.display_name.toLowerCase().includes(q)) : players;
+  // Spaces, underscores and hyphens are the same character in a RuneScape
+  // name, so "zezima alt" has to find Zezima_Alt. Folded on both sides.
+  const fold = (t) => (t ?? '').toLowerCase().replace(/[\s_-]+/g, '');
+  const q = fold(query);
+  const matches = q
+    ? players.filter((p) => fold(p.display_name).includes(q)
+      || (rsns?.[p.id] ?? []).some((a) => fold(a.rsn).includes(q)))
+    : players;
 
   return (
     <section className="card">
       <CardHead
         title="Accounts"
-        lead="Reset a player’s password, or remove an account entirely."
+        lead="Every player and the RuneScape names they play under. Reset a password, or remove an account entirely."
         more={'Deleting takes their profile, their team membership and any locked-in tiles with it, and it '
           + 'cannot be undone — which is what it is for: a troll signup with no place in a game. The confirm '
           + 'asks you to type the name before it will go through.'}
@@ -2868,13 +2893,27 @@ function Accounts({ profiles, busy, confirm, onReset, onDelete, resets, deletion
         type="search"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder={`Search ${players.length} player${players.length === 1 ? '' : 's'}…`}
+        placeholder={`Search ${players.length} player${players.length === 1 ? '' : 's'} or RuneScape names…`}
         disabled={players.length === 0}
       />
       <ul className="account-list">
         {matches.map((p) => (
           <li key={p.id}>
-            <span>{p.display_name}</span>
+            <span className="account-who">
+              <span>{p.display_name}</span>
+              {/* The names only. Whether the hiscores ever found them is a
+                  second read per player, so it stays behind the button. */}
+              {rsns?.[p.id]?.length > 0 && (
+                <span className="account-rsns">
+                  {rsns[p.id].map((a) => (
+                    <span key={a.rsn} className={a.is_primary ? 'main' : undefined}>{a.rsn}</span>
+                  ))}
+                </span>
+              )}
+              {rsns && !rsns[p.id]?.length && (
+                <span className="account-rsns none">No RuneScape name yet</span>
+              )}
+            </span>
             <span className="account-actions">
               {/* First, because it is the one an organiser reaches for most
                   and the only one of the three that changes nothing. */}
