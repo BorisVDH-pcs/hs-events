@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  MAX_ACCOUNTS, MAX_RSN, accountStatus, hasRsn, rsnClean, rsnError, rsnKey,
+  MAX_ACCOUNTS, MAX_RSN, accountStatus, accountStatusShort,
+  hasRsn, rsnClean, rsnError, rsnKey,
 } from '../src/lib/accounts.js';
 
 // ---- The same name, written differently ----
@@ -79,6 +80,62 @@ const bad = accountStatus({ wom_found: false });
 assert.equal(bad.tone, 'error');
 assert.match(bad.text, /too new to be ranked/, 'the innocent explanation is offered too');
 assert.match(bad.text, /scores nothing/, 'and what it costs is said plainly');
+
+// ---- The same three states, said to an organiser ----
+//
+// Two wordings exist because the reader is different: the player's screen is
+// addressed to the account's owner, and the console is somebody else reading
+// about them. What must NOT differ is which state is worth acting on, so the
+// tones are asserted equal -- that is the contract between the two, and the
+// words are not.
+
+for (const account of [{ wom_found: null }, {}, null, { wom_found: true }, { wom_found: false }]) {
+  assert.equal(
+    accountStatusShort(account).tone, accountStatus(account).tone,
+    'the two wordings must agree about which state is an error',
+  );
+}
+
+const shortBad = accountStatusShort({ wom_found: false });
+assert.match(shortBad.text, /scores nothing/, 'what it costs is said to an organiser too');
+assert.ok(
+  shortBad.text.length < bad.text.length,
+  'the organiser is scanning a list, not being advised about one name',
+);
+
+// The giveaway that a line was written for the wrong reader. An organiser
+// reading "the first time you enter a tracked event" is being told about
+// somebody else's account in the second person.
+for (const state of [{ wom_found: null }, { wom_found: false }, { wom_found: true }]) {
+  assert.ok(
+    !/\byou\b|\byour\b/i.test(accountStatusShort(state).text),
+    'the organiser wording talks about the player, not to them',
+  );
+}
+
+// ---- Who may read somebody else's list ----
+
+const organiserSql = readFileSync(
+  new URL('../../supabase/migrations/20261027130000_admin_profile_accounts.sql', import.meta.url),
+  'utf8',
+  // Comments stripped first. This file explains in prose that the helper is
+  // never granted and that the gate matches the table's policy, so a search
+  // over the raw text would pass whether or not the SQL said either.
+).replace(/--[^\n]*/g, '');
+
+assert.ok(
+  organiserSql.includes('is_admin() or is_moderator()'),
+  'an organiser is who the read policy on profile_accounts already allows',
+);
+assert.ok(
+  /revoke execute on function profile_accounts_for\(uuid\)\s+from public, anon, authenticated;/
+    .test(organiserSql),
+  'the ungated body takes any profile id, so it is revoked from authenticated as well',
+);
+assert.ok(
+  !/grant\s+execute on function profile_accounts_for/.test(organiserSql),
+  'and never handed back to anybody',
+);
 
 // ---- The cap, in both places ----
 

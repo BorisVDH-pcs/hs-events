@@ -197,6 +197,40 @@ const signups = [];
   signUp(bingo, byName('Raid Ronnie'), 4, null);
 }
 
+// What an organiser is shown when they ask which names a player goes by.
+// Four shapes, so the dialog can be looked at rather than reasoned about: a
+// main Wise Old Man found, an alt it never did -- the one the dialog exists
+// for -- a name nothing has checked yet, and a player who has told the site
+// nothing at all.
+const playerAccounts = {};
+{
+  const since = (days) => new Date(Date.now() - days * 86400000).toISOString();
+  const byName = (name) => profiles.find((p) => p.display_name === name).id;
+
+  playerAccounts[byName('Sanchez')] = [
+    {
+      id: uid(), rsn: 'Sanchez', is_primary: true, label: null,
+      created_at: since(90), wom_found: true, last_seen: since(4),
+    },
+    {
+      // A label nobody can write any more, on a row that still shows one.
+      id: uid(), rsn: 'Sanchez Alt', is_primary: false, label: 'the slayer alt',
+      created_at: since(60), wom_found: false, last_seen: since(11),
+    },
+    {
+      id: uid(), rsn: 'Sanchez HC', is_primary: false, label: null,
+      created_at: since(12), wom_found: null, last_seen: null,
+    },
+  ];
+  playerAccounts[byName('Tbow Tom')] = [
+    {
+      id: uid(), rsn: 'Tbow Tommy', is_primary: true, label: null,
+      created_at: since(30), wom_found: true, last_seen: since(2),
+    },
+  ];
+  // Raid Ronnie is deliberately absent: the empty state is a real answer.
+}
+
 // Territory: the themed tasks as a saved 8x8 board, one per place, so
 // "load a template" has something to load. A task for every place, homes
 // included -- loading it onto a game skips that game's homes.
@@ -604,6 +638,16 @@ export const adminGameSignups = (gameId) => wait(
         && teams.some((t) => t.id === m.team_id && t.game_id === gameId)),
     }))
 );
+
+/**
+ * Mirrors admin_profile_accounts. The four players below stand for the four
+ * things this list can say: a main that WOM found, an alt it never did (the
+ * one worth opening the dialog for), a name nothing has checked yet, and a
+ * player who has told the site nothing at all.
+ */
+export function adminProfileAccounts(profileId) {
+  return wait(playerAccounts[profileId] ?? []);
+}
 
 /**
  * Mirrors admin_game_signup_remove: the sign-up row and nothing else. A

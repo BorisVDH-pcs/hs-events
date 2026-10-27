@@ -34,6 +34,7 @@ games ────────────────────────�
 | `teams` | Exactly two per game (enforced by trigger), plus the Discord role to ping |
 | `team_members` | Who plays for whom, and who is captain (captains place the fleet) |
 | `game_signups` | Who put their hand up for a board event, before anybody was put on a team |
+| `profile_accounts` | The RuneScape names a player says are theirs; the primary one is mirrored into `profiles.rsn` |
 | `tiles` | The 100 tasks — coordinate, name, icon, target, and the **completion rule** |
 | `tile_options` | The drops a tile lists, their points, and the set (`grp`) each belongs to |
 | `tile_claims` | Claim → fire. A completed claim *is* a shot |
@@ -151,6 +152,52 @@ Checked by [scripts/game-signups-smoke-test.sql](../scripts/game-signups-smoke-t
 and rolled back by [scripts/rollback-game-signups.sql](../scripts/rollback-game-signups.sql)
 — or, for the organiser's remove alone,
 [scripts/rollback-admin-signup-remove.sql](../scripts/rollback-admin-signup-remove.sql).
+
+### The names a player plays under
+
+`profile_accounts` (20261026130000) is the one table here with real policies
+rather than none, and its read policy has always said:
+
+```sql
+using (profile_id = auth.uid() or is_admin() or is_moderator())
+```
+
+The owner, and organisers. **Not the clan** — people hide their alts, and a
+settings screen should not publish them. A player's *primary* name stays as
+public as it ever was, because `profiles.rsn` is mirrored from it and
+`profiles_read` answers that to everybody.
+
+For a year the organiser half of that policy had nowhere to happen. The only
+function over the table was `my_accounts()`, filtered to `auth.uid()`, so the
+console showed one name at a time and never a list — `profiles.rsn` wherever
+players are listed, `admin_challenge_entries.rsn` on an entry,
+`admin_game_signups.rsn` on a sign-up. None of them answers the question
+somebody actually asks, which is *which accounts does this player have, and
+has Wise Old Man ever found them*.
+
+`admin_profile_accounts` (20261027130000) does, on `is_admin() or
+is_moderator()` — the policy's own words, not `may_manage_game`, because this
+is not about an event.
+
+- **It is read only.** Every insert, update and delete policy on the table is
+  `profile_id = auth.uid()`. The list belongs to the player; an organiser
+  reads it and tells them if a name is wrong.
+- **The WOM columns are the point.** `wom_found` is three-valued, and `false`
+  is the one worth acting on: WOM's `addParticipants` validates a name's
+  format and nothing else, so a typo is accepted with a 200 and then scores
+  zero for a week. Those columns are why this is a function rather than the
+  client reading a table it is already allowed to read — they come from
+  `challenge_entries`, which has RLS on with no policies at all.
+- **One body, two gates.** `profile_accounts_for(profile)` holds the query;
+  `my_accounts()` passes `auth.uid()` and `admin_profile_accounts(profile)`
+  passes anything, after its check. The helper asks nobody anything, so it is
+  revoked from `authenticated` as well as from `anon` — only the two wrappers
+  may run it, which they do as the owner.
+
+Rolled back by
+[scripts/rollback-admin-profile-accounts.sql](../scripts/rollback-admin-profile-accounts.sql),
+which puts `my_accounts()` back to its standalone body before dropping the
+helper.
 
 ## Game rules, and where each is enforced
 

@@ -9,7 +9,7 @@ import {
   adminListLibrary, adminSaveLibraryTile, adminDeleteLibraryTile,
   adminSetTile, adminClearTile, adminSwapTiles, adminAutofillBoard, adminShuffleBoard,
   adminClearBoard, adminGameReadiness, adminResetPassword, adminListPasswordResets,
-  adminListAccountDeletions,
+  adminListAccountDeletions, adminProfileAccounts,
   adminListModerators,
   adminSetModeratorModes,
   adminSaveBoardPreset, adminApplyBoardPreset, adminDeleteBoardPreset,
@@ -42,6 +42,7 @@ import EvidenceReview from './EvidenceReview.jsx';
 import PetJarReview from './PetJarReview.jsx';
 import DiscordWebhooks from './DiscordWebhooks.jsx';
 import PasswordResetDialog from './PasswordResetDialog.jsx';
+import PlayerAccountsDialog from './PlayerAccountsDialog.jsx';
 import CardHead from './CardHead.jsx';
 import { Pick, PickChip, PickSet } from './Pick.jsx';
 import DateTimeField from './DateTimeField.jsx';
@@ -2836,6 +2837,9 @@ function FreePlayerPicker({ teams, free, signedUp, busy, onAddMany }) {
 function Accounts({ profiles, busy, confirm, onReset, onDelete, resets, deletions, onOpenLog }) {
   const [query, setQuery] = useState('');
   const [target, setTarget] = useState(null);
+  // Separate from `target`: looking somebody up is not the first half of
+  // resetting their password, and the two dialogs must not fight over one slot.
+  const [viewing, setViewing] = useState(null);
 
   // One feed rather than two disclosures — the whole point of the log is a
   // quick "did I actually do that", and reset vs delete is one word to add,
@@ -2872,6 +2876,11 @@ function Accounts({ profiles, busy, confirm, onReset, onDelete, resets, deletion
           <li key={p.id}>
             <span>{p.display_name}</span>
             <span className="account-actions">
+              {/* First, because it is the one an organiser reaches for most
+                  and the only one of the three that changes nothing. */}
+              <button className="ghost" onClick={() => setViewing(p)}>
+                RuneScape names
+              </button>
               <button className="ghost" disabled={busy} onClick={() => setTarget(p)}>
                 Reset password
               </button>
@@ -2917,6 +2926,10 @@ function Accounts({ profiles, busy, confirm, onReset, onDelete, resets, deletion
           </ul>
         )}
       </details>
+
+      {viewing && (
+        <PlayerAccountsDialog player={viewing} onClose={() => setViewing(null)} />
+      )}
 
       {target && (
         <PasswordResetDialog

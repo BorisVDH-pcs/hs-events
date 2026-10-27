@@ -88,3 +88,29 @@ export function accountStatus(account) {
   }
   return { tone: 'ok', text: 'Found on the hiscores.' };
 }
+
+/**
+ * The same three states, said about somebody rather than to them.
+ *
+ * accountStatus is written to the account's owner -- "the first time YOU enter
+ * a tracked event" -- which is the wrong person when an organiser is reading
+ * the list to work out why a score came back zero. Shorter too: they are
+ * scanning five names, not reading advice about one.
+ *
+ * The TONES are the contract between the two, not the words: `error` is the
+ * state worth acting on, and the selftest holds them equal so that a change to
+ * one cannot quietly disagree with the other about which that is.
+ */
+export function accountStatusShort(account) {
+  if (!account || account.wom_found === null || account.wom_found === undefined) {
+    return { tone: 'muted', text: 'Not checked — no tracked event has carried this name yet.' };
+  }
+  if (account.wom_found === false) {
+    return {
+      tone: 'error',
+      text: 'Never found on the hiscores — spelled differently in game, or too new to be '
+          + 'ranked. Either way it scores nothing.',
+    };
+  }
+  return { tone: 'ok', text: 'Found on the hiscores.' };
+}

@@ -246,6 +246,17 @@ export async function gameSignupLeave(gameId) {
 export const myAccounts = () => rpc('my_accounts');
 
 /**
+ * One player's accounts, read by an organiser rather than their owner.
+ *
+ * The permission is as old as the table -- profile_accounts' read policy has
+ * always said `is_admin() or is_moderator()` -- but nothing ever asked, so the
+ * console showed one name at a time and never the list. Read only: every write
+ * policy on that table is the owner's alone.
+ */
+export const adminProfileAccounts = (profileId) =>
+  rpc('admin_profile_accounts', { p_profile_id: profileId });
+
+/**
  * Add one. The first account added becomes the primary whether or not it was
  * asked for, and the primary is what lands in profiles.rsn — which is the name
  * every challenge sign-up box starts from.
