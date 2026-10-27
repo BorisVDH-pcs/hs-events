@@ -553,6 +553,17 @@ export const adminSnakesEndGame = (gameId, winnerId) =>
 export const adminGameSignups = (gameId) =>
   rpc('admin_game_signups', { p_game_id: gameId });
 
+/**
+ * Takes one name back off that list. Nothing else could: game_signup_leave
+ * deletes the caller's own row and refuses once they are on a team, so a
+ * sign-up left by somebody who went quiet had no way out of the shortlist.
+ *
+ * Does NOT touch team_members. Somebody already rostered stays on their team
+ * and goes on playing -- this is the list, not the game.
+ */
+export const adminGameSignupRemove = (gameId, profileId) =>
+  rpc('admin_game_signup_remove', { p_game_id: gameId, p_profile_id: profileId });
+
 export const adminSetMember = (teamId, profileId, role) =>
   rpc('admin_set_member', { p_team_id: teamId, p_profile_id: profileId, p_role: role });
 

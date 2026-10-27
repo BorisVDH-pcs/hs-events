@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   supabase, startGame,
-  adminCreateGame, adminSetMember, adminRemoveMember, adminGameSignups,
+  adminCreateGame, adminSetMember, adminRemoveMember,
+  adminGameSignups, adminGameSignupRemove,
   adminOpenPlacement, adminSetStartTime, adminSetFeaturedGame, adminListTiles, adminDeleteGame, adminResetGame,
   adminDeleteAccount,
   adminListShipCells, adminListWebhooks,
@@ -1827,6 +1828,22 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
             )}
           </section>
 
+          <Signups
+            signups={signups}
+            busy={busy}
+            confirm={confirm}
+            onRemove={(profileId, name) =>
+              run(
+                () => adminGameSignupRemove(game.id, profileId),
+                `${name} taken off the list.`,
+                // The roster does not move and neither does anything else: the
+                // only things that read this are the list below and the
+                // readiness line, both off the same state.
+                { refresh: ['signups'] }
+              )
+            }
+          />
+
           <Roster
             bingo={cardLike}
             snakes={snakesMode}
@@ -3063,6 +3080,77 @@ function AddTeam({ busy, onAdd }) {
         Add team
       </button>
     </div>
+  );
+}
+
+/**
+ * Who put their hand up, and the one place a name can be taken back off.
+ *
+ * It draws nothing at all when nobody has signed up, which is how the five
+ * events that ran before sign-ups existed go on looking exactly as they did --
+ * and how a console pointed at a database without the migration behaves, since
+ * loadSignups fails soft to an empty list.
+ *
+ * The RSN here is the one snapshotted at sign-up, not a read-through to the
+ * profile. It is the only place the console shows it, and it is the reason the
+ * row carries one: an organiser building teams needs to know who this is in
+ * game, as they said it at the time.
+ */
+function Signups({ signups, busy, confirm, onRemove }) {
+  if (signups.length === 0) return null;
+  const waiting = signups.filter((s) => !s.rostered).length;
+  return (
+    <section className="card">
+      <h2>Sign-ups <span className="team-count">{signups.length}</span></h2>
+      <p className="muted">
+        {waiting === 0
+          ? 'Everybody who signed up is on a team.'
+          : `${waiting} still to place.`}
+      </p>
+      <ul className="roster">
+        {signups.map((s) => {
+          const name = s.display_name ?? 'Someone';
+          // Plenty of people register under the name they play under, and
+          // "Sanchez · Sanchez" reads as a bug rather than as a second fact.
+          // Spacing and case are what rsn_key folds, so fold them here too and
+          // show the name only when it is telling the organiser something.
+          const key = (t) => (t ?? '').replace(/\s+/g, '').toLowerCase();
+          const showRsn = s.rsn && key(s.rsn) !== key(s.display_name);
+          return (
+            <li key={s.profile_id}>
+              <span>
+                {name}
+                {showRsn && <span className="muted"> · {s.rsn}</span>}
+                {s.rostered && <span className="muted"> · on a team</span>}
+              </span>
+              {/* Quiet here, red in the dialog. A column of danger buttons
+                  down a list this long reads as a page full of warnings; the
+                  one press that matters is the one in the confirm. */}
+              <button
+                className="ghost" disabled={busy}
+                onClick={async () => {
+                  if (!(await confirm(
+                    s.rostered
+                      // Said plainly, because it is the surprising half: this
+                      // button does not take anybody out of the event.
+                      ? `${name} stays on their team and goes on playing. This only takes the name off the sign-up list.`
+                      : `${name} comes off the list. They can sign themselves up again while the event is still open.`,
+                    {
+                      title: `Take ${name} off the sign-up list?`,
+                      confirmLabel: 'Take them off',
+                      danger: true,
+                    }
+                  ))) return;
+                  onRemove(s.profile_id, name);
+                }}
+              >
+                Remove
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 

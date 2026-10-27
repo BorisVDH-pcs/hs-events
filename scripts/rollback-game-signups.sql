@@ -10,6 +10,9 @@
 
 begin;
 
+-- 20261027120000 added this one on top; it reads the table below, so it goes
+-- with it. Dropping it alone is scripts/rollback-admin-signup-remove.sql.
+drop function if exists admin_game_signup_remove(uuid, uuid);
 drop function if exists admin_game_signups(uuid);
 drop function if exists game_signup_list();
 drop function if exists game_signup_leave(uuid);

@@ -172,18 +172,29 @@ teams.filter((t) => t.game_id === snk).forEach((t, i) => {
 // placed yet: shortlist of three, five further accounts behind "Show everyone".
 const signups = [];
 {
-  const signUp = (gameId, profileId, hoursAgo) => signups.push({
+  // Most people register under the name they play under, so the profile's
+  // own name is the default. SAME says so out loud, because `undefined` and
+  // `null` have to stay tellable apart here: null is a real sign-up with no
+  // name on it, which the column allows and the console has to draw.
+  const SAME = Symbol('same as the profile');
+  const signUp = (gameId, profileId, hoursAgo, rsn = SAME) => signups.push({
     game_id: gameId,
     profile_id: profileId,
-    rsn: profiles.find((p) => p.id === profileId)?.display_name ?? null,
+    rsn: rsn === SAME
+      ? (profiles.find((p) => p.id === profileId)?.display_name ?? null)
+      : rsn,
     created_at: new Date(Date.now() - hoursAgo * 3600000).toISOString(),
   });
   members
     .filter((m) => teams.some((t) => t.id === m.team_id && t.game_id === bingo))
     .forEach((m, i) => signUp(bingo, m.profile_id, 72 - i));
-  ['Velma', 'Tbow Tom', 'Raid Ronnie'].forEach((name, i) => {
-    signUp(bingo, profiles.find((p) => p.display_name === name).id, 6 - i);
-  });
+  // The three still to be placed stand for the three shapes this column
+  // takes, so the Sign-ups list can be looked at rather than reasoned about:
+  // a name that matches the profile, one that does not, and none at all.
+  const byName = (name) => profiles.find((p) => p.display_name === name).id;
+  signUp(bingo, byName('Velma'), 6);
+  signUp(bingo, byName('Tbow Tom'), 5, 'Tbow Tommy');
+  signUp(bingo, byName('Raid Ronnie'), 4, null);
 }
 
 // Territory: the themed tasks as a saved 8x8 board, one per place, so
@@ -593,6 +604,18 @@ export const adminGameSignups = (gameId) => wait(
         && teams.some((t) => t.id === m.team_id && t.game_id === gameId)),
     }))
 );
+
+/**
+ * Mirrors admin_game_signup_remove: the sign-up row and nothing else. A
+ * rostered player loses their place in this list and keeps their team, which
+ * is the case the confirm dialog is worded for and so the one worth being
+ * able to click through here.
+ */
+export function adminGameSignupRemove(gameId, profileId) {
+  const i = signups.findIndex((s) => s.game_id === gameId && s.profile_id === profileId);
+  if (i >= 0) signups.splice(i, 1);
+  return wait(null);
+}
 
 export function adminRemoveMember(teamId, profileId) {
   const i = members.findIndex((x) => x.team_id === teamId && x.profile_id === profileId);
