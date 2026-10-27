@@ -255,23 +255,50 @@ assert.equal(modeLabel(null), 'Event', 'and an unknown mode says something rathe
 
 // ---- The header on a phone ----
 //
-// `.top` is `auto 1fr auto` in one row, which needs about 960px. Below that
-// the middle column did not squeeze, it collapsed: the two `auto` columns
-// kept their content width, the game's name wrapped one word per line into
-// the controls beside it, and at 375px the page was 93px wider than the
-// screen with the sign-out off the right edge.
+// `.top` is `auto 1fr auto` in one row. The two `auto` columns do not
+// shrink: they hold their content width and the middle one -- the game's
+// name -- takes what is left, including nothing. The name then wrapped one
+// word per line into the controls, and at 375px the page was 93px wider than
+// the screen with the sign-out off the right edge.
 //
-// Four things keep it fixed, and each one is a trap that has already been
-// fallen into on this header.
+// THE NUMBER IS THE WHOLE FIX, and the first one was wrong. 960 was measured
+// on a challenge, where the wordmark is 262px. On a board game it is 394px,
+// because of the mode image beside the crest, so the collapse begins 130px
+// wider than the rule meant to prevent it -- an organiser at 1024 still had
+// the bug. Measured max-content widths, board game, from /preview-app.html:
+//
+//               wordmark  controls   +gap  +padding = first pixel of name
+//   organiser      394      534       960     1008
+//   player         394      502       928      976
+//
+// A name needs ~240px to read, so one row is only honest from about 1250.
+//
+// Five things keep it fixed, and each one is a trap this header has already
+// fallen into.
 {
   const css = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
 
   assert.ok(css.includes('grid-template-columns: auto 1fr auto'),
     'the full-width header is still the three-column grid the fix is measured against');
 
-  const PHONE = '@media (max-width: 960px) {';
+  // Held as arithmetic rather than as a number somebody can nudge: the
+  // breakpoint has to clear what the two auto columns actually demand, plus
+  // a readable name. If a control is ever added to .who, this is the line
+  // that should start failing.
+  const WORDMARK = 394;
+  const CONTROLS = 534;
+  const GAP = 16;
+  const PAGE_PADDING = 24 * 2;
+  const READABLE_NAME = 240;
+  const BREAKPOINT = 1280;
+  assert.ok(
+    BREAKPOINT >= WORDMARK + CONTROLS + GAP * 2 + PAGE_PADDING + READABLE_NAME,
+    'one row is only worth having while the name has room to be read'
+  );
+
+  const PHONE = `@media (max-width: ${BREAKPOINT}px) {`;
   const MARK = '@media (max-width: 520px) {\n  .top .wordmark';
-  assert.ok(css.includes(PHONE), 'the header stops being one row below a laptop');
+  assert.ok(css.includes(PHONE), 'the header stops being one row below a desktop');
   assert.ok(css.includes(MARK), 'and the lockup comes down to its mark on a phone');
   const phone = css.slice(css.indexOf(PHONE), css.indexOf(MARK));
 
@@ -299,6 +326,25 @@ assert.equal(modeLabel(null), 'Event', 'and an unknown mode says something rathe
     css.indexOf('.top .header-status {') < css.indexOf(PHONE),
     'the phone override must come AFTER the base .header-status rule, not before it'
   );
+
+  // A name too long for the middle column gives up its tail, not the line.
+  // Only safe next to the `min-width: 0` on the same rule: `nowrap` would
+  // otherwise make this item's min-content contribution its whole text
+  // width, the 1fr track would inflate to match it, and the page would
+  // scroll sideways rather than the name truncating.
+  const base = css.slice(css.indexOf('.top .header-status {'));
+  // Comments stripped before asserting. The comment inside this very rule
+  // explains why `min-width: 0` is there, so a substring search over the raw
+  // text passes whether or not the declaration itself survives -- which is
+  // what it did, until a mutation run caught it.
+  const baseRule = base.slice(0, base.indexOf('}')).replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.ok(baseRule.includes('text-overflow: ellipsis'),
+    'a long game name truncates in the one-row header');
+  assert.ok(baseRule.includes('min-width: 0'),
+    'and min-width: 0 keeps that nowrap from inflating the middle track');
+  // On its own row it has the whole width, so it is allowed to wrap again.
+  assert.ok(phone.slice(status).includes('white-space: normal'),
+    'on its own row the name wraps rather than truncating');
 
   // The mark alone in the app header on a phone, and the whole lockup
   // everywhere else. Unscoped, this would strip the login screen -- the one

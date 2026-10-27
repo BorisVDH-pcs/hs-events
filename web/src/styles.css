@@ -446,27 +446,50 @@ h3 {
   margin: 0; min-width: 0;
   font-size: .95rem;
   text-align: center;
+  /* A long name gives up its tail, it does not give up the line. Without
+     this, a middle column too narrow for the name wraps it one word per
+     line and the header grows to four rows of single words. Safe only
+     because of the `min-width: 0` above: `nowrap` would otherwise make this
+     item's min-content contribution its whole text width, the 1fr track
+     would inflate to match, and the page would scroll sideways instead. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* ---- The header below a laptop ----
+/* ---- The header below a desktop ----
  *
- * `auto 1fr auto` in one row needs about 960px before anything gives, and a
- * phone is 375. What happened below that was not a squeeze but a COLLAPSE:
- * the middle column -- the name of the game you are in -- went to nothing
- * while the two `auto` columns kept their content width, so the name wrapped
- * one word per line into the controls beside it and the sign-out ran off the
- * right edge of the screen where no thumb could reach it.
+ * `auto 1fr auto` in one row only works while the two `auto` columns leave
+ * the middle one something. They do not shrink: they hold their content
+ * width and the middle column -- the name of the game you are in -- takes
+ * whatever is left, including nothing. Below that point the name wrapped one
+ * word per line into the controls beside it, and on a phone the sign-out ran
+ * off the right edge of the screen where no thumb could reach it.
  *
- * Measured on /preview-app.html, which renders the real header, with a game
- * open. The middle column: 128px at 900, 48px at 820, 3px at 760, 0 at 700,
- * and at 375 the page was 93px wider than the screen. A player sees two more
- * controls than that measurement had (How to Play, Suggest a tile), so it is
- * worse for them than for an organiser.
+ * The number comes from measuring what those two columns actually demand,
+ * on /preview-app.html, which renders the real header, with a board game
+ * open. Both roles, max-content width of each column:
  *
- * So below 960 it stops being one row. The mark and the controls share the
+ *                 wordmark   controls   + gap   + page padding = floor
+ *   organiser       394        534        960        1008
+ *   player          394        502        928         976
+ *
+ * The floor is the viewport at which the name gets its FIRST pixel, not a
+ * usable one. A name needs ~240px to read, so one row is only honest from
+ * about 1250 up; 1280 is that, rounded to a width people's screens actually
+ * are, with room for a 12-character RuneScape name where this was measured
+ * with a 6-character one.
+ *
+ * 960 was the first number here and it was wrong. It was measured on a
+ * CHALLENGE, where the wordmark is 262px because there is no mode image
+ * beside the crest. On a board game that same column is 394px, so the
+ * collapse starts 130px wider than the rule that was meant to prevent it --
+ * which is to say an organiser at 1024px still had the bug it fixed.
+ *
+ * So below 1280 it stops being one row. The mark and the controls share the
  * top row, the game's name gets the whole of the second, and the controls
  * wrap rather than being pressed into a column one word wide. */
-@media (max-width: 960px) {
+@media (max-width: 1280px) {
   .top {
     grid-template-columns: auto minmax(0, 1fr);
     gap: .5rem .75rem;
@@ -488,6 +511,9 @@ h3 {
     grid-column: 1 / -1;
     grid-row: 2;
     text-align: left;
+    /* A full row is room enough; the ellipsis is for the one-row layout. */
+    white-space: normal;
+    overflow: visible;
   }
 }
 
