@@ -2404,6 +2404,23 @@ label {
 .account-list li.muted { padding: .55rem .1rem; }
 .account-actions { display: flex; gap: .4rem; flex-shrink: 0; }
 
+/* The player, and underneath them the names they play under: main first and
+   in full colour, alts after it, quieter. A second line rather than a column
+   because a list of five alts has to wrap somewhere, and a narrow column of
+   them would push the three buttons off a phone. */
+.account-who { display: flex; flex-direction: column; gap: .15rem; min-width: 0; }
+.account-rsns {
+  font-size: var(--t-footnote);
+  line-height: var(--lh-body);
+  color: var(--label-2);
+  overflow-wrap: anywhere;
+}
+.account-rsns .main { color: var(--text); font-weight: 600; }
+.account-rsns > span + span::before { content: " · "; color: var(--label-2); font-weight: 400; }
+/* Worth seeing at a glance: nothing this player enters can be matched on the
+   hiscores until they add one. Italic so it never reads as somebody's name. */
+.account-rsns.none { font-style: italic; }
+
 /* Collapsed by default so a screen an admin opens to reset one password does
    not also greet them with a scrollable history every time. */
 .account-log {
