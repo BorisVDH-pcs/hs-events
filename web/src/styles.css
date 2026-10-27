@@ -448,6 +448,63 @@ h3 {
   text-align: center;
 }
 
+/* ---- The header below a laptop ----
+ *
+ * `auto 1fr auto` in one row needs about 960px before anything gives, and a
+ * phone is 375. What happened below that was not a squeeze but a COLLAPSE:
+ * the middle column -- the name of the game you are in -- went to nothing
+ * while the two `auto` columns kept their content width, so the name wrapped
+ * one word per line into the controls beside it and the sign-out ran off the
+ * right edge of the screen where no thumb could reach it.
+ *
+ * Measured on /preview-app.html, which renders the real header, with a game
+ * open. The middle column: 128px at 900, 48px at 820, 3px at 760, 0 at 700,
+ * and at 375 the page was 93px wider than the screen. A player sees two more
+ * controls than that measurement had (How to Play, Suggest a tile), so it is
+ * worse for them than for an organiser.
+ *
+ * So below 960 it stops being one row. The mark and the controls share the
+ * top row, the game's name gets the whole of the second, and the controls
+ * wrap rather than being pressed into a column one word wide. */
+@media (max-width: 960px) {
+  .top {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: .5rem .75rem;
+  }
+  /* Pinned again, for the same reason the base rule pins it to column 3: on
+     Home there is no middle item, and auto-placement would put this cluster
+     wherever the row happened to have space. */
+  .who {
+    grid-column: 2;
+    grid-row: 1;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    row-gap: .4rem;
+  }
+  /* Its own row, and left-aligned. Centred under a two-column row it reads as
+     a caption for whichever column it happens to sit beneath, which on a
+     phone is the sign-out. */
+  .top .header-status {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    text-align: left;
+  }
+}
+
+/* The mark alone on a phone.
+ *
+ * "EVENTS" beside the crest is 112px of a 375px screen spent saying what the
+ * page already is, and those 112px are the difference between the controls
+ * wrapping onto two lines and onto four. A logo is allowed to shrink to its
+ * mark -- that is what a mark is for.
+ *
+ * Scoped to .top: the login screen is the one page with room to let the whole
+ * lockup be itself, and it keeps it. */
+@media (max-width: 520px) {
+  .top .wordmark .wordmark-subtitle,
+  .top .wordmark .sub { display: none; }
+}
+
 /* "This board has stopped hearing about the game."
  *
  * Deliberately not gold and not red. Gold is the tint — it means "yours", or

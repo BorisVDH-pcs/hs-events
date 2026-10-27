@@ -253,6 +253,61 @@ assert.equal(modeLabel(null), 'Event', 'and an unknown mode says something rathe
   assert.ok(css.includes('minmax(170px, 210px)'), `the rail is still ${RAIL}px at its widest`);
 }
 
+// ---- The header on a phone ----
+//
+// `.top` is `auto 1fr auto` in one row, which needs about 960px. Below that
+// the middle column did not squeeze, it collapsed: the two `auto` columns
+// kept their content width, the game's name wrapped one word per line into
+// the controls beside it, and at 375px the page was 93px wider than the
+// screen with the sign-out off the right edge.
+//
+// Four things keep it fixed, and each one is a trap that has already been
+// fallen into on this header.
+{
+  const css = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
+
+  assert.ok(css.includes('grid-template-columns: auto 1fr auto'),
+    'the full-width header is still the three-column grid the fix is measured against');
+
+  const PHONE = '@media (max-width: 960px) {';
+  const MARK = '@media (max-width: 520px) {\n  .top .wordmark';
+  assert.ok(css.includes(PHONE), 'the header stops being one row below a laptop');
+  assert.ok(css.includes(MARK), 'and the lockup comes down to its mark on a phone');
+  const phone = css.slice(css.indexOf(PHONE), css.indexOf(MARK));
+
+  // Two columns, and a middle one that can reach zero on purpose rather than
+  // by collapse. `1fr` is `minmax(auto, 1fr)` and refuses to go under its own
+  // content -- the same track behaviour that made .home-game overflow a phone.
+  assert.ok(phone.includes('grid-template-columns: auto minmax(0, 1fr);'),
+    'below 960 the header is two columns, the second able to shrink');
+
+  // Pinned, not auto-placed. .who has no business being anywhere but the top
+  // right, and auto-placement has put it under the wordmark once already.
+  const who = phone.slice(phone.indexOf('.who {'));
+  assert.ok(who.includes('grid-column: 2;') && who.includes('grid-row: 1;'),
+    '.who stays top right rather than being auto-placed');
+  assert.ok(who.includes('flex-wrap: wrap;'),
+    'and the controls wrap onto a second line instead of running off the edge');
+
+  // THE ONE THAT BIT. `@media` adds no specificity, so this override and the
+  // base `.top .header-status { text-align: center }` weigh exactly the same
+  // and the later one in the file wins. Written above the base rule it is
+  // dead CSS that looks right in the diff.
+  const status = phone.indexOf('.top .header-status {');
+  assert.ok(status !== -1, 'the game name gets a row of its own on a phone');
+  assert.ok(
+    css.indexOf('.top .header-status {') < css.indexOf(PHONE),
+    'the phone override must come AFTER the base .header-status rule, not before it'
+  );
+
+  // The mark alone in the app header on a phone, and the whole lockup
+  // everywhere else. Unscoped, this would strip the login screen -- the one
+  // page that is nothing but the lockup -- down to a crest.
+  const mark = css.slice(css.indexOf(MARK));
+  assert.ok(mark.startsWith('@media (max-width: 520px) {\n  .top .wordmark .wordmark-subtitle,\n  .top .wordmark .sub { display: none; }'),
+    'the subtitle is dropped only inside .top, so the login lockup keeps it');
+}
+
 // ---- The rail's game is read AFTER `game` exists ----
 //
 // `inGame` reads `game`, which is a const declared by useGame further down
