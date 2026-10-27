@@ -385,6 +385,40 @@ export const challengeMine = () => Promise.resolve(challengeFixtures.entry);
 export const challengeStandings = () => Promise.resolve(challengeFixtures.standings);
 export const challengeMyAccounts = () => Promise.resolve(challengeFixtures.entryAccounts);
 export const challengeWomCompetition = () => Promise.resolve(challengeFixtures.womId);
+
+/*
+ * Putting a hand up really happens.
+ *
+ * These two were noops, which left the sign-up screen the one state of a
+ * challenge nobody could walk through: the button threw and the screen stayed
+ * exactly as it was, so "signed up" was a thing you had to imagine. The entry
+ * written here is the shape challengeMine answers with, and the entrant count
+ * moves with it, so the screen goes where the real one goes.
+ *
+ * Joining with an entry already there is Save my name, not a second sign-up,
+ * which is also what challenge_join does against its unique constraint.
+ */
+const bumpEntrants = (gameId, by) => {
+  previewGames.rows = previewGames.rows.map((r) => (r.game_id === gameId
+    ? { ...r, entrants: Math.max(0, (r.entrants ?? 0) + by) }
+    : r));
+};
+
+export const challengeJoin = (gameId, rsn) => {
+  const had = Boolean(challengeFixtures.entry);
+  challengeFixtures.entry = {
+    ...(challengeFixtures.entry ?? { id: 'preview-entry', entry_id: 'preview-entry', evidence: [] }),
+    rsn: rsn ?? null,
+  };
+  if (!had) bumpEntrants(gameId, 1);
+  return Promise.resolve(null);
+};
+
+export const challengeLeave = (gameId) => {
+  if (challengeFixtures.entry) bumpEntrants(gameId, -1);
+  challengeFixtures.entry = null;
+  return Promise.resolve(null);
+};
 // Nothing is ever taken: the harness has no catalogue to collide with, and a
 // suggestion form that said "taken" about every name would be untestable.
 export const tileNameStatus = nothing;
@@ -400,8 +434,6 @@ export const adminChallengeVerify = noop;
 export const adminChallengeWomLink = noop;
 export const adminChallengeWomRetry = noop;
 export const adminNewChallenge = noop;
-export const challengeJoin = noop;
-export const challengeLeave = noop;
 export const challengeStart = noop;
 export const claimTile = noop;
 export const fireTile = noop;

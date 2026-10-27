@@ -2514,6 +2514,31 @@ label {
 .waiting-radar span { position: absolute; width: .4rem; height: .4rem; top: 37%; left: 66%; border-radius: 50%; background: var(--gold-lit); box-shadow: 0 0 12px var(--gold); }
 .waiting h1 { position: relative; margin: 0; color: var(--text); font-size: clamp(1.8rem, 4vw, 2.8rem); letter-spacing: -.04em; }
 .waiting-game { margin: .55rem 0 0; color: var(--gold-lit); font-size: .95rem; font-weight: 600; }
+/* Under the event's name: what it is actually scored on. Quieter than the
+   name and louder than the lead, because it is the one fact somebody deciding
+   whether to sign up has come here for. */
+/* The same framed badge the challenge card wears, bigger, because here it is
+   the first thing on the screen rather than a mark beside a heading. The box
+   with `contain` inside it is what makes a square boss sprite and a tall clue
+   scroll sit the same; `relative` lifts it off the radar behind it. */
+.waiting-art {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 5rem;
+  height: 5rem;
+  margin: 0 auto 1.2rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-xl);
+  background: var(--fill-3);
+}
+.waiting-art .tile-icon { width: 78%; height: 78%; object-fit: contain; }
+/* EHP and EHB are Wise Old Man's own arithmetic and have no picture; both
+   carry their initials in brackets, so the worded badge is right in exactly
+   the cases it can appear in. */
+.waiting-art-word { color: var(--gold-lit); font: 700 1.15rem/1 var(--display); letter-spacing: .02em; }
+
+.waiting-sub { margin: .3rem 0 0; color: var(--label-3); font-size: .82rem; }
 .waiting-lead { max-width: 34rem; margin: .75rem auto 1.8rem; color: var(--label-2); font-size: 1rem; }
 /* Sign-ups are open. The lead says which state they are in, this is what
    they can do about it: one button, sized to be the thing on the screen,
@@ -2521,6 +2546,33 @@ label {
 .waiting-signup { margin: 0 auto 1.8rem; }
 .waiting-signup button { padding: .7rem 2rem; font-size: 1rem; }
 .waiting-signup-count { margin: .7rem 0 0; color: var(--label-3); font-size: .78rem; }
+/* A challenge signs up with a name, so it can have two buttons here where a
+   board event has one: the row centres either number. */
+.waiting-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: .6rem; }
+
+/* Which account is going on the competition. Stated rather than asked, because
+   it is already right for nearly everybody -- the box behind "use another
+   account" is the exception, and it is a form, so it reads left like one. */
+.waiting-account-line { margin: 0 0 1.4rem; color: var(--label-3); font-size: .82rem; }
+.waiting-account-line strong { color: var(--label-2); font-weight: 600; }
+.waiting-account-form {
+  max-width: 22rem;
+  margin: 0 auto 1.4rem;
+  text-align: left;
+}
+.waiting-account-note { max-width: 30rem; margin: -.6rem auto 1.4rem; font-size: .78rem; }
+
+/* A card's notice is marked with a rule down its left edge, which on a screen
+   this wide and this centred leaves the rule an inch from the words it marks.
+   Shrunk to its own text, it lands under the sentence it answers. */
+.waiting > .notice,
+.waiting > .error {
+  display: inline-block;
+  max-width: 30rem;
+  margin: 0 0 1.2rem;
+  text-align: left;
+  font-size: .85rem;
+}
 .countdown { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .6rem; max-width: 35rem; margin: 0 auto; }
 .countdown-unit { padding: .75rem .35rem .65rem; border: 1px solid rgba(242, 193, 78, .2); border-radius: var(--r-lg); background: rgba(0, 0, 0, .3); }
 .countdown-value { display: block; color: var(--gold-lit); font: 700 clamp(1.7rem, 5vw, 2.7rem)/1 var(--mono); letter-spacing: -.08em; text-shadow: 0 0 16px rgba(242, 193, 78, .35); }
@@ -5246,6 +5298,13 @@ body.dragging-jump * { cursor: grabbing !important; user-select: none; }
   color: var(--text);
 }
 .challenge-hero-text p { margin: var(--s-1) 0 0; }
+/* Gold, because it names the thing the art beside it is a picture of, and
+   the two should read as one answer to "what is this event". */
+.challenge-hero-metric {
+  color: var(--gold-lit);
+  font-size: .95rem;
+  font-weight: 600;
+}
 
 /* A framed badge rather than the bare picture: the art comes off the wiki at
    whatever size it was drawn at, and a box with `contain` inside it is what

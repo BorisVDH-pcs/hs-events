@@ -77,16 +77,14 @@ export default function ChallengeRsnField({
           )}{' '}
           and every event after this one will start from it.
         </p>
-      ) : (
+      ) : onOpenAccounts ? (
         <p className="muted">
           Not the right name?{' '}
-          {onOpenAccounts && (
-            <button className="link" type="button" onClick={onOpenAccounts}>
-              Edit My accounts
-            </button>
-          )}
+          <button className="link" type="button" onClick={onOpenAccounts}>
+            Edit My accounts
+          </button>
         </p>
-      )}
+      ) : null}
     </>
   );
 }

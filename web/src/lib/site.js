@@ -67,6 +67,17 @@ const WAITING_WORDS = {
     soon: 'The conquest begins in',
     standby: 'Every team at home: waiting on an admin to start',
   },
+  // A challenge has no board to open and nobody to be picked by: what is
+  // waiting is the hiscores window itself, so the words are a starting
+  // line's rather than a battle's. `assigned` is only reachable in a team
+  // challenge, where sides really were drawn up before the gun.
+  challenge: {
+    title: 'On your marks',
+    assigned: (team) => `You're on ${team}. The ranking opens the moment an admin starts the event.`,
+    opens: 'The event starts',
+    soon: 'Starts in',
+    standby: 'Waiting on an admin to start',
+  },
 };
 const WAITING_DEFAULT = {
   title: 'Waiting for the game to start',

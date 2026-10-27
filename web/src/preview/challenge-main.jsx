@@ -22,6 +22,16 @@ import '../lib/season.js';
 
 const GAME_ID = 'c1';
 
+/*
+ * Which half of the event to draw: `?phase=open` for the screen a player sees
+ * before it starts, anything else for the one they play it on.
+ *
+ * The harness only ever drew a running event, which is how the sign-up screen
+ * went years without anybody looking at it -- it was the one state you could
+ * not reach here, so it was the one state that was never designed.
+ */
+const OPEN = new URLSearchParams(window.location.search).get('phase') === 'open';
+
 // An event scored on the hiscores with a declared figure beside it, which is
 // the shape that shows every part of the screen at once: the WOM reading, the
 // number the player types, and both sets of shots behind it.
@@ -33,6 +43,7 @@ previewGames.rows = [{
   declared_label: 'Loot value',
   declared_unit: 'gp',
   all_accounts: false,
+  entrants: OPEN ? 3 : 7,
 }];
 
 // A competition behind it, which is the normal case for a hiscores event and
@@ -48,7 +59,7 @@ accountFixtures.push(
 // Mid-event: a figure already sent in, one start shot up, nothing from the
 // finish yet. The lopsided case is the useful one -- it is what the screen
 // looks like for most of the week it is open.
-challengeFixtures.entry = {
+challengeFixtures.entry = OPEN ? null : {
   id: 'e1',
   // What ChallengeGame builds the upload path from, so the harness exercises
   // the same `challenge/{game}/{entry}/` shape the bucket policy checks.
@@ -94,7 +105,12 @@ evidenceHandlers.addChallengeShot = ({ phase, storage_path, note }) => {
   };
 };
 
-const GAME = {
+const GAME = OPEN ? {
+  id: GAME_ID,
+  name: 'BOTW — Zulrah',
+  status: 'setup',
+  starts_at: new Date(Date.now() + 2 * 86400000 + 4 * 3600000).toISOString(),
+} : {
   id: GAME_ID,
   name: 'BOTW — Zulrah',
   status: 'active',
@@ -103,7 +119,7 @@ const GAME = {
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <main className="app">
+    <main className={OPEN ? 'app game-app waiting-app' : 'app'}>
       <ChallengeGame
         game={GAME}
         teams={[{ id: 't1', name: 'The Crimson Tide' }]}
