@@ -11,7 +11,9 @@ import {
   rankedLabel, storedToInput, womCompetitionUrl, womLabel,
 } from '../../lib/challenge.js';
 import { useCountdown, pad } from '../../lib/countdown.js';
+import { waitingWords } from '../../lib/site.js';
 import EventFeed from '../EventFeed.jsx';
+import WaitingScreen from '../WaitingScreen.jsx';
 import TileIcon from '../TileIcon.jsx';
 import ChallengeLadder from './ChallengeLadder.jsx';
 import ChallengeRsnField from './ChallengeRsnField.jsx';
@@ -45,6 +47,11 @@ export default function ChallengeGame({
   const [entryAccounts, setEntryAccounts] = useState([]);
   // True while the player is typing a name rather than picking a saved one.
   const [freeform, setFreeform] = useState(false);
+  // Whether the name box is open on the sign-up screen. Shut by default: the
+  // name is almost always the main account the site already knows, and a form
+  // field is a question. Asked plainly, it would be the only question on a
+  // screen whose whole job is one button.
+  const [pickAccount, setPickAccount] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -272,6 +279,135 @@ export default function ChallengeGame({
   // missing yet, so neither is true and the slot stays empty.
   const womSlot = Boolean(setup?.wom_metric) && (Boolean(wom) || !isOpen);
 
+  /*
+   * ---- Before it starts ----
+   *
+   * The whole screen, not a card on it. An event that has not started has
+   * nothing on it to read: no figure of your own, a ranking that says it
+   * opens later, and no board, because this mode has none. What it has is a
+   * clock and one decision -- which is exactly what the other four modes put
+   * on a full screen while they wait, and they have had the better screen for
+   * it all along.
+   *
+   * It gives way the moment the event is live. A latecomer gets the sign-up
+   * card on the ordinary screen instead, which is right: by then there is a
+   * ranking behind it worth arriving to.
+   */
+  if (isOpen) {
+    const words = waitingWords('challenge');
+    const needsName = Boolean(setup?.wom_metric);
+    const nameReady = !needsName || Boolean(rsn.trim());
+    // The box opens itself when there is nothing saved to pick from, because
+    // then it is not a question with a sensible default -- it is the only way
+    // to answer at all.
+    const picking = pickAccount || (needsName && accounts.length === 0);
+    const changed = joined && Boolean(rsn.trim()) && rsn.trim() !== mine.rsn;
+    const subtitle = [
+      needsName ? metricLabel(setup.wom_metric) : null,
+      setup ? `ranked by ${rankedLabel(setup)}` : null,
+    ].filter(Boolean).join(' · ');
+
+    return (
+      <WaitingScreen
+        title={words.title}
+        art={needsName ? (
+          <TileIcon
+            slug={metricIcon(setup.wom_metric)}
+            fallback={(
+              <span className="waiting-art-word" aria-hidden="true">
+                {metricInitials(metricLabel(setup.wom_metric))}
+              </span>
+            )}
+          />
+        ) : null}
+        gameName={game.name}
+        subtitle={subtitle || null}
+        opens={words.opens}
+        startsAt={game.starts_at}
+        lead={joined
+          ? 'You are in. The ranking opens the moment an admin starts the event.'
+          : 'Nobody gets picked for this one — put your hand up and you are in.'}
+      >
+        {error && <p className="error" role="alert">{error}</p>}
+        {notice && <p className="muted notice" role="status">✓ {notice}</p>}
+
+        {needsName && (picking ? (
+          <div className="waiting-account-form">
+            <ChallengeRsnField
+              accounts={accounts}
+              value={rsn}
+              onChange={setRsn}
+              disabled={busy}
+              freeform={freeform}
+              onFreeform={setFreeform}
+              onOpenAccounts={onOpenAccounts}
+            />
+          </div>
+        ) : (
+          <p className="waiting-account-line">
+            {joined ? 'Scored on ' : 'Signing up as '}
+            <strong>{rsn || 'no name yet'}</strong>
+            {' · '}
+            <button className="link" type="button" onClick={() => setPickAccount(true)}>
+              use another account
+            </button>
+          </p>
+        ))}
+
+        {/* Said before they sign up, not after: in this kind of event the
+            whole list goes on the competition, and somebody with an alt they
+            would rather keep out of it needs to know that while they can
+            still take it off the list. */}
+        {needsName && setup.all_accounts && !joined && (
+          <p className="muted waiting-account-note">
+            Every account on your My accounts list counts in this one, and their
+            figures are added together. The name above is just the one the
+            ranking shows you under.
+          </p>
+        )}
+
+        <div className="waiting-signup">
+          <div className="waiting-actions">
+            {!joined ? (
+              <button
+                disabled={busy || !nameReady}
+                onClick={() => run(
+                  () => challengeJoin(game.id, rsn.trim() || null),
+                  'You are signed up.',
+                )}
+              >
+                Sign me up
+              </button>
+            ) : (
+              <>
+                {changed && (
+                  <button
+                    disabled={busy}
+                    onClick={() => run(() => challengeJoin(game.id, rsn.trim()), 'Name saved.')}
+                  >
+                    Save my name
+                  </button>
+                )}
+                <button
+                  className="ghost"
+                  disabled={busy}
+                  onClick={() => run(() => challengeLeave(game.id), 'You are out of this one.')}
+                >
+                  Take me out
+                </button>
+              </>
+            )}
+          </div>
+          {(setup?.entrants ?? 0) > 0 && (
+            <p className="waiting-signup-count">
+              {setup.entrants} signed up so far
+            </p>
+          )}
+        </div>
+      </WaitingScreen>
+    );
+  }
+
   return (
     <div className="challenge-layout">
       <div className="challenge-main">
@@ -307,6 +443,16 @@ export default function ChallengeGame({
 
             <div className="challenge-hero-text">
               <h2>{game.name}</h2>
+              {/* WHAT IT IS, IN WORDS. The art beside this says Nex to a
+                  player who already knows the face and nothing at all to
+                  everybody else, and a name like "BOTW" does not say it
+                  either. The asks list below used to carry it -- but only
+                  while a player was still outside the event, so the one
+                  person who had committed to a week of it was the one who
+                  could not read which boss it was. */}
+              {setup?.wom_metric && (
+                <p className="challenge-hero-metric">{metricLabel(setup.wom_metric)}</p>
+              )}
               {/* "won on" said what the figure does without naming the thing
                   it does it to, so the card and the panel at the bottom of the
                   screen described the same rule in two vocabularies. Both say

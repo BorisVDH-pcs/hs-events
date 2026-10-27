@@ -220,6 +220,31 @@ WOM measures every participant from the competition's own start, so a latecomer
 is credited with the days before they joined. The sign-up card says that before
 they sign up, not after.
 
+## Before it starts, it is the waiting screen
+
+While a challenge is in `setup` or `placement` the player's screen is
+`components/WaitingScreen.jsx` — the same room the four board modes wait in,
+with the same radar, clock, launch line and credits. It used to be the ordinary
+layout: a head card, a sign-up card and a ranking that said it opened later.
+Nothing on that screen could be read yet, so three cards were three ways of
+saying "not yet".
+
+What the mode passes in is its own words (`waitingWords('challenge')`), the
+metric's art and name, and the one action — sign up, or take yourself out
+again. The account the entry will be scored on is stated rather than asked,
+because it is already the player's main; `use another account` opens the real
+`ChallengeRsnField` behind it, and it opens itself when nothing is saved,
+since then there is no sensible default to state.
+
+The screen is drawn by `ChallengeGame`, not by `App.jsx` as the board modes'
+is: the entrant count, the metric and the saved accounts all come from the
+challenge RPCs, which nothing else calls. `App.jsx` only puts `waiting-app`
+on the page behind it.
+
+It gives way the moment the event is live. A latecomer gets the sign-up card
+on the ordinary screen instead, which is right — by then there is a ranking
+behind it worth arriving to.
+
 ## The shared functions are patched, not rewritten
 
 Bingo, snakes and territory each added their mode by copying a shared
@@ -321,9 +346,9 @@ Done:
   End event now, and a Track pane with the ranking, the review list and a Refresh
   button for the figures. Configure shows Game and Discord only: a challenge has
   no board and no roster.
-- The player screen — `components/challenge/`. Sign up with the RSN WOM will
-  match, give the number, hang the start and finish shots on it, and the
-  ranking. It loads its own data rather than going through `board_for_me`:
+- The player screen — `components/challenge/`. Before it starts, the shared
+  waiting screen with one button on it; once it is running, the RSN WOM will
+  match, the number, the start and finish shots hung on it, and the ranking. It loads its own data rather than going through `board_for_me`:
   that function answers in one call because every other mode is a board, and
   teaching it a fourth shape would mean editing a shared function for the one
   mode that has nothing in common with the others.

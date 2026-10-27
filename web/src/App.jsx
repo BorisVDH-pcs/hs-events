@@ -348,6 +348,16 @@ export default function App() {
     game.myRole !== 'captain';
   const waitingScreen = waitingForTeam || notYetOpen;
 
+  // A challenge waits in the same room as the others now, but draws itself:
+  // the entrant count, the metric and the account it signs up with all come
+  // from the challenge RPCs, which only ChallengeGame calls. What is this
+  // file's business is the page behind it, and that is all this flag does --
+  // it must not join `waitingScreen`, which also decides who gets a board.
+  const challengeWaiting =
+    playerScreen && !game.loading && Boolean(game.game)
+    && game.game.mode === 'challenge'
+    && (game.game.status === 'setup' || game.game.status === 'placement');
+
   // The tab names the game a player is in, or just the platform. Organisers
   // move between games in the console, so theirs stays on the platform name.
   const titleGame = session && (!isOrganiser || playingOwn) ? game.game?.name ?? null : null;
@@ -609,7 +619,7 @@ export default function App() {
   const openTile = tiles.find((t) => t.id === openTileId && t.revealed) ?? null;
 
   return (
-    <main className={`app game-app${!home && waitingScreen ? ' waiting-app' : ''}`}>
+    <main className={`app game-app${!home && (waitingScreen || challengeWaiting) ? ' waiting-app' : ''}`}>
       <header className="top" id="app-header">
         {/* The wordmark is the way home, which is the web's own convention and
             costs no chrome. A real button, not a clickable <h1>, so it is
