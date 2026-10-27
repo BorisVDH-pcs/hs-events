@@ -5935,9 +5935,14 @@ body.dragging-jump * { cursor: grabbing !important; user-select: none; }
   width: 100%;
 }
 
+/* Takes the room the artwork used to take, which is what pushes the art to
+   the far edge and leaves one left edge behind. align-items matters as much:
+   without it the status badge would stretch the width of the whole block. */
 .home-lead-words {
+  flex: 1;
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: var(--s-1);
   min-width: 0;
 }
@@ -6016,9 +6021,11 @@ body.dragging-jump * { cursor: grabbing !important; user-select: none; }
   overflow: hidden;
 }
 
+/* Bigger now that it sits alone on the right. At 5rem it read as an icon
+   that had drifted; at 6rem it is what anchors that side of the card. */
 .home-art.lead {
-  width: 5rem;
-  height: 5rem;
+  width: 6rem;
+  height: 6rem;
   border-radius: var(--r-lg);
 }
 
@@ -6118,6 +6125,9 @@ body.dragging-jump * { cursor: grabbing !important; user-select: none; }
    4.5:1 small text needs, and this is the smallest text on the screen. */
 .home-game-status {
   grid-area: 1 / 2 / 2 / 3;
+  /* A grid item fills its cell unless told not to, which no tone noticed
+     while they were all bare text. `joined` has a background. */
+  justify-self: start;
   display: inline-flex;
   align-items: center;
   gap: var(--s-2);
@@ -6141,6 +6151,34 @@ body.dragging-jump * { cursor: grabbing !important; user-select: none; }
 .home-game-status.live { color: var(--strike-lit); }
 .home-game-status.open,
 .home-game-status.soon { color: var(--gold); }
+
+/* "You are in" is a fact about the player; the other three are facts about
+   the event. So it is a filled badge with a tick rather than a fourth colour
+   of dot -- a different shape for a different kind of statement, which also
+   keeps the dot vocabulary at three answers instead of four.
+
+   Green, and the same green as everywhere else, but it cannot be read as "it
+   is running": `live` is answered before this is ever reached, so no card can
+   show both. */
+.home-game-status.joined {
+  gap: var(--s-1);
+  padding: .2rem .5rem .2rem .42rem;
+  border-radius: var(--r-pill);
+  background: rgba(48, 209, 88, .16);
+  box-shadow: inset 0 0 0 1px rgba(48, 209, 88, .45);
+  color: var(--strike-lit);
+}
+
+.home-game-status.joined::before {
+  content: "\2713";
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background: none;
+  font-size: .9em;
+  font-weight: 800;
+  line-height: 1;
+}
 
 .home-lead .home-game-status { grid-area: auto; }
 

@@ -63,6 +63,14 @@ const GAMES = {
     { gameId: 'g9', gameName: 'Winter Snakes', mode: 'snakes', status: 'setup', teamId: null, teamName: null, joined: false, signups: 4, startsAt: inDays(9), createdAt: ago(0) },
     { gameId: 'g6', gameName: 'Clues Week 45', mode: 'challenge', status: 'setup', teamId: null, teamName: null, joined: false, metric: 'clue_scrolls_master', rankedBy: 'wom', solo: true, signups: 3, startsAt: inDays(2), createdAt: ago(0) },
   ],
+  // Signed up and waiting for it to start: the one card that says "You are
+  // in", and the only state on this screen that is about the player rather
+  // than about the event. No other fixture reaches it -- the mid-season
+  // challenge they have joined is already running, so it says "Running".
+  signedUp: [
+    { gameId: 'g13', gameName: 'Boss of the Week', mode: 'challenge', status: 'setup', teamId: null, teamName: null, joined: true, metric: 'nex', rankedBy: 'declared', declaredLabel: 'Loot value', solo: true, signups: 1, startsAt: inDays(7), createdAt: ago(1) },
+    { gameId: 'g9', gameName: 'Winter Snakes', mode: 'snakes', status: 'setup', teamId: null, teamName: null, joined: false, signups: 4, startsAt: inDays(9), createdAt: ago(0) },
+  ],
   // EHP and EHB are Wise Old Man's own arithmetic, so there is no picture in
   // the game to draw and the tile is worded. Two metrics out of 112 take this
   // path, and neither of them is reachable from the other fixtures.
@@ -110,6 +118,7 @@ function Harness() {
             <option value="one">One running game</option>
             <option value="seasonOver">Season over, nothing running</option>
             <option value="invitesOnly">Invitations only</option>
+            <option value="signedUp">Signed up, not started</option>
             <option value="noArtwork">A metric with no artwork</option>
             <option value="undated">No start times</option>
             <option value="nothing">In nothing at all</option>
