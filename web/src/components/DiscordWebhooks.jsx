@@ -17,7 +17,40 @@ import { adminListWebhooks, adminSetWebhook, adminDeleteWebhook } from '../lib/s
  * lives in Admin, so a save here has to say so — otherwise the checklist keeps
  * claiming "none" until the page is reloaded.
  */
-export default function DiscordWebhooks({ gameId, gameTeams, onChanged }) {
+// What each channel is sent, per mode, so the notes describe this game and
+// not battleships. Kept in step with discord_line and its per-mode helpers
+// (snakes_discord_line, territory_discord_line, challenge_discord_line) and
+// with is_team_private_event, which decides what goes to a team's channel:
+// evidence everywhere, pet jars only in battleships, a place given up on only
+// in territory. A challenge sends nothing team-private at all, so it shows no
+// team channels (`team: null`).
+const SCREENSHOT = 'with the screenshot itself when an imgbb key is configured';
+const CHANNEL_NOTES = {
+  battleships: {
+    general: 'Everything both teams can see: shots fired, ships sunk, and the win.',
+    team: (name) => `Only for ${name}: evidence and pet jar submissions, ${SCREENSHOT}.`,
+  },
+  bingo: {
+    general: 'Everything every team can see: the start, each tile a team completes, and the winner.',
+    team: (name) => `Only for ${name}: evidence submissions, ${SCREENSHOT}.`,
+  },
+  snakes: {
+    general: 'Everything every team can see: dice rolls, snakes and ladders, completed tiles, and the winner.',
+    team: (name) => `Only for ${name}: evidence submissions, ${SCREENSHOT}.`,
+  },
+  territory: {
+    general: 'Everything every team can see: attacks, captured places, and who rules the most land at the end.',
+    team: (name) => `Only for ${name}: evidence submissions, ${SCREENSHOT}, and places they gave up on.`,
+  },
+  challenge: {
+    general: 'Everything: the start, each figure a player submits or an organiser corrects, and the winner.',
+    team: null,
+  },
+};
+
+export default function DiscordWebhooks({ gameId, gameTeams, mode, onChanged }) {
+  const notes = CHANNEL_NOTES[mode] ?? CHANNEL_NOTES.battleships;
+  const challenge = mode === 'challenge';
   const [rows, setRows] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(null);
@@ -50,8 +83,10 @@ export default function DiscordWebhooks({ gameId, gameTeams, onChanged }) {
     <section className="card">
       <h2>Discord webhooks</h2>
       <p className="muted">
-        Optional. With none set, this game posts nothing to Discord — which is
-        easy to mistake for a fault, so it is worth saying out loud.
+        Optional. With none set, this {challenge ? 'event' : 'game'} posts nothing
+        to Discord — which is easy to mistake for a fault, so it is worth saying
+        out loud.
+        {!notes.team && ' A challenge sends everything to the one channel below.'}
       </p>
 
       {error && <p className="error">{error}</p>}
@@ -62,18 +97,18 @@ export default function DiscordWebhooks({ gameId, gameTeams, onChanged }) {
         <div className="webhooks">
           <WebhookRow
             title="General"
-            note="Everything both teams can see: shots fired, ships sunk, and the win."
+            note={notes.general}
             row={general}
             onSave={(url, enabled) => adminSetWebhook(gameId, null, url, enabled).then(refresh)}
             onDelete={general ? () => adminDeleteWebhook(general.id).then(refresh) : null}
           />
-          {gameTeams.map((team) => {
+          {notes.team && gameTeams.map((team) => {
             const row = byTeam.get(team.id) ?? null;
             return (
               <WebhookRow
                 key={team.id}
                 title={team.name}
-                note={`Only ${team.name}'s own events: evidence and pet jar submissions, with the screenshot itself when an imgbb key is configured.`}
+                note={notes.team(team.name)}
                 row={row}
                 onSave={(url, enabled) => adminSetWebhook(gameId, team.id, url, enabled).then(refresh)}
                 onDelete={row ? () => adminDeleteWebhook(row.id).then(refresh) : null}

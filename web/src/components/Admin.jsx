@@ -1898,6 +1898,7 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
           <DiscordWebhooks
             gameId={game.id}
             gameTeams={gameTeams}
+            mode={game.mode}
             onChanged={() => loadGameDetail(game.id)}
           />
           </div>
