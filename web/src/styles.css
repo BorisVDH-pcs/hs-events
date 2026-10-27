@@ -5786,8 +5786,14 @@ body.dragging-jump * { cursor: grabbing !important; user-select: none; }
 /* ---- Home (Home.jsx) ----
 
    The landing screen, and the first one built entirely on the scales above:
-   there is not a hand-picked rem value anywhere below. It is a list of ways
-   in, so these rules are about making each card read as a target.
+   there is not a hand-picked rem value anywhere below.
+
+   It is a page about events, so the events are the largest things on it. The
+   first version was not: every event got the same small card, the accounts
+   list sat under a header of exactly the same weight, and on a wide screen one
+   card in a three-column grid left two thirds of the page black. One lead card
+   at full size, a grid of the rest, and a strip of reference at the bottom is
+   the hierarchy that was missing.
 
    Every element is placed explicitly rather than left to grid auto-placement.
    That is deliberate. Auto-placement put the header's `.who` block into the
@@ -5799,21 +5805,26 @@ body.dragging-jump * { cursor: grabbing !important; user-select: none; }
   margin: var(--s-6) 0;
   display: grid;
   gap: var(--s-2);
+  /* A measure, not the whole 1440. Card text at 1200px wide is a line nobody
+     tracks back to the start of, and the grid below fills whatever it is
+     given anyway. */
+  max-width: 70rem;
 }
 
 .home-greeting {
   margin: 0 0 var(--s-2);
   font-family: var(--display);
-  font-size: var(--t-title1);
+  font-size: var(--t-large);
   line-height: var(--lh-tight);
   letter-spacing: var(--tr-large);
 }
 
-/* Section headers in the grouped-list idiom: small, uppercase, quiet, with a
-   wide gap above and a narrow one below. Proximity is what says which cards a
-   header owns -- no rule or box is needed to draw it. */
+/* Section headers in the grouped-list idiom: small, uppercase, quiet. The
+   spacing is on the wrappers rather than here, because one of these sits in a
+   row beside the tabs and one sits in a strip beside two links. Proximity is
+   what says which cards a header owns -- no rule or box is needed to draw it. */
 .home h3 {
-  margin: var(--s-8) 0 var(--s-3);
+  margin: 0;
   font-size: var(--t-footnote);
   font-weight: 600;
   text-transform: uppercase;
@@ -5821,12 +5832,201 @@ body.dragging-jump * { cursor: grabbing !important; user-select: none; }
   color: var(--label-2);
 }
 
-.home > h3:first-of-type { margin-top: var(--s-4); }
+.home-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin: var(--s-8) 0 var(--s-3);
+}
 
-/* Two across once there is room for two. One card stretched over 1100px is a
-   bar, not a card: the name sits alone at the left and the rest of the row is
-   empty. `auto-fill` with a 19rem floor gives the phone one column without
-   needing a media query. */
+.home-section-head .tabs.home-tabs { margin: 0; }
+
+/* The label over the lead card. It answers why THIS card is at the top of the
+   page; the dot inside the card answers what state the event is in. Two
+   labels, two questions -- which is the only reason both are allowed. */
+.home-eyebrow {
+  margin: var(--s-4) 0 var(--s-2);
+  font-size: var(--t-caption);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: var(--tr-caps);
+  color: var(--label-2);
+}
+
+.home-empty { margin: var(--s-2) 0 0; }
+
+/* ---- The lead card ----
+
+   A column, not a grid: on a phone it is exactly this stacked, so there is no
+   second layout to keep in step. The countdown and the pill are capped rather
+   than stretched, because a four-unit clock spread over 1100px is a bar. */
+
+.home-lead {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-3);
+  width: 100%;
+  padding: var(--s-6);
+  text-align: left;
+  font: inherit;
+  color: var(--text);
+  background:
+    linear-gradient(145deg, rgba(242, 193, 78, .07), rgba(0, 0, 0, 0) 46%),
+    var(--panel);
+  backdrop-filter: blur(30px) saturate(180%);
+  -webkit-backdrop-filter: blur(30px) saturate(180%);
+  border: 1px solid var(--gold-dim);
+  border-radius: var(--r-2xl);
+  box-shadow: var(--shadow-md);
+  cursor: pointer;
+  transition: background .18s var(--ease-out),
+              border-color .18s var(--ease-out),
+              transform .12s var(--ease-out);
+}
+
+/* A game already running wears the strike colour the boards use for a hit,
+   so "this one is live" is the same green everywhere in the app. */
+.home-lead.live {
+  border-color: var(--strike);
+  background:
+    linear-gradient(145deg, rgba(48, 209, 88, .08), rgba(0, 0, 0, 0) 46%),
+    var(--panel);
+}
+
+.home-lead:hover { border-color: var(--gold); }
+.home-lead.live:hover { border-color: var(--strike-lit); }
+.home-lead:focus-visible { outline: none; box-shadow: var(--glow-md); }
+/* Feedback belongs on the press, not on the release. */
+.home-lead:active { transform: scale(.995); }
+
+.home-lead-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  width: 100%;
+}
+
+.home-lead-words {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  min-width: 0;
+}
+
+.home-lead-name {
+  font-family: var(--display);
+  font-size: var(--t-title1);
+  font-weight: 700;
+  line-height: var(--lh-tight);
+  letter-spacing: var(--tr-title);
+}
+
+/* What the event IS -- the boss, the skill, the tier of clue. The one line on
+   the card that two challenges never share. */
+.home-lead-score {
+  font-size: var(--t-subhead);
+  font-weight: 600;
+  color: var(--gold-lit);
+}
+
+.home-lead-meta {
+  font-size: var(--t-subhead);
+  line-height: var(--lh-body);
+  color: var(--label-2);
+}
+
+/* A span that looks like a button, because the whole card already is one.
+   Gold on a running card too: one accent means "the thing to press", and a
+   second one would only ask which of them to believe. */
+.home-lead-cta {
+  display: inline-flex;
+  align-items: center;
+  margin-top: var(--s-1);
+  padding: var(--s-3) var(--s-6);
+  border-radius: var(--r-pill);
+  background: var(--gold);
+  color: var(--on-gold);
+  font-size: var(--t-subhead);
+  font-weight: 700;
+}
+
+.home-lead:hover .home-lead-cta { background: var(--gold-lit); }
+
+.home-lead-when {
+  font-size: var(--t-footnote);
+  color: var(--label-2);
+}
+
+/* The waiting screen's own clock, at card size. Same markup, same classes --
+   a second countdown written out here is a second one to keep in step. */
+.home-countdown {
+  width: 100%;
+  max-width: 26rem;
+  margin: 0;
+}
+
+.home-countdown .countdown-unit { padding: var(--s-2) var(--s-1); }
+.home-countdown .countdown-value { font-size: var(--t-title1); text-shadow: none; }
+.home-countdown .countdown-label { color: var(--label-2); }
+
+/* ---- The artwork ----
+
+   A challenge shows the picture it is scored on; a board mode shows a drawn
+   mark of its own game. Both sit in the same framed square so a row of cards
+   has one left edge rather than five. */
+
+.home-art {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 3rem;
+  height: 3rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-md);
+  background: var(--fill-3);
+  overflow: hidden;
+}
+
+.home-art.lead {
+  width: 5rem;
+  height: 5rem;
+  border-radius: var(--r-lg);
+}
+
+.home-art .tile-icon { width: 78%; height: 78%; object-fit: contain; }
+
+/* EHP and EHB are Wise Old Man's own arithmetic and have no picture in the
+   game to draw, so the tile is worded instead of empty. */
+.home-art-word {
+  font-family: var(--display);
+  font-size: var(--t-footnote);
+  font-weight: 700;
+  letter-spacing: var(--tr-caps);
+  color: var(--gold-lit);
+}
+
+.home-art.lead .home-art-word { font-size: var(--t-title3); }
+
+.home-art-mark {
+  width: 56%;
+  height: 56%;
+  fill: none;
+  stroke: var(--gold);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: .82;
+}
+
+/* ---- The grid ----
+
+   Three across on a desktop, one on a phone, with no media query: `auto-fill`
+   against a 19rem floor does it, and `min(100%, …)` keeps that floor from
+   overflowing a narrow screen. */
+
 .home-games {
   list-style: none;
   margin: 0;
@@ -5839,18 +6039,13 @@ body.dragging-jump * { cursor: grabbing !important; user-select: none; }
 
 .home-games > li { display: grid; }
 
-/* The one to open used to span the row. That turned it back into the very
-   thing this grid exists to remove: a bar with its name at the far left, its
-   status at the far right and 700px of nothing in between. Its ring, its
-   padding and its larger name mark it out instead, and all three work at
-   card width. */
-
 .home-game {
   display: grid;
-  /* minmax(0,1fr), not 1fr: a bare 1fr track is minmax(auto,1fr) and will not
-     shrink below its content, so on a phone the nowrap status label was
-     pushed off the right edge and the page scrolled sideways. */
-  grid-template-columns: minmax(0, 1fr) auto;
+  /* The art in a column of its own, every other line in the second. minmax(0,
+     1fr), not 1fr: a bare 1fr track is minmax(auto, 1fr) and will not shrink
+     below its content, so on a phone the nowrap status label was pushed off
+     the right edge and the page scrolled sideways. */
+  grid-template-columns: auto minmax(0, 1fr);
   gap: var(--s-1) var(--s-3);
   width: 100%;
   padding: var(--s-4);
@@ -5871,25 +6066,16 @@ body.dragging-jump * { cursor: grabbing !important; user-select: none; }
 
 .home-game:hover { background: var(--panel-2); border-color: var(--line); }
 .home-game:focus-visible { outline: none; box-shadow: var(--glow-md); }
-
-/* Feedback belongs on the press, not on the release. */
 .home-game:active { transform: scale(.985); }
 
-.home-game.lead {
-  padding: var(--s-5);
-  border-color: var(--gold-dim);
-  border-radius: var(--r-xl);
-}
+/* An event you could enter is a different offer from one you are playing, and
+   the gold edge says so before any of the words are read. */
+.home-game.invite { border-color: var(--gold-dim); background: var(--fill-3); box-shadow: none; }
 
-.home-game.lead .home-game-name {
-  font-size: var(--t-title3);
-  letter-spacing: var(--tr-title);
-}
-
-.home-game.invite { background: var(--fill-3); box-shadow: none; }
+.home-game > .home-art { grid-area: 1 / 1 / 5 / 2; align-self: start; }
 
 .home-game-name {
-  grid-area: 1 / 1 / 2 / 2;
+  grid-area: 2 / 2 / 3 / 3;
   font-family: var(--display);
   font-size: var(--t-body);
   font-weight: 600;
@@ -5899,7 +6085,11 @@ body.dragging-jump * { cursor: grabbing !important; user-select: none; }
 
 /* Status as a signal rather than the middle item of a run-on list. A player
    scanning five cards wants the one that is live, and a coloured dot answers
-   that before any of the words are read. */
+   that before any of the words are read.
+
+   The base colour is --label-2, deliberately not the dimmest label token:
+   that one is 32% white, which lands around 2.4:1 on this page -- under the
+   4.5:1 small text needs, and this is the smallest text on the screen. */
 .home-game-status {
   grid-area: 1 / 2 / 2 / 3;
   display: inline-flex;
@@ -5909,12 +6099,13 @@ body.dragging-jump * { cursor: grabbing !important; user-select: none; }
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: var(--tr-caps);
-  color: var(--label-3);
+  color: var(--label-2);
   white-space: nowrap;
 }
 
 .home-game-status::before {
   content: "";
+  flex: none;
   width: .5rem;
   height: .5rem;
   border-radius: var(--r-pill);
@@ -5922,36 +6113,63 @@ body.dragging-jump * { cursor: grabbing !important; user-select: none; }
 }
 
 .home-game-status.live { color: var(--strike-lit); }
-.home-game-status.soon { color: var(--gold-dim); }
+.home-game-status.open,
+.home-game-status.soon { color: var(--gold); }
+
+.home-lead .home-game-status { grid-area: auto; }
 
 .home-game-meta {
-  grid-area: 2 / 1 / 3 / -1;
+  grid-area: 3 / 2 / 4 / 3;
   font-size: var(--t-footnote);
   line-height: var(--lh-body);
   color: var(--label-2);
 }
 
-/* Only where it says something the card does not already say. "Open" under
-   every game is five copies of what the card plainly is; "Have a look" on an
-   event you have not entered is a different offer and earns its line. */
-.home-game-go {
-  grid-area: 3 / 1 / 4 / -1;
-  margin-top: var(--s-1);
-  font-size: var(--t-footnote);
-  color: var(--gold);
+/* How many are in, and when it starts. Routinely absent -- `starts_at` is
+   nullable and a rostered game has no sign-up count -- so the row is only
+   drawn when there is something to put in it. */
+.home-game-when {
+  grid-area: 4 / 2 / 5 / 3;
+  font-size: var(--t-caption);
+  color: var(--label-2);
+}
+
+/* ---- The accounts strip ----
+
+   One row on a hairline, not a third section of cards. It is reference rather
+   than something to do, and it used to carry more weight on this page than any
+   of the events. */
+
+.home-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-4);
+  margin-top: var(--s-10);
+  padding-top: var(--s-5);
+  border-top: 1px solid var(--hairline);
+}
+
+.home-strip h3 { flex: none; }
+.home-strip p { margin: 0; }
+
+.home-strip-links {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--s-4);
+  margin-left: auto;
 }
 
 .home-accounts {
   display: flex;
   flex-wrap: wrap;
   gap: var(--s-2);
-  margin: var(--s-1) 0 0;
 }
 
 .rsn-chip {
   font-family: var(--mono);
-  font-size: var(--t-body);
-  padding: var(--s-2) var(--s-3);
+  font-size: var(--t-footnote);
+  padding: var(--s-1) var(--s-3);
   border-radius: var(--r-pill);
   background: var(--fill-2);
   border: 1px solid transparent;
@@ -5959,7 +6177,7 @@ body.dragging-jump * { cursor: grabbing !important; user-select: none; }
 
 .rsn-chip.bad { color: var(--hit-lit); border-color: var(--hit); background: transparent; }
 
-.home .row { margin-top: var(--s-6); }
+.home .error { margin-top: var(--s-4); }
 
 .tabs.home-tabs { margin: var(--s-3) 0 var(--s-2); }
 
@@ -5968,10 +6186,8 @@ body.dragging-jump * { cursor: grabbing !important; user-select: none; }
   font-size: var(--t-caption);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  color: var(--label-3);
+  color: var(--label-2);
 }
-
-.home-tabs button.on .home-tab-count { color: var(--label-2); }
 
 .home-link {
   background: none;
@@ -5987,10 +6203,25 @@ body.dragging-jump * { cursor: grabbing !important; user-select: none; }
 .home-link:hover { filter: brightness(1.12); }
 .home-link:focus-visible { outline: none; box-shadow: var(--glow-md); }
 
+/* The phone. The lead card is already a column, so only the sizes change --
+   and the pill goes full width, because a thumb aims at the bottom of a card
+   rather than at a word inside it. */
+@media (max-width: 520px) {
+  .home-greeting { font-size: var(--t-title1); }
+  .home-lead { padding: var(--s-5); }
+  .home-lead-name { font-size: var(--t-title2); }
+  .home-art.lead { width: 4rem; height: 4rem; }
+  .home-countdown { max-width: none; }
+  .home-countdown .countdown-value { font-size: var(--t-title3); }
+  .home-countdown .countdown-label { font-size: .55rem; letter-spacing: .07em; }
+  .home-lead-cta { width: 100%; justify-content: center; }
+  .home-strip-links { margin-left: 0; }
+}
+
 /* Reduced motion keeps the feedback and drops the movement. */
 @media (prefers-reduced-motion: reduce) {
-  .home-game { transition: background .18s linear, border-color .18s linear; }
-  .home-game:active { transform: none; }
+  .home-game, .home-lead { transition: background .18s linear, border-color .18s linear; }
+  .home-game:active, .home-lead:active { transform: none; }
 }
 
 /* ---- Setup wizard (Admin.jsx -> NewGame) ----
