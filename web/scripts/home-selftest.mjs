@@ -486,4 +486,24 @@ assert.equal(typeof bySoonest({}, {}), 'number');
   assert.ok(!home.includes('--label-3'), 'Home puts no small text on --label-3');
 }
 
+// ---- The countdown centres itself ----
+//
+// It used to be centred by luck. `.countdown-unit` set no alignment of its
+// own, and the one screen it had ever appeared on -- the waiting screen --
+// is centred text all the way down, so the unit inherited it and looked
+// right. Put on Home's lead card, which is left-aligned like every other
+// card, four equal boxes held digits shoved against their left edges.
+//
+// A component that is only centred when its parent happens to be will do
+// this again on the next screen it lands on, so the alignment lives on the
+// unit now. Asserted because nothing on the waiting screen would notice if
+// it were removed again.
+{
+  const css = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
+  const from = css.slice(css.indexOf('.countdown-unit {'));
+  const rule = from.slice(0, from.indexOf('}'));
+  assert.ok(rule.includes('text-align: center'),
+    '.countdown-unit centres its own digits rather than inheriting it');
+}
+
 console.log('home-selftest: ok');
