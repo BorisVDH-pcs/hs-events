@@ -397,10 +397,18 @@ export const challengeWomCompetition = () => Promise.resolve(challengeFixtures.w
  *
  * Joining with an entry already there is Save my name, not a second sign-up,
  * which is also what challenge_join does against its unique constraint.
+ *
+ * The row's `joined` flag moves with the count, which it did not use to --
+ * setSignup below had always set its own. Without it the harness could not
+ * walk the one trip this is about: sign up, press Home, read the card.
  */
-const bumpEntrants = (gameId, by) => {
+const setEntry = (gameId, joined) => {
   previewGames.rows = previewGames.rows.map((r) => (r.game_id === gameId
-    ? { ...r, entrants: Math.max(0, (r.entrants ?? 0) + by) }
+    ? {
+      ...r,
+      entrants: Math.max(0, (r.entrants ?? 0) + (joined ? 1 : -1)),
+      joined,
+    }
     : r));
 };
 
@@ -410,12 +418,12 @@ export const challengeJoin = (gameId, rsn) => {
     ...(challengeFixtures.entry ?? { id: 'preview-entry', entry_id: 'preview-entry', evidence: [] }),
     rsn: rsn ?? null,
   };
-  if (!had) bumpEntrants(gameId, 1);
+  if (!had) setEntry(gameId, true);
   return Promise.resolve(null);
 };
 
 export const challengeLeave = (gameId) => {
-  if (challengeFixtures.entry) bumpEntrants(gameId, -1);
+  if (challengeFixtures.entry) setEntry(gameId, false);
   challengeFixtures.entry = null;
   return Promise.resolve(null);
 };
