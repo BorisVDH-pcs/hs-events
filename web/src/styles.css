@@ -2631,7 +2631,7 @@ label {
   font-size: .85rem;
 }
 .countdown { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .6rem; max-width: 35rem; margin: 0 auto; }
-.countdown-unit { padding: .75rem .35rem .65rem; border: 1px solid rgba(242, 193, 78, .2); border-radius: var(--r-lg); background: rgba(0, 0, 0, .3); }
+.countdown-unit { padding: .75rem .35rem .65rem; text-align: center; border: 1px solid rgba(242, 193, 78, .2); border-radius: var(--r-lg); background: rgba(0, 0, 0, .3); }
 .countdown-value { display: block; color: var(--gold-lit); font: 700 clamp(1.7rem, 5vw, 2.7rem)/1 var(--mono); letter-spacing: -.08em; text-shadow: 0 0 16px rgba(242, 193, 78, .35); }
 .countdown-label { display: block; margin-top: .4rem; color: var(--label-3); font-size: .65rem; letter-spacing: .12em; text-transform: uppercase; }
 .waiting-launch { margin: 1.45rem 0 .4rem; color: var(--label-2); font-size: .8rem; }
@@ -5949,15 +5949,15 @@ body.dragging-jump * { cursor: grabbing !important; user-select: none; }
   border-radius: var(--r-pill);
   background: var(--gold);
   color: var(--on-gold);
-  font-size: var(--t-subhead);
+  font-size: var(--t-body);
   font-weight: 700;
 }
 
 .home-lead:hover .home-lead-cta { background: var(--gold-lit); }
 
 .home-lead-when {
-  font-size: var(--t-footnote);
-  color: var(--label-2);
+  font-size: var(--t-subhead);
+  color: var(--text);
 }
 
 /* The waiting screen's own clock, at card size. Same markup, same classes --
