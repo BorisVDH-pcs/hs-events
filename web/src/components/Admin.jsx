@@ -165,11 +165,23 @@ const ALL_SLICES = ['games', 'detail', 'library', 'challenge', 'signups'];
  * Empty too when the counts are missing — a console whose migration has not
  * landed shows no badges rather than accusing every game of having no tiles.
  */
-function readinessGaps(game, counts, teams, members, jumps = NO_JUMPS) {
+function readinessGaps(game, counts, teams, members, jumps = NO_JUMPS, setup = null) {
   if (!game || game.status === 'active' || game.status === 'finished') return [];
 
   const gaps = [];
   const gameTeams = teams.filter((t) => t.game_id === game.id);
+
+  // Challenge: no board, no captains, no fleets, and no teams at all when it
+  // is solo. Without this branch it fell through to battleships' rules at the
+  // bottom, which is how every new challenge came to "need two teams". What
+  // challenge_start does insist on is an end time still ahead and somebody
+  // signed up. Whether a team event has everyone on a team is the checklist's
+  // to say: only the open event's entries are loaded, not every event's.
+  if (isChallengeGame(game)) {
+    if (!game.ends_at || Date.parse(game.ends_at) <= Date.now()) gaps.push('an end time');
+    if (setup && !setup.entrants) gaps.push('entrants');
+    return gaps;
+  }
 
   // Snakes: the squares under a snake head or a ladder's foot need no task.
   // A count, not positions, so a task left on one of those squares can make
@@ -1036,7 +1048,17 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
         <ul className="game-list">
           {games.map((g) => {
             const names = teams.filter((t) => t.game_id === g.id).map((t) => t.name);
-            const outstanding = readinessGaps(g, readiness[g.id], teams, members, jumpsByGame[g.id]);
+            const setup = challengeSetups[g.id];
+            const outstanding = readinessGaps(
+              g, readiness[g.id], teams, members, jumpsByGame[g.id], setup
+            );
+            // A challenge says who it is for and how many have signed up: a
+            // solo one never has teams, so "no teams" read like a fault. Falls
+            // back to the team names when challenge_list did not answer.
+            const who = isChallengeGame(g) && setup
+              ? [setup.solo ? 'Solo' : names.join(', '), `${setup.entrants} signed up`]
+                .filter(Boolean).join(' · ')
+              : names.join(g.mode === 'battleships' ? ' vs ' : ', ') || 'no teams';
             return (
               <li key={g.id} className={g.id === gameId ? 'on' : ''}>
                 <div>
@@ -1054,7 +1076,7 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
                     </span>
                   )}
                   <div className="meta">
-                    {names.join(g.mode === 'battleships' ? ' vs ' : ', ') || 'no teams'}
+                    {who}
                     {/* Named, not counted. "3" would send you into the game to
                         find out which three; the words are what stop the badge
                         being another thing to open. Only while a game can
