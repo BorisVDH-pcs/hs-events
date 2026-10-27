@@ -528,6 +528,17 @@ export default function App() {
     setViewAs(null);
     setHome(true);
     window.scrollTo({ top: 0 });
+    // Home is drawn from `myGames`, and the screen being left is exactly where
+    // that list goes stale. Signing up for a challenge is ChallengeGame's own
+    // call: `run` reloads the event and the game record, neither of which is
+    // this list, so the card went on saying "Open to join" until a page reload
+    // or an alt-tab -- `recheck` above was the only thing that ever noticed.
+    // The board modes never showed the bug because onSignUp reloads the list
+    // itself, which is the same fix in the one place it had been needed so far.
+    //
+    // Deliberately not throttled. A press of Home is somebody asking for this
+    // screen, and the sign-up it has to show them may be half a second old.
+    loadGames();
   }
 
   // Into a team's screen from the console, and back out. The same per-board
