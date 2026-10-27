@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { gameUrgency, groupGames, splitFinished } from '../src/lib/homeGames.js';
+import { bySoonest, gameUrgency, groupGames, splitFinished } from '../src/lib/homeGames.js';
 import { modeLabel } from '../src/lib/site.js';
 
 // ---- Which list a row belongs in ----
@@ -176,8 +176,8 @@ assert.equal(splitFinished([{ gameId: 'p' }]).current.length, 1);
 // everything.
 {
   const games = readFileSync(new URL('../src/lib/games.js', import.meta.url), 'utf8');
-  assert.ok(games.includes('games!teams_game_id_fkey!inner(id, name, mode, status, created_at)'),
-    'the roster read still asks for mode');
+  assert.ok(games.includes('games!teams_game_id_fkey!inner(id, name, mode, status, created_at, starts_at)'),
+    'the roster read still asks for mode, and for the start time the cards count down to');
   assert.ok(games.includes('mode: game.mode'), 'and still puts it on the row');
   assert.ok(games.includes("mode: 'challenge'"), 'challenges name their own mode');
 }
@@ -308,6 +308,127 @@ assert.equal(modeLabel(null), 'Event', 'and an unknown mode says something rathe
   const home = sheet.slice(sheet.indexOf('/* ---- Home (Home.jsx) ----'));
   assert.ok(home.includes('var(--s-'), 'Home draws its spacing from the scale');
   assert.ok(home.includes('var(--t-'), 'Home draws its type sizes from the scale');
+}
+
+// ---- Which open event leads ----
+//
+// `gameUrgency` settles the list of games somebody is already playing, but
+// every OPEN event is in the same state, so it cannot separate two of them at
+// all. Home leads with the first of them when the player is in nothing, which
+// makes this comparator the thing that decides what a new member sees first.
+
+{
+  const soon = { gameId: 'soon', startsAt: '2026-11-01T12:00:00Z', createdAt: '2026-10-01' };
+  const later = { gameId: 'later', startsAt: '2026-12-01T12:00:00Z', createdAt: '2026-10-01' };
+  assert.ok(bySoonest(soon, later) < 0, 'the one starting first comes first');
+  assert.ok(bySoonest(later, soon) > 0, 'and the comparator is symmetrical');
+  assert.equal(bySoonest(soon, soon), 0, 'the same event ties with itself');
+}
+
+// An undated event sorts LAST, not first. `starts_at` is nullable (0013) and
+// plenty of events never get one; read as zero, every undated event would
+// outrank the one actually starting tomorrow -- which is the whole decision
+// this comparator exists to make.
+{
+  const dated = { gameId: 'dated', startsAt: '2026-11-01T12:00:00Z', createdAt: '2026-01-01' };
+  const undated = { gameId: 'undated', startsAt: null, createdAt: '2026-10-01' };
+  assert.ok(bySoonest(dated, undated) < 0, 'a dated event beats an undated one');
+  assert.ok(bySoonest(undated, dated) > 0);
+  assert.deepEqual(
+    [undated, dated].sort(bySoonest).map((g) => g.gameId),
+    ['dated', 'undated'],
+    'and sorting really puts the undated one at the back'
+  );
+}
+
+// A date the browser cannot read is the same as no date. NaN compares false
+// against everything, so an unguarded Date.parse would make the comparator
+// inconsistent and the sort order arbitrary.
+{
+  const junk = { gameId: 'junk', startsAt: 'not a date', createdAt: '2026-10-01' };
+  const dated = { gameId: 'dated', startsAt: '2026-11-01T12:00:00Z', createdAt: '2026-01-01' };
+  assert.ok(bySoonest(dated, junk) < 0, 'an unreadable date sorts last, like none at all');
+  assert.ok(bySoonest(junk, dated) > 0);
+}
+
+// Two undated events fall back to newest first, which is the order the lists
+// already arrive in.
+{
+  const older = { gameId: 'older', createdAt: '2026-01-01' };
+  const newer = { gameId: 'newer', createdAt: '2026-09-01' };
+  assert.ok(bySoonest(newer, older) < 0);
+  assert.deepEqual([older, newer].sort(bySoonest).map((g) => g.gameId), ['newer', 'older']);
+}
+
+// Nothing in it may throw: the list is whatever the RPCs sent back.
+assert.equal(typeof bySoonest(null, undefined), 'number');
+assert.equal(typeof bySoonest({}, {}), 'number');
+
+// ---- The cards get the facts they draw ----
+//
+// Every one of these already came back from challenge_list and
+// game_signup_list; games.js mapped the row and dropped them on the floor.
+// That is the failure mode worth pinning, because it does not throw -- it just
+// draws a card saying "Not started" about an event beginning in two hours,
+// which is exactly what Home did before this.
+{
+  const games = readFileSync(new URL('../src/lib/games.js', import.meta.url), 'utf8');
+  for (const field of [
+    'startsAt: c.starts_at',
+    'metric: c.wom_metric',
+    'rankedBy: c.ranked_by',
+    'solo: c.solo',
+    'signups: c.entrants ?? 0',
+  ]) {
+    assert.ok(games.includes(field), `a challenge row carries ${field}`);
+  }
+  assert.ok(games.includes('startsAt: g.starts_at'), 'an open board event carries its start time');
+  assert.ok(games.includes('startsAt: game.starts_at'), 'and so does a rostered game');
+
+  // A TEAM challenge arrives through both reads. The duplicate is dropped by
+  // game id, and dropping it used to drop the metric with it -- so the one
+  // card with a picture to show was the one event the player was actually in.
+  assert.ok(games.includes('const more = extra.get(g.gameId);'),
+    'a rostered row is merged with whatever the other list knows about it');
+  assert.ok(games.includes('return more ? { ...more, ...g } : g;'),
+    'and the roster answers win every field the roster has');
+}
+
+// ---- The lead card, and the artwork on it ----
+{
+  const home = readFileSync(new URL('../src/components/Home.jsx', import.meta.url), 'utf8');
+
+  // The lead falls through to an open event. Without it, a player in nothing
+  // leads with a sentence apologising while the thing to do sits in a small
+  // card below -- which was the state of this screen for its whole first life.
+  assert.ok(home.includes('const lead = ordered[0] ?? invites[0] ?? null;'),
+    'an open event leads when the player is in nothing of their own');
+
+  // The card opens the sign-up screen; it does not sign anybody up. One press
+  // short of what a label promises is a promise broken.
+  assert.ok(home.includes("return 'Sign up →';"), 'the invite card says what it does');
+  assert.ok(!home.includes('Sign me up'), 'and does not claim to do the signing up itself');
+
+  // The artwork is the metric's, which means Home has to be given the metric.
+  assert.ok(home.includes('slug={metricIcon(game.metric)}'), 'a challenge card draws its metric');
+  assert.ok(home.includes('MODE_MARKS[game.mode] ?? MODE_MARKS.default'),
+    'and a board mode draws a mark of its own game instead');
+}
+
+// ---- Small text is readable ----
+//
+// --label-3 is 32% white, which lands around 2.4:1 on this page: under the
+// 4.5:1 small text needs, and the status line is the smallest text on the
+// screen. The fix is not a new colour, it is using the one that already
+// passes, so this asserts the Home block never reaches for the other.
+{
+  const sheet = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
+  const home = sheet.slice(
+    sheet.indexOf('/* ---- Home (Home.jsx) ----'),
+    sheet.indexOf('/* ---- Setup wizard (Admin.jsx -> NewGame) ----')
+  );
+  assert.ok(home.length > 0, 'the Home block is still where the sheet says it is');
+  assert.ok(!home.includes('--label-3'), 'Home puts no small text on --label-3');
 }
 
 console.log('home-selftest: ok');

@@ -25,6 +25,23 @@ async function listMyChallenges() {
       mode: 'challenge',
       status: c.status,
       createdAt: c.created_at,
+      // When it starts, which is the fact that decides whether somebody signs
+      // up tonight or next week. challenge_list has always returned it; the
+      // row simply threw it away, so Home could only ever say "Not started".
+      startsAt: c.starts_at,
+      endsAt: c.ends_at,
+      // What the event IS -- the boss, skill, raid or tier of clue -- and how
+      // it is scored. A card with this on it needs no explaining; without it,
+      // five challenges in a row are five identical grey rows.
+      metric: c.wom_metric,
+      rankedBy: c.ranked_by,
+      declaredLabel: c.declared_label,
+      solo: c.solo,
+      // Called `entrants` by challenge_list and `signups` by game_signup_list,
+      // because the two tables are not the same thing. On a card they are the
+      // same sentence -- how many are in -- so one name reaches Home and the
+      // difference stays where it belongs, in the database.
+      signups: c.entrants ?? 0,
       // A challenge has no team of this player's to name. A team event does
       // have teams, but entrants are not team_members -- an organiser puts
       // them on one, and the event's own screen says which.
@@ -58,6 +75,8 @@ async function listOpenEvents() {
       mode: g.mode,
       status: g.status,
       createdAt: g.created_at,
+      // As above: game_signup_list returns it, the row used to drop it.
+      startsAt: g.starts_at,
       // How many are in, which is what makes somebody else join. A count and
       // never a list: who signed up is the organiser's business.
       signups: g.signups ?? 0,
@@ -97,7 +116,7 @@ export async function listMyGames(uid) {
     // games.winner_team_id -> teams.id added after teams existed (0001) -- so
     // an unqualified embed is ambiguous and PostgREST rejects the whole query
     // with PGRST201. Verified against the live schema, not assumed.
-    .select('teams!inner(id, name, game_id, games!teams_game_id_fkey!inner(id, name, mode, status, created_at))')
+    .select('teams!inner(id, name, game_id, games!teams_game_id_fkey!inner(id, name, mode, status, created_at, starts_at))')
     .eq('profile_id', uid);
 
   if (error) throw new Error(error.message);
@@ -126,17 +145,31 @@ export async function listMyGames(uid) {
       mode: game.mode,
       status: game.status,
       createdAt: game.created_at,
+      // Added when Home started counting down to it. `starts_at` is nullable
+      // (0013) and plenty of games have none -- the card says "Not started"
+      // for those, which is the truth rather than a clock at zero.
+      startsAt: game.starts_at,
       teamId: team.id,
       teamName: team.name,
     });
   }
 
-  const rostered = [...byGame.values()];
   // Both lists are asked at once, and both drop anything already rostered: the
   // same game arriving twice would draw two cards on Home, one of them with no
   // team name on it.
   const [challenges, open] = await Promise.all([listMyChallenges(), listOpenEvents()]);
   const notRostered = [...challenges, ...open].filter((g) => !byGame.has(g.gameId));
+
+  // A TEAM challenge is in both: team_members has the roster, challenge_list
+  // has the metric. Dropping the duplicate used to mean dropping the metric
+  // with it, so the one card that has a picture to show -- the event you are
+  // actually in -- was the one card that showed none. The roster's own answers
+  // win every field it has; the rest is taken from the list that knows it.
+  const extra = new Map([...challenges, ...open].map((g) => [g.gameId, g]));
+  const rostered = [...byGame.values()].map((g) => {
+    const more = extra.get(g.gameId);
+    return more ? { ...more, ...g } : g;
+  });
 
   // Rostered games first, then the events this player has put their hand up
   // for, then the ones merely open. The order is not cosmetic: Home leads with
