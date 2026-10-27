@@ -302,6 +302,15 @@ const ch = addGame({
 });
 
 /**
+ * A solo challenge nobody has entered yet: the Games list row that used to
+ * say "no teams · needs two teams". Its setup row is in admin-main.jsx.
+ */
+const soloCh = addGame({
+  name: 'Boss of the Week', mode: 'challenge', grid: 0, status: 'setup',
+  teamNames: [], endsAt: inHours(24 * 7),
+});
+
+/**
  * The two board events the App harness hangs its sign-up fixture on.
  *
  * It has to be the real ids: a sign-up row for a game this stub has never
@@ -314,6 +323,7 @@ export const previewBoardGames = { bingo, snakes: snk };
 export const previewChallenge = {
   gameId: ch,
   teams: teams.filter((t) => t.game_id === ch).map(({ id, name }) => ({ id, name })),
+  soloGameId: soloCh,
 };
 
 // ---- helpers --------------------------------------------------------------

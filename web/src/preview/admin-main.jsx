@@ -36,6 +36,16 @@ previewGames.rows = [{
   declared_label: 'Loot value',
   declared_unit: 'gp',
   all_accounts: false,
+  entrants: 4,
+}, {
+  game_id: previewChallenge.soloGameId,
+  solo: true,
+  ranked_by: 'wom',
+  wom_metric: 'nex',
+  declared_label: null,
+  declared_unit: null,
+  all_accounts: false,
+  entrants: 0,
 }];
 
 // Mid-event, and deliberately uneven: one entrant checked, one whose number an
