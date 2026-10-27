@@ -51,17 +51,25 @@ jobs:
         run: |
           set -euo pipefail
           # A dump that silently produced nothing is worse than no backup at
-          # all, because it looks like success. Fail loudly instead.
-          for f in roles schema data; do
-            size=$(stat -c%s "out/$f.sql")
-            echo "$f.sql: $size bytes"
-            if [ "$size" -lt 512 ]; then
-              echo "::error::out/$f.sql is only $size bytes - refusing to publish a suspect backup"
+          # all, because it looks like success. Check each file for a marker
+          # proving it holds what it should. Size alone is a bad signal: a
+          # healthy --role-only dump is only a few hundred bytes.
+          check() {
+            file="out/$1.sql"; min="$2"; marker="$3"
+            size=$(stat -c%s "$file")
+            echo "$1.sql: $size bytes"
+            if [ "$size" -lt "$min" ]; then
+              echo "::error::$file is only $size bytes - refusing to publish a suspect backup"
               exit 1
             fi
-          done
-          grep -q "CREATE TABLE" out/schema.sql || {
-            echo "::error::schema.sql contains no CREATE TABLE statements"; exit 1; }
+            if ! grep -qE "$marker" "$file"; then
+              echo "::error::$file has no /$marker/ - refusing to publish a suspect backup"
+              exit 1
+            fi
+          }
+          check roles   100  'ROLE'
+          check schema  1024 'CREATE TABLE'
+          check data    1024 '^(COPY|INSERT)'
 
       - name: Publish to the private backup repo
         env:
