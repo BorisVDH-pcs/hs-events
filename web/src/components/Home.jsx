@@ -255,13 +255,18 @@ function LeadCard({ game, onPick }) {
       className={`home-lead ${status.tone}`}
       onClick={() => onPick(game.gameId)}
     >
+      {/* The words first and the artwork after them, so that every line on
+          the card -- status, name, score, meta, clock, pill, footer -- starts
+          at the same left edge. With the art in front, these three began 5rem
+          further right than the four blocks below them, and a card with two
+          left edges reads as leaning rather than as aligned. */}
       <span className="home-lead-head">
-        <span className="home-art lead"><GameArt game={game} /></span>
         <span className="home-lead-words">
           <span className={`home-game-status ${status.tone}`}>{status.text}</span>
           <span className="home-lead-name">{game.gameName}</span>
           {score && <span className="home-lead-score">{score}</span>}
         </span>
+        <span className="home-art lead"><GameArt game={game} /></span>
       </span>
 
       <span className="home-lead-meta">{metaLine(game)}</span>
@@ -393,7 +398,7 @@ function cardStatus(game) {
   if (game.status === 'active') return { text: 'Running', tone: 'live' };
   if (game.status === 'finished') return { text: 'Finished', tone: 'done' };
   if (game.teamId === null && game.joined !== true) return { text: 'Open to join', tone: 'open' };
-  if (game.teamId === null && game.joined === true) return { text: 'You are in', tone: 'soon' };
+  if (game.teamId === null && game.joined === true) return { text: 'You are in', tone: 'joined' };
   return { text: 'Not started', tone: 'soon' };
 }
 
