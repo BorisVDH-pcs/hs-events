@@ -29,7 +29,6 @@ import {
 export default function MyAccount({ profileId, onClose }) {
   const [accounts, setAccounts] = useState(null);
   const [rsn, setRsn] = useState('');
-  const [label, setLabel] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
@@ -90,9 +89,9 @@ export default function MyAccount({ profileId, onClose }) {
   function add() {
     const clean = rsnClean(rsn);
     run(
-      () => addAccount(profileId, clean, label.trim() || null),
+      () => addAccount(profileId, clean),
       `${clean} added.`,
-    ).then(() => { setRsn(''); setLabel(''); });
+    ).then(() => setRsn(''));
   }
 
   return createPortal(
@@ -127,6 +126,12 @@ export default function MyAccount({ profileId, onClose }) {
                   <div className="rsn-name">
                     <strong>{a.rsn}</strong>
                     {a.is_primary && <span className="badge">main</span>}
+                    {/* Nobody can write one of these any more -- the field
+                        that did is gone, because an RSN already names the
+                        account and the main one already wears a badge. Shown
+                        where it exists so that whoever typed one before does
+                        not watch it vanish; the same line stands in the
+                        challenge sign-up picker for the same reason. */}
                     {a.label && <span className="muted"> · {a.label}</span>}
                   </div>
                   <p className={status.tone === 'error' ? 'error' : 'muted'}>{status.text}</p>
@@ -183,16 +188,6 @@ export default function MyAccount({ profileId, onClose }) {
                 placeholder="Exactly as the hiscores spell it"
                 disabled={busy}
                 onChange={(e) => setRsn(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter' && canAdd) add(); }}
-              />
-            </label>
-            <label className="field-name">What it is <span className="muted">(optional)</span>
-              <input
-                value={label}
-                maxLength={40}
-                placeholder="main, ironman, the slayer alt…"
-                disabled={busy}
-                onChange={(e) => setLabel(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter' && canAdd) add(); }}
               />
             </label>
