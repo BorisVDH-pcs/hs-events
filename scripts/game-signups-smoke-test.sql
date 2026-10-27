@@ -25,6 +25,9 @@
 --      the game has started.
 --   6. admin_game_signups: refused for a player, and `rostered` correct for
 --      the organiser.
+--   7. admin_game_signup_remove: refused for a player; works on a running
+--      event; leaves a rostered player on their team; and is not an error
+--      when there is no row to clear.
 --
 -- WHAT IT CANNOT COVER. This block runs as the table's owner, so RLS and the
 -- revoked grants do not apply to it: the test can read game_signups directly
@@ -305,6 +308,48 @@ begin
     select count(*) into n from jsonb_array_elements(rows) e
      where e.value->>'game_id' = g_bingo::text;
     v_log := v_log || pg_temp.smoke_line(v_step, n = 0, n || ' rows');
+
+    -- ========================================================
+    -- The organiser takes a name off the list
+    -- ========================================================
+    -- Deliberately still on the running game. 20261027120000 carries no status
+    -- guard, because a list worth tidying is one that has gone stale -- which
+    -- is exactly after the start, when join and leave have both closed.
+    perform pg_temp.smoke_as(v_red);
+    v_step := 'a player cannot clear somebody else''s sign-up';
+    begin
+      perform admin_game_signup_remove(g_bingo, v_blue);
+      v_log := v_log || pg_temp.smoke_line(v_step, false, 'it was allowed');
+    exception when others then
+      v_log := v_log || pg_temp.smoke_line(v_step, sqlerrm ilike '%not your game%', sqlerrm);
+    end;
+
+    perform pg_temp.smoke_as(v_admin);
+    v_step := 'the organiser clears a rostered player''s sign-up after the start';
+    perform admin_game_signup_remove(g_bingo, v_red);
+    select count(*) into n from game_signups
+     where game_id = g_bingo and profile_id = v_red;
+    v_log := v_log || pg_temp.smoke_line(v_step, n = 0, n || ' rows left');
+
+    -- The half of this that would be a bug: the list is not the game, and
+    -- somebody mid-event must not quietly stop being on their team.
+    v_step := 'and leaves them on their team';
+    select exists (select 1 from team_members
+                    where team_id = red and profile_id = v_red) into b;
+    v_log := v_log || pg_temp.smoke_line(v_step, b, 'still rostered: ' || b::text);
+
+    v_step := 'clearing a name that is not on the list is not an error';
+    begin
+      perform admin_game_signup_remove(g_bingo, v_red);
+      v_log := v_log || pg_temp.smoke_line(v_step, true, 'no error');
+    exception when others then
+      v_log := v_log || pg_temp.smoke_line(v_step, false, sqlerrm);
+    end;
+
+    v_step := 'and the name it was not asked about is still there';
+    select count(*) into n from game_signups
+     where game_id = g_bingo and profile_id = v_blue;
+    v_log := v_log || pg_temp.smoke_line(v_step, n = 1, n || ' rows');
 
     -- ========================================================
     -- Deleting the game takes its sign-ups with it

@@ -135,11 +135,22 @@ have a board: one row per person per event, with the RSN snapshotted as
 - **Sign-ups close when the game starts**, unlike a challenge's, which stay
   open for the whole event. A board game is played by teams formed before it
   began, so a latecomer is an organiser's decision rather than a stranger's.
-- The table has RLS on, no policies, and every grant revoked; the four
+- **A player takes their own name off; an organiser takes anybody's.**
+  `game_signup_leave` refuses once the caller is on a team, so that nobody
+  quietly leaves the list while staying in the game — but that left rows
+  nobody could clear at all, since removing somebody from a team only drops
+  them back into the shortlist. `admin_game_signup_remove` (20261027120000)
+  clears one row on `may_manage_game`. It carries no status guard, because a
+  list is worth tidying precisely once it has gone stale, and it leaves
+  `team_members` alone: somebody already rostered stays on their team and goes
+  on playing.
+- The table has RLS on, no policies, and every grant revoked; the five
   functions above are the only way in.
 
 Checked by [scripts/game-signups-smoke-test.sql](../scripts/game-signups-smoke-test.sql),
-and rolled back by [scripts/rollback-game-signups.sql](../scripts/rollback-game-signups.sql).
+and rolled back by [scripts/rollback-game-signups.sql](../scripts/rollback-game-signups.sql)
+— or, for the organiser's remove alone,
+[scripts/rollback-admin-signup-remove.sql](../scripts/rollback-admin-signup-remove.sql).
 
 ## Game rules, and where each is enforced
 

@@ -85,7 +85,9 @@ everyone else stops. Reaching 100 is not enough; its task has to be done.
 - **Build the roster from the sign-ups.** Players put their hand up on the
   event's own screen while it is being set up; Roster opens on who did and
   has every other account one press behind it. Signing up is not a condition
-  of being picked — anyone can still be added by hand.
+  of being picked — anyone can still be added by hand, and the Sign-ups list
+  above Roster has a Remove for taking a name back off, which leaves anybody
+  already on a team on it.
 - **Punish**: send a team back one d6 (then skips and snakes apply, as for a
   rollback).
 - **Move team** to a given tile.
