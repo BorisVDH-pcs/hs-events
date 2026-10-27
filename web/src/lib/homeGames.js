@@ -50,6 +50,42 @@ export function gameUrgency(game) {
 }
 
 /**
+ * Which of two events a player should be offered first: the one starting
+ * soonest.
+ *
+ * Only ever used on the OPEN list, and only because of what Home leads with.
+ * `gameUrgency` ranks a game by what state it is in, which settles the list of
+ * games somebody is already playing -- but every open event is in the same
+ * state, so urgency cannot tell two of them apart. What separates them is the
+ * clock: a sign-up closing on Thursday is more use to somebody tonight than
+ * one closing in three weeks.
+ *
+ * An event with no `starts_at` sorts last rather than first. `starts_at` is
+ * nullable (0013) and plenty of events never get one, and a null read as zero
+ * would put every undated event ahead of the one actually starting tomorrow.
+ * Within the undated, newest first, which is the order the lists already
+ * arrive in.
+ */
+export function bySoonest(a, b) {
+  const at = startTime(a);
+  const bt = startTime(b);
+  if (at !== bt) {
+    if (at === null) return 1;
+    if (bt === null) return -1;
+    return at - bt;
+  }
+  return new Date(b?.createdAt ?? 0) - new Date(a?.createdAt ?? 0);
+}
+
+function startTime(game) {
+  if (!game?.startsAt) return null;
+  const at = Date.parse(game.startsAt);
+  // A date the browser cannot read is the same as no date: undated, last,
+  // rather than NaN poisoning every comparison it takes part in.
+  return Number.isNaN(at) ? null : at;
+}
+
+/**
  * Split a player's own games into the ones still to play and the ones over.
  *
  * Home shows these as two tabs rather than one list. A finished event is not
