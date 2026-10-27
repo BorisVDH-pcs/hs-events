@@ -13,6 +13,10 @@ on:
     # 02:00 UTC -> 03:00 Amsterdam in winter, 04:00 in summer. Deliberately
     # the quiet window: the project runs on Nano with very little memory
     # headroom, so the dump should not compete with event-night traffic.
+    #
+    # GitHub treats scheduled runs as best-effort and defers them under load:
+    # the 2026-10-27 run was queued for 02:00 and started at 07:31 UTC. Nothing
+    # to fix there, but do not read a late run as a broken one.
     - cron: "0 2 * * *"
   workflow_dispatch:
 
@@ -26,25 +30,56 @@ permissions:
 jobs:
   backup:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # To raise, and later close, the "backup is failing" issue below.
+      issues: write
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
     steps:
+      # Checked first, and on its own, because the credential it guards is not
+      # touched until the very last step. Without this the job spends two and a
+      # half minutes dumping a live database and only then falls over on a bare
+      # `Permission denied (publickey)` that names nothing. The secret was in
+      # fact missing for the whole of the workflow's first day, so this is the
+      # failure to make legible rather than a hypothetical one.
+      - name: Check the publish credential is present
+        env:
+          DEPLOY_KEY: ${{ secrets.BACKUP_REPO_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DEPLOY_KEY:-}" ]; then
+            echo "::error::Secret BACKUP_REPO_DEPLOY_KEY is not set, so a snapshot could not be published even if the dump succeeded. Add the private half of the 'hs-events backup writer' deploy key on BorisVDH-pcs/hs-events-db-backups as an Actions secret on this repo."
+            exit 1
+          fi
+
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          # Pinned, not `latest`. This is the only backup of the database, and
+          # the sanity check downstream reads the CLI's own dump output, so a
+          # release that reshapes that output moves the backup without anyone
+          # choosing to move it. Bump deliberately, with a manual run after.
+          version: 2.122.0
 
       - name: Link project
         run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
 
+      # `--linked` is the default today, so it changes nothing now. It is here
+      # because the CLI prints a warning on every single run that the next
+      # major version will target the LOCAL database by default. A runner has
+      # no local database, so on that release the dumps would quietly become
+      # dumps of nothing - and the sanity check would catch it, but only after
+      # the fact. Pinning the version above means that day can only arrive via
+      # a deliberate bump; this flag means the bump is survivable.
       - name: Dump roles, schema and data
         run: |
           set -euo pipefail
           mkdir -p out
-          supabase db dump --role-only --file out/roles.sql
-          supabase db dump              --file out/schema.sql
-          supabase db dump --data-only  --file out/data.sql
+          supabase db dump --linked --role-only --file out/roles.sql
+          supabase db dump --linked             --file out/schema.sql
+          supabase db dump --linked --data-only --file out/data.sql
           ls -l out
 
       - name: Sanity-check the dumps
@@ -132,3 +167,63 @@ jobs:
               done
             fi
           } >> "$GITHUB_STEP_SUMMARY"
+
+      # The two steps below matter as much as the dump does. A backup nobody is
+      # told about is a backup nobody knows is missing: this workflow failed on
+      # its first scheduled run and stayed that way, unnoticed, until someone
+      # opened the Actions tab for an unrelated reason. The step summary above
+      # is only read by whoever already went looking.
+      #
+      # An issue, rather than mail or a webhook: it needs no new secret, GitHub
+      # mails the repo owner about it anyway, and - unlike a notification - it
+      # stays open as a standing reminder until a backup actually succeeds, so
+      # a week of silent failures cannot look like a week of quiet success.
+      # Titles are matched exactly, so that week is one thread with seven
+      # comments rather than seven threads.
+      - name: Open or update the failure issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # This job deliberately never checks the repo out - it needs none of
+          # it - so `gh` has no git remote to infer the repository from and
+          # would exit "not a git repository". GH_REPO tells it directly.
+          GH_REPO: ${{ github.repository }}
+          TITLE: Database backup is failing
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          # Listed and filtered rather than searched: the issue search index
+          # lags by minutes, which is long enough to open a duplicate.
+          number=$(gh issue list --state open --limit 100 --json number,title \
+            --jq '[.[] | select(.title == env.TITLE)][0].number // empty')
+
+          body=$(printf '%s\n' \
+            "The scheduled backup did not publish a snapshot." \
+            "" \
+            "Run: $RUN_URL" \
+            "" \
+            "Nothing was written to the backup repo for this run, and nothing" \
+            "there was overwritten - the newest snapshot it holds is still" \
+            "whatever the last successful run left. Check how old that is.")
+
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body "$body"
+            echo "Commented on #$number."
+          else
+            gh issue create --title "$TITLE" --body "$body"
+          fi
+
+      - name: Close the failure issue
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TITLE: Database backup is failing
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          number=$(gh issue list --state open --limit 100 --json number,title \
+            --jq '[.[] | select(.title == env.TITLE)][0].number // empty')
+          if [ -n "$number" ]; then
+            gh issue close "$number" --comment "Backup succeeded again: $RUN_URL"
+          fi
