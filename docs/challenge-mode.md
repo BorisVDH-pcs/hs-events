@@ -1,7 +1,7 @@
 # Challenge: short events
 
 The fifth game mode. Not a board: a start time, an end time, one figure per
-entrant, and a ladder.
+entrant, and a ranking.
 
 It exists for the run of short events proposed in Discord — Clue, Boss, Raid and
 Skill of the Week, twice a month, plus one larger monthly event — and the shape
@@ -18,7 +18,7 @@ and it changes, while the migration is still unapplied.
 | | |
 |---|---|
 | Lives in | `games`, `mode = 'challenge'`, with `starts_at` and `ends_at` |
-| Entrants | People opt in while it is open. No sign-up, no row on the ladder |
+| Entrants | People opt in while it is open. No sign-up, no row on the ranking |
 | Solo or teams | The organiser picks per event (`challenge_setup.solo`) |
 | The figure | Up to two per event: one from Wise Old Man, one declared by the player |
 | The winner | Whichever figure the organiser said ranks (`ranked_by`) |
@@ -66,7 +66,7 @@ already made, or ask for a new one.
 typed by the player at sign-up and has never been checked against anything. WOM
 matches on the exact username. So a challenge stores the RSN **on the entry**,
 snapshotted at sign-up, and refuses one WOM has never heard of. Fixing a profile
-later must not silently change what a finished ladder was scored on.
+later must not silently change what a finished ranking was scored on.
 
 ### Declared by the player
 
@@ -100,7 +100,7 @@ before.
   column is `bigint`, not the `smallint` a value tile uses: that caps at 1000m,
   and a week of raids passes it.
 - The organiser sees every entry with its screenshots in one list and **can
-  alter the number**. An altered figure records who altered it, so a ladder
+  alter the number**. An altered figure records who altered it, so a ranking
   always says whose number it is showing.
 
 ## The two events the form makes
@@ -131,7 +131,7 @@ migrated, so widening it again is one file.
 
 `ranked_by` is `wom` or `declared`, set when the event is created. The other
 figure is still collected and still shown in its own column — it just does not
-decide the winner. One ladder, one winner.
+decide the winner. One ranking, one winner.
 
 A team's figure is **the sum of its members'**, which is what a clan event
 normally means and what WOM's own team competitions do.
@@ -186,7 +186,7 @@ Three things the clock does differently from the button:
   competition, because `challenge_wom_add` returns null where there is no
   competition to add to and an event that opened empty would otherwise score
   nothing all week.
-- **Ending takes two passes.** `challenge_end` will not settle a ladder on
+- **Ending takes two passes.** `challenge_end` will not settle a ranking on
   standings older than fifteen minutes, and `pg_net` is fire-and-forget, so
   queueing the fetch and reading its reply are different transactions. The first
   tick after the end time reconciles what has landed and asks for fresh figures;
@@ -206,14 +206,14 @@ keeps `bingo_open_tile` silent.
 
 They did close at the start, and that was a limitation rather than a rule
 anyone wanted: the WOM competition was created from exactly the people who had
-joined, so a latecomer would have sat on our ladder and not on WOM's, scoring
+joined, so a latecomer would have sat on our ranking and not on WOM's, scoring
 zero for a week they actually played.
 
 `20261026120500` uses WOM's add-participants endpoint, so `challenge_join`
 takes somebody mid-event and `challenge_wom_add` puts them on the live
 competition. `challenge_entries.wom_added_at` is null until WOM confirms it, and
 the player's own screen says so in red while there is still time to fix it —
-being on this ladder and being on WOM's are two different things, and the one
+being on this ranking and being on WOM's are two different things, and the one
 unacceptable outcome is finding that out at the end of the week.
 
 WOM measures every participant from the competition's own start, so a latecomer
@@ -312,18 +312,18 @@ Done:
 
 - `20261026120200_challenge_rpcs.sql` — creating an event, joining and leaving,
   declaring a figure with the shots behind it, the organiser's review list with
-  correct-and-verify, the ladder, starting, ending, and both halves of the Wise
+  correct-and-verify, the ranking, starting, ending, and both halves of the Wise
   Old Man call.
 - `20261026150000_challenge_schedule.sql` — the start time, and the clock that
   acts on both times. See *Starting and finishing on the clock*.
 - The console — Challenge in New game with its own body (what it is scored on,
   rather than how big the board is), its own checklist, both times, Start event,
-  End event now, and a Track pane with the ladder, the review list and a Refresh
+  End event now, and a Track pane with the ranking, the review list and a Refresh
   button for the figures. Configure shows Game and Discord only: a challenge has
   no board and no roster.
 - The player screen — `components/challenge/`. Sign up with the RSN WOM will
   match, give the number, hang the start and finish shots on it, and the
-  ladder. It loads its own data rather than going through `board_for_me`:
+  ranking. It loads its own data rather than going through `board_for_me`:
   that function answers in one call because every other mode is a board, and
   teaching it a fourth shape would mean editing a shared function for the one
   mode that has nothing in common with the others.

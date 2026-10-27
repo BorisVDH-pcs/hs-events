@@ -260,7 +260,7 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
   // list and the open event alike.
   const [challengeSetups, setChallengeSetups] = useState({});
   // The open event's entrants, with their figures and the shots behind them,
-  // and the ladder those figures make.
+  // and the ranking those figures make.
   const [challengeEntries, setChallengeEntries] = useState([]);
   // Who put their hand up for the open board event, and whether each is on a
   // team yet. The Roster picker's shortlist (20261026160000).
@@ -372,7 +372,7 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
   }, []);
 
   /**
-   * The open event's entrants and ladder, when it is a challenge.
+   * The open event's entrants and ranking, when it is a challenge.
    *
    * Its own read rather than another branch of loadGameDetail: that function
    * fetches tiles, fleets and webhooks, and a challenge has none of the first
@@ -1349,7 +1349,7 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
               )}
               {/* Challenge: the same button, and deliberately the same one —
                   admin_end_game hands a challenge to challenge_end, because
-                  ending a game is one button whatever the mode. A ladder
+                  ending a game is one button whatever the mode. A ranking
                   scored off the hiscores is refused while its figures are
                   stale, which is a refusal worth reading rather than a check
                   to repeat here. */}
@@ -1885,7 +1885,7 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
                 <ChallengeLadder
                   standings={challengeLadder}
                   setup={challengeSetup}
-                  title={game.status === 'finished' ? 'Final ladder' : 'If it ended now'}
+                  title={game.status === 'finished' ? 'Final ranking' : 'If it ended now'}
                 />
               </div>
 
@@ -1897,7 +1897,7 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
                   busy={busy}
                   onSetFigure={(entryId, amount) => run(
                     () => adminChallengeSetFigure(entryId, amount),
-                    'Number corrected — the ladder and the feed both say who changed it.',
+                    'Number corrected — the ranking and the feed both say who changed it.',
                     { refresh: ['challenge'] },
                   )}
                   onVerify={(entryId, ok) => run(
@@ -2135,7 +2135,7 @@ const TRACK_BOARD_LABEL = {
 function trackTabsFor(game, { hasWom, hasScreens }) {
   if (isChallengeGame(game)) {
     return [
-      { key: 'ladder', label: 'Ladder' },
+      { key: 'ladder', label: 'Ranking' },
       { key: 'entries', label: 'Entries' },
       // Nothing to show for an event scored only on what players send in.
       ...(hasWom ? [{ key: 'wom', label: 'Wise Old Man' }] : []),

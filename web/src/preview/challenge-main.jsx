@@ -35,6 +35,11 @@ previewGames.rows = [{
   all_accounts: false,
 }];
 
+// A competition behind it, which is the normal case for a hiscores event and
+// the one the harness never drew: with this left null the link to Wise Old Man
+// never rendered here, so nobody ever saw how it was presented.
+challengeFixtures.womId = 162883;
+
 accountFixtures.push(
   { id: 'a1', rsn: 'Zezima', is_primary: true, wom_found: true },
   { id: 'a2', rsn: 'Zezima Alt', is_primary: false, wom_found: true },

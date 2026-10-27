@@ -116,7 +116,7 @@ export default function ChallengeNewGame({ busy, onCreate }) {
           name="challenge-solo" checked={solo} disabled={busy}
           onChange={() => setSolo(true)}
           title="Everyone for themselves"
-          blurb="One ladder, with every entrant on it."
+          blurb="One ranking, with every entrant on it."
         />
         <Pick
           name="challenge-solo" checked={!solo} disabled={busy}
@@ -183,7 +183,7 @@ export default function ChallengeNewGame({ busy, onCreate }) {
 
         {/* HOW MANY ACCOUNTS COUNT PER PERSON. Off is the rule a weekly
             XP or kill-count event wants: one account each, or somebody
-            with two can grind both and the ladder stops meaning anything.
+            with two can grind both and the ranking stops meaning anything.
             On is for a bingo, where switching to an alt mid-event is
             normal and should not cost the drop.
 
@@ -199,7 +199,7 @@ export default function ChallengeNewGame({ busy, onCreate }) {
                 ? 'Every account on an entrant’s list goes on the competition and '
                   + 'their figures are added up. For a bingo, where people play alts.'
                 : 'One account each — the one they pick when they sign up. For a '
-                  + 'weekly event, where two accounts would be two chances at the same ladder.'}
+                  + 'weekly event, where two accounts would be two chances at the same ranking.'}
             </span>
           </span>
           <label className="switch">

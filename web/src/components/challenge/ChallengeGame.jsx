@@ -21,12 +21,12 @@ import ChallengeRsnField from './ChallengeRsnField.jsx';
  *
  * No board, so none of the three-column board layout applies: what a player
  * does here is sign up, give a number, hang the screenshots behind it, and
- * watch the ladder.
+ * watch the ranking.
  *
  * IT LOADS ITS OWN DATA. Every other mode comes through `board_for_me`, which
  * answers in one call because every other mode is a board. A challenge needs
  * three things that function does not carry — the setup, this player's entry
- * and the ladder — and all three sit behind tables with RLS on and no policies,
+ * and the ranking — and all three sit behind tables with RLS on and no policies,
  * so they can only come from their own RPCs. Teaching `board_for_me` a fourth
  * shape would mean editing a shared function for the one mode that has nothing
  * in common with the other four.
@@ -184,7 +184,7 @@ export default function ChallengeGame({
    *   OVERDUE -- the time the event is waiting on has gone by and the event has
    *     not moved. Checked every ten seconds, which is also how the ending gets
    *     its second pass: the first writes down whatever WOM has sent and asks
-   *     for fresh figures, the next one settles the ladder on them.
+   *     for fresh figures, the next one settles the ranking on them.
    *   NO COMPETITION -- an event that opened before anybody had given a
    *     RuneScape name has nothing for WOM to add latecomers to, so it needs
    *     one made the moment somebody signs up. Checked on the slow beat,
@@ -266,6 +266,12 @@ export default function ChallengeGame({
   const startShots = (mine?.evidence ?? []).filter((e) => e.phase === 'start');
   const finishShots = (mine?.evidence ?? []).filter((e) => e.phase === 'finish');
 
+  // Whether the head card has anything to say about the competition: the link
+  // once Wise Old Man has made it, and the line explaining its absence once
+  // the event is running without one. While it is still open there is nothing
+  // missing yet, so neither is true and the slot stays empty.
+  const womSlot = Boolean(setup?.wom_metric) && (Boolean(wom) || !isOpen);
+
   return (
     <div className="challenge-layout">
       <div className="challenge-main">
@@ -301,9 +307,13 @@ export default function ChallengeGame({
 
             <div className="challenge-hero-text">
               <h2>{game.name}</h2>
+              {/* "won on" said what the figure does without naming the thing
+                  it does it to, so the card and the panel at the bottom of the
+                  screen described the same rule in two vocabularies. Both say
+                  ranked by now. */}
               <p className="muted">
                 {setup?.solo === false ? 'Teams' : 'Everyone for themselves'}
-                {' · won on '}
+                {' · ranked by '}
                 {rankedLabel(setup)}
               </p>
             </div>
@@ -334,49 +344,69 @@ export default function ChallengeGame({
             <p className="banner">{winner ? `${winner.name} wins.` : 'The event is over.'}</p>
           )}
 
-          <ul className="challenge-asks">
-            {setup?.wom_metric && (
-              <li>
-                <strong>{metricLabel(setup.wom_metric)}</strong>
-                <span className="muted">
-                  {' — counted off the hiscores by Wise Old Man. Nothing to send in.'}
-                </span>
-                {/* The competition is public, so the honest thing is to link
-                    it: this ladder is a copy of theirs, and anyone who thinks
-                    a figure is wrong should be able to go and look rather than
-                    take our word for it. Participants is its own link because
-                    it is the page that says who is actually being counted. */}
-                {wom ? (
-                  <span className="challenge-wom-link">
-                    <a href={womCompetitionUrl(wom)} target="_blank" rel="noreferrer noopener">
-                      On Wise Old Man ↗
-                    </a>
-                    <a
-                      href={womCompetitionUrl(wom, 'participants')}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                    >
-                      Who is in it ↗
-                    </a>
-                  </span>
-                ) : isOpen ? null : (
-                  <span className="muted challenge-wom-link">
-                    Waiting for Wise Old Man to create the competition.
-                  </span>
-                )}
-              </li>
-            )}
-            {setup?.declared_label && (
-              <li>
-                <strong>{setup.declared_label}</strong>
-                <span className="muted">
-                  {' — the number you give'}
-                  {setup.declared_unit === 'gp' ? ', in millions' : ''}
-                  {', with a screenshot from the start and one from the finish.'}
-                </span>
-              </li>
-            )}
-          </ul>
+          {(!joined || womSlot) && (
+            <div className="challenge-head-more">
+              {/* ---- What it asks of you ----
+                  Only while a player is still outside it. Once they are in,
+                  every line here is said again further down the same screen
+                  with their own number in it: the hiscores figure carries
+                  "counted off the hiscores since the start", the declared one
+                  is labelled "in millions" over the box they type it into, and
+                  the two screenshots have a section to themselves. Said in
+                  both places it read as two sets of rules that did not quite
+                  match — which is the whole reason the card was confusing. */}
+              {!joined && (
+                <ul className="challenge-asks">
+                  {setup?.wom_metric && (
+                    <li>
+                      <strong>{metricLabel(setup.wom_metric)}</strong>
+                      <span className="muted">
+                        {' — counted off the hiscores by Wise Old Man. Nothing to send in.'}
+                      </span>
+                    </li>
+                  )}
+                  {setup?.declared_label && (
+                    <li>
+                      <strong>{setup.declared_label}</strong>
+                      <span className="muted">
+                        {' — the number you give'}
+                        {setup.declared_unit === 'gp' ? ', in millions' : ''}
+                        {', with a screenshot from the start and one from the finish.'}
+                      </span>
+                    </li>
+                  )}
+                </ul>
+              )}
+
+              {/* ---- The competition behind it ----
+                  The competition is public, so the honest thing is to link it:
+                  this ranking is a copy of theirs, and anyone who thinks a
+                  figure is wrong should be able to go and look rather than
+                  take our word for it.
+
+                  One link, and a button rather than prose. Participants was a
+                  second link beside it, answering "who is being counted" --
+                  which is an organiser's question, and the console pane has
+                  it; the competition's own page lists them anyway. Nothing in
+                  this app styles a bare <a>, so the pair came out in the
+                  browser's underlined blue in the middle of a card that is
+                  otherwise all tint and fill. */}
+              {womSlot && (wom ? (
+                <a
+                  className="challenge-wom-button"
+                  href={womCompetitionUrl(wom)}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                >
+                  See it on Wise Old Man ↗
+                </a>
+              ) : (
+                <p className="muted challenge-wom-wait">
+                  Waiting for Wise Old Man to create the competition.
+                </p>
+              ))}
+            </div>
+          )}
         </section>
 
         {/* Open for as long as the event runs. A latecomer is added to the
@@ -395,7 +425,7 @@ export default function ChallengeGame({
             {/* Said before they sign up rather than after: WOM measures every
                 participant from the competition's own start, so a latecomer is
                 credited with the days before they joined. Nobody should find
-                that out from the ladder. */}
+                that out from the ranking. */}
             {isActive && setup?.wom_metric && (
               <p className="muted">
                 Your figure will cover the whole event, including the days before
@@ -423,7 +453,7 @@ export default function ChallengeGame({
                   <p className="muted">
                     Every account on your My accounts list counts in this one, and
                     their figures are added together. The name above is just the
-                    one the ladder shows you under.
+                    one the ranking shows you under.
                   </p>
                 )}
               </>
@@ -465,7 +495,7 @@ export default function ChallengeGame({
           <section className="card">
             <h2>Not in this one</h2>
             <p className="muted">
-              This event is over. The ladder is below, and the next one will be
+              This event is over. The ranking is below, and the next one will be
               along.
             </p>
           </section>
@@ -491,7 +521,7 @@ export default function ChallengeGame({
                 </span>
               </header>
 
-              {/* Being on this ladder and being on WOM's competition are two
+              {/* Being on this ranking and being on WOM's competition are two
                   different things. The one unacceptable outcome is a player
                   finding out at the end of the week that they were never the
                   same, so it is said here, in red, while there is time to fix
@@ -584,7 +614,7 @@ export default function ChallengeGame({
             {/* ---- The two figures ----
                 An event can carry a number read off the hiscores, a number the
                 player sends in, or both -- and where it carries both, only one
-                of them decides the ladder. That used to be said once, in the
+                of them decides the ranking. That used to be said once, in the
                 header, as "the other figure is shown, but does not decide it",
                 leaving you to work out which was which. Side by side with the
                 deciding one ringed, it does not need saying twice. */}
@@ -599,7 +629,7 @@ export default function ChallengeGame({
                       <h4>{metricLabel(setup.wom_metric)}</h4>
                     </span>
                     {setup.ranked_by === 'wom' && (
-                      <span className="figure-decides">decides the ladder</span>
+                      <span className="figure-decides">decides the ranking</span>
                     )}
                   </header>
                   <p className="figure-value">{womLabel(mine.wom_gained)}</p>
@@ -616,7 +646,7 @@ export default function ChallengeGame({
                   <header className="figure-head">
                     <h4>{setup.declared_label}</h4>
                     {setup.ranked_by !== 'wom' && (
-                      <span className="figure-decides">decides the ladder</span>
+                      <span className="figure-decides">decides the ranking</span>
                     )}
                   </header>
 

@@ -126,7 +126,7 @@ have a board: one row per person per event, with the RSN snapshotted as
   be a second, emptier answer to a question `challenge_entries` already
   answers, and the two would drift apart the first time anybody read the wrong
   one. Widening `challenge_entries` to cover five modes was the alternative:
-  four modes' worth of null columns on the one table a finished ladder is
+  four modes' worth of null columns on the one table a finished ranking is
   scored from.
 - **A count, never a list.** `game_signup_list` tells every player how many
   have signed up and whether they themselves have, the same line
