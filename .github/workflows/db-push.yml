@@ -30,13 +30,17 @@ jobs:
 
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          # Pinned, not `latest`, like db-backup.yml: a CLI release from
+          # November 2026 made `db push` aim at a local stack unless told
+          # otherwise, which broke this job without anyone changing it.
+          # Bump deliberately, with a manual run after.
+          version: 2.122.0
 
       - name: Link project
         run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
 
       - name: Preview pending migrations
-        run: supabase db push --dry-run
+        run: supabase db push --linked --dry-run
 
       - name: Push migrations
-        run: supabase db push
+        run: supabase db push --linked
