@@ -19,6 +19,7 @@ const MODE_TITLES = {
   bingo: { text: 'Bingo' },
   snakes: { text: 'Snakes & Ladders' },
   territory: { text: 'Territory' },
+  regions: { text: 'Region Bingo' },
   challenge: { text: 'Challenge' },
 };
 
@@ -66,6 +67,13 @@ const WAITING_WORDS = {
     opens: 'The conquest begins',
     soon: 'The conquest begins in',
     standby: 'Every team at home: waiting on an admin to start',
+  },
+  regions: {
+    title: 'The regions are locked',
+    assigned: (team) => `You're on ${team}. Once an admin starts the game, your captain picks your first region.`,
+    opens: 'The regions open',
+    soon: 'The regions open in',
+    standby: 'Every region locked: waiting on an admin to start',
   },
   // A challenge has no board to open and nobody to be picked by: what is
   // waiting is the hiscores window itself, so the words are a starting

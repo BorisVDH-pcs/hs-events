@@ -19,7 +19,8 @@ import { adminListWebhooks, adminSetWebhook, adminDeleteWebhook } from '../lib/s
  */
 // What each channel is sent, per mode, so the notes describe this game and
 // not battleships. Kept in step with discord_line and its per-mode helpers
-// (snakes_discord_line, territory_discord_line, challenge_discord_line) and
+// (snakes_discord_line, territory_discord_line, challenge_discord_line,
+// regions_discord_line) and
 // with is_team_private_event, which decides what goes to a team's channel:
 // evidence everywhere, pet jars only in battleships, a place given up on only
 // in territory. A challenge sends nothing team-private at all, so it shows no
@@ -45,6 +46,14 @@ const CHANNEL_NOTES = {
   challenge: {
     general: 'Everything: the start, each figure a player submits or an organiser corrects, and the winner.',
     team: null,
+  },
+  // A region's tasks are secret from the teams that have not opened it, and
+  // this channel is read by all of them, so a completed tile is announced by
+  // its region and points, never by its name.
+  regions: {
+    general: 'Everything every team can see: each region a team opens or completes, every tile completed '
+      + '(its region and points, never which tile), and the winner.',
+    team: (name) => `Only for ${name}: evidence submissions, ${SCREENSHOT}.`,
   },
 };
 

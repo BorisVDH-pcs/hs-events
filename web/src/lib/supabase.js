@@ -170,6 +170,39 @@ export async function settleTerritory(gameId) {
   return data;
 }
 
+// ---- Region Bingo (20261116120100) ------------------------------------------
+
+/**
+ * Open a tile in one of my team's regions and answer with its claim id, for
+ * the upload path. The server refuses a tile in a region the team has not
+ * opened; opening a tile again carries on where it left off.
+ */
+export async function regionsOpenTile(tileId) {
+  assertWritable();
+  const { data, error } = await supabase.rpc('regions_open_tile', { p_tile_id: tileId });
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+/**
+ * Open a region for my team: the first (captain only) or one paid for by a
+ * complete region (anyone on the team). Answers { region, first, funded_by }.
+ * The page asks for confirmation first; a pick cannot be taken back.
+ */
+export async function regionsPick(gameId, region) {
+  assertWritable();
+  const { data, error } = await supabase.rpc('regions_pick', { p_game_id: gameId, p_region: region });
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+/** Record the result once the timer has run out; harmless before, like settleBingo. */
+export async function settleRegions(gameId) {
+  const { data, error } = await supabase.rpc('regions_settle', { p_game_id: gameId });
+  if (error) throw new Error(error.message);
+  return data;
+}
+
 /**
  * The game modes this account may run as a moderator: empty for a player,
  * and for an admin, who outranks every mode anyway. Answers only about the
@@ -509,11 +542,11 @@ export const adminAddTeam = (gameId, name) =>
 export const adminDeleteTeam = (teamId) =>
   rpc('admin_delete_team', { p_team_id: teamId });
 
-/** Bingo only. ISO string, or null for no timer. Must be in the future. */
+/** Bingo, Territory, Region Bingo and challenges. ISO string, or null for no timer. Must be in the future. */
 export const adminSetEndTime = (gameId, endsAt) =>
   rpc('admin_set_end_time', { p_game_id: gameId, p_ends_at: endsAt });
 
-/** Bingo only: finish a running game now, winner by the standings. */
+/** Bingo, Territory and Region Bingo: finish a running game now, winner by the standings. */
 export const adminEndGame = (gameId) =>
   rpc('admin_end_game', { p_game_id: gameId });
 
@@ -547,6 +580,22 @@ export const adminSetTerritoryHomes = (gameId, homes) =>
 /** Territory: every team, highest score first — who wins if the game ends now. */
 export const territoryStandings = (gameId) =>
   rpc('territory_standings', { p_game_id: gameId });
+
+/** Region Bingo: every team, most points first — who wins if the game ends now. */
+export const regionsStandings = (gameId) =>
+  rpc('regions_standings', { p_game_id: gameId });
+
+/** Region Bingo: the % of a region's points that completes it (1-100). Before the start only. */
+export const adminSetRegionThreshold = (gameId, threshold) =>
+  rpc('admin_set_region_threshold', { p_game_id: gameId, p_threshold: threshold });
+
+/** Region Bingo: what the tile on a square scores (1-100). Before the start only. */
+export const adminSetTileWorth = (gameId, position, worth) =>
+  rpc('admin_set_tile_worth', { p_game_id: gameId, p_position: position, p_worth: worth });
+
+/** Region Bingo: every tile's points, as [{ position, worth }]. */
+export const adminTileWorths = (gameId) =>
+  rpc('admin_tile_worths', { p_game_id: gameId });
 
 /** Every team, furthest along first — also who wins if the game ends now. */
 export const snakesStandings = (gameId) =>

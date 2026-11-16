@@ -18,11 +18,8 @@ organiser picks the kind when they create it.
 | **Bingo** | Any number of teams on one card. Most tiles wins. | [rules](docs/bingo-rules.md) |
 | **Snakes & Ladders** | Teams race up a 100-tile board, snakes and all. | [rules](docs/snakes-and-ladders-rules.md) |
 | **Territory** | Teams take ground on the OSRS map. Biggest empire wins. | [rules](docs/territory-rules.md) |
+| **Region Bingo** | Every OSRS region holds its own tasks. Score enough in one to open another. Most points wins. | [rules](docs/region-bingo-rules.md) |
 | **Challenge** | No board. Boss, raid or skill of the week. | [rules](docs/challenge-mode.md) |
-
-**Planned: Region Bingo.** Every OSRS region holds its own pool of tasks; score
-enough points in one to unlock another. Rules agreed, not built yet:
-[rules](docs/region-bingo-rules.md).
 
 **Battleships.** Two teams, each hiding a fleet on one shared grid of tasks. You
 fire by picking a square, doing the task behind it and sending the evidence —

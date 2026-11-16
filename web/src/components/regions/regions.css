@@ -1,0 +1,319 @@
+/* ============================================================
+   Region Bingo -- the player's screens (components/regions).
+   Imported by the components themselves, so the app and every
+   preview harness get it without another line in main.jsx.
+   Builds on Territory's map frame and labels (styles.css).
+   ============================================================ */
+
+/* No pan, no zoom: the whole world is always in view, so the page scrolls
+   under a finger as normal and the map keeps the image's shape at any width. */
+.regions-map-view,
+.regions-map-view:active {
+  aspect-ratio: 2960 / 1500;
+  touch-action: manipulation;
+  cursor: default;
+}
+@media (max-width: 700px) {
+  .regions-map-view { aspect-ratio: 2960 / 1500; }
+}
+
+/* ---- the regions ---- */
+.regions-area {
+  fill: transparent;
+  stroke: none;
+  cursor: pointer;
+  outline: none;
+  transition: fill .5s var(--ease-out);
+}
+/* Fog over what the team has not opened; light over what it has. */
+.regions-area.locked   { fill: rgba(6, 9, 18, .52); }
+.regions-area.open     { fill: rgba(255, 223, 149, .07); }
+.regions-area.complete { fill: rgba(242, 193, 78, .26); }
+.regions-area.spent    { fill: rgba(242, 193, 78, .16); }
+.regions-area.hovered,
+.regions-area:focus-visible {
+  stroke: var(--gold-lit);
+  stroke-width: 2.4;
+}
+.regions-area.locked.hovered { fill: rgba(6, 9, 18, .36); }
+
+.regions-pick-hatch {
+  fill: url(#regions-hatch);
+  pointer-events: none;
+  animation: territory-breathe 2.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .regions-pick-hatch { animation: none; opacity: .8; }
+}
+
+.regions-label.locked text:first-child { fill: rgba(235, 235, 245, .58); }
+.regions-label.complete text:first-child,
+.regions-label.spent text:first-child { fill: var(--gold-lit); }
+.regions-team-dot { stroke: rgba(10, 6, 0, .9); pointer-events: auto; }
+
+/* ---- above and below the map ---- */
+.regions-next {
+  margin: 0 0 .55rem;
+  padding: .55rem .85rem;
+  border-radius: var(--r-lg);
+  background: var(--fill-3);
+  border: 1px solid var(--hairline);
+  font-size: .9rem;
+  font-weight: 600;
+}
+.regions-next.lit {
+  background: rgba(242, 193, 78, .12);
+  border-color: rgba(242, 193, 78, .5);
+  color: var(--gold-lit);
+}
+.regions-legend .regions-key.locked   { background: rgba(6, 9, 18, .8); }
+.regions-legend .regions-key.open     { background: rgba(255, 223, 149, .16); }
+.regions-legend .regions-key.complete { background: rgba(242, 193, 78, .55); }
+.regions-dot-key {
+  width: .7rem; height: .7rem; border-radius: 50%;
+  box-shadow: 0 0 0 1.5px rgba(10, 6, 0, .9);
+}
+
+/* ---- standings ---- */
+.regions-standings .standings-row { cursor: default; }
+.regions-standings .standings-row:hover { background: none; }
+/* The left column is narrow beside the map: let a long team name wrap
+   rather than cut it to "Canifis Ho…". */
+.regions-standings .standings-row .team { white-space: normal; overflow-wrap: anywhere; line-height: 1.25; }
+.regions-team-swatch {
+  display: inline-block;
+  width: .6rem; height: .6rem;
+  margin-right: .4rem;
+  border-radius: 2px;
+  vertical-align: baseline;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, .35);
+}
+.regions-standings-regions {
+  display: flex; flex-wrap: wrap; gap: .3rem;
+  margin: .1rem 0 .35rem 2rem;
+  font-size: .75rem;
+}
+.regions-chip {
+  padding: .1rem .5rem;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--hairline);
+  background: var(--fill-3);
+  color: var(--label-2);
+  font: inherit;
+  text-transform: none; letter-spacing: 0;
+}
+button.regions-chip { cursor: pointer; }
+button.regions-chip:hover { border-color: var(--gold-deep); filter: none; }
+.regions-chip.complete { color: var(--gold-lit); border-color: rgba(242, 193, 78, .45); }
+.regions-chip.pick { color: var(--on-gold); background: var(--gold); border-color: var(--gold); font-weight: 700; }
+
+/* ---- the region panel ---- */
+/* The shared head has a column for a tile picture; a region has none. */
+.regions-panel .bingo-tile-head { grid-template-columns: 1fr auto; }
+.regions-progress { margin: .2rem 0 .9rem; }
+.regions-progress-numbers strong { font-size: 1.6rem; font-variant-numeric: tabular-nums; }
+/* One bar to the region's total (RegionBar): gold fill up to the white mark
+   at the line, green past it; the track beyond the mark is the "pick" zone. */
+.regions-bar-wrap { display: grid; gap: .3rem; margin-top: .45rem; }
+.regions-bar {
+  position: relative;
+  display: block;
+  height: .45rem;
+  border-radius: var(--r-pill);
+  background: linear-gradient(90deg,
+    rgba(255, 255, 255, .12) 0 var(--at),
+    rgba(48, 209, 88, .22) var(--at) 100%);
+}
+.regions-bar-fill {
+  position: absolute; inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg,
+    var(--gold-deep) 0, var(--gold-lit) var(--split),
+    #34c759 var(--split), #30d158 100%);
+  transition: width .6s var(--ease-out);
+}
+.regions-bar-mark {
+  position: absolute;
+  left: var(--at);
+  top: -.22rem; bottom: -.22rem;
+  width: 3px;
+  transform: translateX(-50%);
+  border-radius: 2px;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .55), 0 0 6px rgba(255, 255, 255, .35);
+}
+.regions-bar-note { font-size: .75rem; color: var(--label-2); }
+.regions-bar-note.reached { color: var(--strike-lit); font-weight: 600; }
+@media (prefers-reduced-motion: reduce) { .regions-bar-fill { transition: none; } }
+
+.regions-funded { margin: .45rem 0 0; font-size: .8rem; }
+.regions-locked { display: grid; gap: .6rem; margin-bottom: .6rem; }
+.regions-locked p { margin: 0; }
+.regions-pick { width: 100%; }
+.regions-presence { margin: .8rem 0 0; font-size: .8rem; }
+
+.regions-tile-art {
+  width: 2.2rem; height: 2.2rem;
+  display: grid; place-items: center;
+  border-radius: var(--r-sm);
+  background: var(--fill-2);
+  overflow: hidden;
+  font-weight: 700; color: var(--label-2);
+}
+.regions-tile-art img { max-width: 100%; max-height: 100%; }
+.regions-tile-worth,
+.regions-worth {
+  padding: .05rem .5rem;
+  border-radius: var(--r-pill);
+  background: rgba(242, 193, 78, .14);
+  color: var(--gold-lit);
+  font-size: .78rem; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.regions-back { justify-self: start; margin-bottom: .4rem; padding-left: .2rem; }
+.regions-mine { list-style: none; margin: .3rem 0 .8rem; padding: 0; display: flex; flex-wrap: wrap; gap: .35rem; }
+
+/* ---- stepping into a region ----
+   The map flies into a region the team has opened (RegionMap's useFlight),
+   the rest of the world sinks into the dark, the region takes its own colour
+   (--tint, set per region) and its tasks lie over it as glass cards. The
+   frame grows when the cards need more room than the map's shape gives. */
+.regions-map-view svg { position: absolute; inset: 0; z-index: 0; }
+.regions-sea { fill: #2b3656; }
+.regions-outside { fill: rgba(4, 6, 12, .72); pointer-events: none; }
+.regions-area.focus,
+.regions-area.focus.hovered { fill: transparent; stroke: none; cursor: default; }
+.regions-labels { transition: opacity .25s var(--ease-out); }
+.regions-labels.hidden { opacity: 0; pointer-events: none; }
+
+.regions-map-view.zoomed {
+  display: flex;
+  flex-direction: column;
+  /* clip, not hidden: a box that is not a scroll container may grow past
+     its aspect ratio to fit what is inside it. */
+  overflow: clip;
+}
+.regions-map-view.zoomed::before {
+  content: "";
+  position: absolute; inset: 0; z-index: 1;
+  pointer-events: none;
+  background:
+    radial-gradient(90% 75% at 50% 55%, color-mix(in srgb, var(--tint) 14%, transparent), transparent 70%),
+    linear-gradient(180deg,
+      color-mix(in srgb, var(--tint) 30%, rgba(5, 7, 12, .5)) 0%,
+      rgba(5, 7, 12, .12) 34%,
+      rgba(5, 7, 12, .5) 100%);
+  animation: regions-fade .7s var(--ease-out) both;
+}
+
+.regions-zoom {
+  position: relative; z-index: 2;
+  flex: 1;
+  display: flex; flex-direction: column; gap: .9rem;
+  padding: clamp(.75rem, 2.2vw, 1.35rem);
+  pointer-events: none;   /* the dark world around the cards stays pressable */
+}
+.regions-zoom > * { pointer-events: auto; }
+
+.regions-zoom-head {
+  display: flex; flex-direction: column; align-items: flex-start; gap: .55rem;
+  animation: regions-fade .5s var(--ease-out) .2s both;
+}
+.regions-zoom-back {
+  padding: .34rem .85rem .34rem .7rem;
+  border-radius: var(--r-pill);
+  border: 1px solid rgba(255, 255, 255, .18);
+  background: rgba(10, 12, 18, .62);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  color: var(--text);
+  font: inherit; font-size: .8rem; font-weight: 600;
+  text-transform: none; letter-spacing: 0;
+  cursor: pointer;
+}
+.regions-zoom-back:hover { border-color: var(--tint); filter: none; }
+.regions-zoom-title h3 {
+  margin: 0;
+  font-family: "Palatino Linotype", Palatino, Georgia, serif;
+  font-size: clamp(1.3rem, 2.6vw, 1.9rem);
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: #fff4d6;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, .75), 0 0 1px rgba(0, 0, 0, .9);
+}
+.regions-zoom-title p {
+  margin: .2rem 0 0;
+  font-size: .85rem;
+  color: rgba(235, 235, 245, .8);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, .85);
+}
+.regions-zoom-title strong { color: #fff; font-variant-numeric: tabular-nums; }
+.regions-zoom-bar { width: min(15rem, 100%); }
+.regions-zoom-bar .regions-bar-note { color: rgba(235, 235, 245, .82); text-shadow: 0 1px 4px rgba(0, 0, 0, .85); }
+.regions-zoom-bar .regions-bar-note.reached { color: #6be38a; }
+
+.regions-zoom-tiles {
+  list-style: none;
+  margin: auto 0; padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 11.5rem), 1fr));
+  gap: .55rem;
+}
+.regions-zoom-empty { margin: auto; color: rgba(235, 235, 245, .8); }
+.regions-zoom-tile {
+  width: 100%; height: 100%;
+  display: grid;
+  grid-template-columns: 2.4rem 1fr;
+  grid-template-areas: "art name" "art foot";
+  align-items: center;
+  gap: .25rem .65rem;
+  padding: .6rem .7rem;
+  border-radius: var(--r-lg);
+  border: 1px solid color-mix(in srgb, var(--tint) 38%, transparent);
+  background: rgba(13, 15, 22, .64);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+  backdrop-filter: blur(12px) saturate(1.2);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .35);
+  color: var(--text);
+  font: inherit; font-size: .85rem;
+  text-align: left; text-transform: none; letter-spacing: 0;
+  cursor: pointer;
+  transition: transform .2s var(--ease-out), border-color .2s var(--ease-out), background .2s var(--ease-out);
+  animation: regions-card-in .45s var(--ease-out) both;
+  animation-delay: calc(240ms + var(--i, 0) * 35ms);
+}
+.regions-zoom-tile:hover { transform: translateY(-2px); border-color: var(--tint); background: rgba(18, 20, 28, .82); filter: none; }
+.regions-zoom-tile:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; }
+.regions-zoom-tile.active { border-color: var(--tint); box-shadow: 0 0 0 1px var(--tint), 0 8px 24px rgba(0, 0, 0, .4); }
+.regions-zoom-tile.progress { border-color: rgba(255, 223, 149, .55); }
+.regions-zoom-tile.done { background: rgba(14, 38, 24, .78); border-color: rgba(48, 209, 88, .45); }
+.regions-zoom-tile .regions-tile-art {
+  grid-area: art;
+  width: 2.4rem; height: 2.4rem;
+  background: color-mix(in srgb, var(--tint) 20%, rgba(255, 255, 255, .04));
+  color: var(--tint);
+}
+.regions-zoom-tile-name {
+  grid-area: name;
+  min-width: 0;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
+  overflow: hidden; overflow-wrap: anywhere;
+  line-height: 1.25; font-weight: 600;
+}
+.regions-zoom-tile-foot { grid-area: foot; display: flex; align-items: center; gap: .45rem; min-width: 0; }
+.regions-zoom-tile-state { font-size: .72rem; color: var(--gold-lit); white-space: nowrap; }
+.regions-zoom-tile.done .regions-tile-worth { background: rgba(48, 209, 88, .18); color: var(--strike-lit); }
+
+@keyframes regions-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes regions-card-in {
+  from { opacity: 0; transform: translateY(8px) scale(.98); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .regions-map-view.zoomed::before,
+  .regions-zoom-head,
+  .regions-zoom-tile { animation: none; }
+}

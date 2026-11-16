@@ -36,6 +36,7 @@ const BLANK = {
   standings: [],    // bingo_standings / snakes_standings: every team, best first
   jumps: [],        // snakes: [{ from, to }] -- the snakes on the board
   territory: null,  // territory_state: who holds what, captures, attacks, bonuses
+  regions: null,    // regions_state: my team's regions, picks and tile points
 };
 
 /**
@@ -131,6 +132,7 @@ export function useGame(gameId, session, viewAs = null) {
         standings: board.standings ?? [],
         jumps: board.jumps ?? [],
         territory: board.territory ?? null,
+        regions: board.regions ?? null,
       });
     } catch (err) {
       if (seq !== loadSeq.current || gameId !== shownId.current || viewTeamId !== shownTeam.current) return;

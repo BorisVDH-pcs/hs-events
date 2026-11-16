@@ -259,6 +259,14 @@ export const territoryOpenTile = noTerritory;
 export const territoryDropTile = noTerritory;
 export const settleTerritory = () => Promise.resolve(false);
 
+// The live Region Bingo screen's calls (RegionsLive). The regions harness
+// renders RegionsGame with its own simulation instead, so here they refuse.
+const noRegions = () => Promise.reject(new Error('Not available in the harness.'));
+export const regionsOpenTile = noRegions;
+export const regionsPick = noRegions;
+export const settleRegions = () => Promise.resolve(false);
+// regionsStandings comes from stub-admin.js (the admin Track lists the teams).
+
 // Imported by AdminOverview, which the bingo overview borrows a helper from.
 // Never called on the bingo page.
 export const adminListShipCells = () => Promise.resolve([]);

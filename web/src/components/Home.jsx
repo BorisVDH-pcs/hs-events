@@ -379,6 +379,13 @@ const MODE_MARKS = {
       <path d="M12 11.5 20.4 7.3M12 11.5 3.6 7.3M12 11.5v9.9" />
     </>
   ),
+  // A folded map: the world, cut into regions.
+  regions: (
+    <>
+      <path d="M3.2 6 8.7 3.6l6.6 2.4 5.5-2.4v14.4l-5.5 2.4-6.6-2.4-5.5 2.4Z" />
+      <path d="M8.7 3.6v14.4M15.3 6v14.4" />
+    </>
+  ),
   default: (
     <>
       <path d="M6 21.4V3" />

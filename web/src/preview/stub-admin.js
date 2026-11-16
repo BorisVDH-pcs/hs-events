@@ -15,6 +15,7 @@
 import { DEFAULT_JUMPS, checkJumps } from '../lib/snakes.js';
 import { TASK_GRID, homesProblem, placeByKey, placePosition, standings, teamHomes } from '../lib/territory.js';
 import { THEMED_TASKS, writeBoard } from './territory-tasks.js';
+import { LAST_SQUARE, REGIONS, regionAt, squaresOf } from '../lib/regions.js';
 
 const uid = () => crypto.randomUUID();
 const now = () => new Date().toISOString();
@@ -101,6 +102,8 @@ function addGame({ name, mode, grid, status, teamNames, startsAt = null, endsAt 
     starts_at: startsAt, ends_at: endsAt, ended_reason: null, winner_team_id: null,
     fleet: mode === 'battleships' ? [5, 4, 3, 3, 2] : [],
     max_active_tiles: mode === 'battleships' ? 3 : 1,
+    // Every game row has it (default 50); only Region Bingo reads it.
+    region_threshold: 50,
     created_at: now(),
   });
   teamNames.forEach((n, i) => teams.push({ id: uid(), game_id: id, name: n, slot: i + 1 }));
@@ -262,6 +265,32 @@ teams.filter((t) => t.game_id === terr).forEach((t, i) => {
   });
 });
 
+// A Region Bingo being set up: eight of the eleven regions have tiles, with
+// points already varied, and the third team has players but no captain -- so
+// the checklist has both of this mode's own refusals to show.
+const regionGame = addGame({
+  name: 'Region Bingo — Leagues', mode: 'regions', grid: 10, status: 'setup',
+  teamNames: ['Lumby Lads', 'Port Sarim Pirates', 'Canifis Howlers'],
+  startsAt: inHours(36), endsAt: inHours(36 + 24 * 5),
+});
+{
+  const counts = [3, 4, 2, 3, 2, 4, 3, 2];   // Misthalin .. Karamja; the last three empty
+  let k = 20;
+  counts.forEach((n, i) => {
+    squaresOf(REGIONS[i].key).slice(0, n).forEach((position, j) => {
+      const tile = fromLibrary(library[k++ % library.length], Math.floor((position - 1) / 10) + 1, ((position - 1) % 10) + 1);
+      tile.worth = 1 + ((i + j * 3) % 5) * (j === 0 ? 1 : 2);
+      tilesByGame[regionGame].push(tile);
+    });
+  });
+}
+teams.filter((t) => t.game_id === regionGame).forEach((t, i) => {
+  PLAYERS.slice(8 + i * 3, 11 + i * 3).forEach((name, j) => {
+    const p = profiles.find((x) => x.display_name === name);
+    members.push({ team_id: t.id, profile_id: p.id, role: j === 0 && i < 2 ? 'captain' : 'member' });
+  });
+});
+
 // And one already running, for the Track pane.
 const live = addGame({
   name: 'Snakes and Ladders — Live', mode: 'snakes', grid: 10, status: 'active',
@@ -334,6 +363,7 @@ const tilesOf = (id) => (tilesByGame[id] ??= []);
 const isBingo = (g) => g?.mode === 'bingo';
 const isSnakes = (g) => g?.mode === 'snakes';
 const isTerritory = (g) => g?.mode === 'territory';
+const isRegions = (g) => g?.mode === 'regions';
 const startsOf = (id) => new Set((jumpsByGame[id] ?? []).map((j) => Number(j.from)));
 // Territory: the squares of the teams' homes, which need no task. The
 // suggested homes by slot, as the console shows them.
@@ -342,6 +372,10 @@ const homeSquaresOf = (id) => (isTerritory(game(id))
   : new Set());
 // The squares that need no task, in whichever mode.
 const skippedOf = (id) => new Set([...startsOf(id), ...homeSquaresOf(id)]);
+// Region Bingo: the last square belongs to no region, so the deal skips it.
+// Only the deal: as on the server, a tile can still be put or moved there by
+// hand, and it is start_game that refuses it.
+const unusedOf = (id) => (isRegions(game(id)) ? new Set([LAST_SQUARE + 1]) : new Set());
 
 /**
  * Hand a territory game's board to the player harness (/preview-territory.html)
@@ -495,6 +529,12 @@ export function adminNewGame({ name, mode, teams: names, gridSize = 10, endsAt =
     // Starts with no tasks: the organiser deals, loads or picks them.
     return wait(addGame({ name, mode, grid: TASK_GRID, status: 'setup', teamNames: names, endsAt }));
   }
+  if (mode === 'regions') {
+    // Always the 10x10 card the regions are cut from, whatever was asked.
+    if (!names.length) return fail('Region Bingo needs at least one team');
+    if (endsAt && Date.parse(endsAt) <= Date.now()) return fail('The end time is in the past');
+    return wait(addGame({ name, mode, grid: 10, status: 'setup', teamNames: names, endsAt }));
+  }
   if (mode === 'snakes') {
     if (!names.length) return fail('Snakes and Ladders needs at least one team');
     if (endsAt) return fail('Snakes and Ladders has no end time — it ends when a team finishes tile 100');
@@ -565,10 +605,20 @@ export function startGame(id) {
     const empty = ts.find((t) => !members.some((m) => m.team_id === t.id));
     if (empty) return fail(`${empty.name} has no players yet — add them in the roster`);
     if (g.ends_at && Date.parse(g.ends_at) <= Date.now()) return fail('The end time has already passed');
+  } else if (isRegions(g)) {
+    // regions_start_problem's three, in its order and its words.
+    const problem = regionsStartProblem(id);
+    if (problem) return fail(problem);
+    if (!ts.length) return fail('Game needs at least one team before it can start');
+    const empty = ts.find((t) => !members.some((m) => m.team_id === t.id));
+    if (empty) return fail(`${empty.name} has no players yet — add them in the roster`);
+    if (g.ends_at && Date.parse(g.ends_at) <= Date.now()) {
+      return fail('The end time has already passed — move it or clear it first');
+    }
   } else if (tilesOf(id).length !== need) {
     return fail(`The board has ${tilesOf(id).length} of ${need} tiles`);
   }
-  if (isSnakes(g) || isTerritory(g)) {
+  if (isSnakes(g) || isTerritory(g) || isRegions(g)) {
     // checked above
   } else if (isBingo(g)) {
     if (!ts.length) return fail('A bingo needs at least one team');
@@ -586,6 +636,17 @@ export function startGame(id) {
 export function adminEndGame(id) {
   const g = game(id);
   if (g.status !== 'active') return fail('Only a running game can be ended');
+  if (isRegions(g)) {
+    // Most points wins; nobody scored, nobody wins.
+    const top = regionsRows(id)[0];
+    Object.assign(g, {
+      status: 'finished',
+      ended_reason: g.ends_at && Date.parse(g.ends_at) <= Date.now() ? 'time_up' : 'admin',
+      winner_team_id: top && top.points > 0 ? top.team_id : null,
+      ended_at: now(),
+    });
+    return wait(null);
+  }
   Object.assign(g, { status: 'finished', ended_reason: 'admin', winner_team_id: null, ended_at: now() });
   return wait(null);
 }
@@ -687,12 +748,18 @@ export function adminRemoveMember(teamId, profileId) {
 
 // ---- the board -------------------------------------------------------------
 
-export const adminListTiles = (id) => wait(structuredClone(tilesOf(id)));
+// Without `worth`, as admin_list_tiles answers: the points come beside the
+// tiles (admin_tile_worths), and a console that read them off the row would
+// work here and nowhere else.
+export const adminListTiles = (id) => wait(structuredClone(tilesOf(id)).map(({ worth: _worth, ...t }) => t));
 
 export function adminSetTile(gameId, row, col, payload) {
   const list = tilesOf(gameId);
   const i = list.findIndex((t) => t.row === row && t.col === col);
   const tile = tileFromPayload(gameId, row, col, payload);
+  // admin_set_tile updates a filled square in place and leaves its worth
+  // alone, so a replaced tile keeps the square's points.
+  if (i >= 0 && list[i].worth != null) tile.worth = list[i].worth;
   if (i >= 0) list[i] = tile; else list.push(tile);
   syncTerritory(gameId);
   return wait(tile.id);
@@ -736,6 +803,7 @@ export function adminAutofillBoard(gameId) {
     for (let col = 1; col <= g.grid_size; col++) {
       if (list.some((t) => t.row === row && t.col === col)) continue;
       if (skippedOf(gameId).has(pos(row, col))) continue;   // snake heads, ladder feet, homes
+      if (unusedOf(gameId).has(pos(row, col))) continue;    // Region Bingo's square 100
       empty++;
       const entry = pool.shift();
       if (entry) { list.push(fromLibrary(entry, row, col)); filled++; }
@@ -790,6 +858,75 @@ export function adminDeleteBoardPreset(id) {
 }
 
 export const adminTestTile = () => fail('Test submit needs the database — not available in the harness.');
+
+// ---- Region Bingo ------------------------------------------------------------
+// The organiser's half. Nobody plays in this harness, so no region is ever
+// opened and every team stands on nothing: the standings are what a game
+// looks like the moment it starts, and that is all Track can show here.
+
+function regionsStartProblem(gameId) {
+  const list = tilesOf(gameId);
+  if (list.some((t) => t.position > LAST_SQUARE)) return 'Square 100 belongs to no region — clear it first';
+  const filled = new Set(list.map((t) => regionAt(t.position)).filter(Boolean));
+  const empty = REGIONS.filter((r) => !filled.has(r.key)).map((r) => r.name);
+  if (empty.length) return `Every region needs at least one tile. Still empty: ${empty.join(', ')}`;
+  const leaderless = [...teamsOf(gameId)].sort((a, b) => a.slot - b.slot)
+    .filter((t) => !members.some((m) => m.team_id === t.id && m.role === 'captain'));
+  if (leaderless.length) {
+    return `${leaderless.map((t) => t.name).join(' and ')}`
+      + `${leaderless.length === 1 ? ' needs a captain' : ' each need a captain'}`
+      + ' — the captain picks the first region. Set one in the roster';
+  }
+  return null;
+}
+
+function regionsRows(gameId) {
+  return [...teamsOf(gameId)]
+    .sort((a, b) => a.slot - b.slot)
+    .map((t, i) => ({
+      team_id: t.id, team_name: t.name, slot: t.slot, points: 0, tiles_completed: 0,
+      last_completed_at: null, regions_open: [], regions_complete: [], picks: 0,
+      needs_start: true, place: i + 1,
+    }));
+}
+
+export const regionsStandings = (gameId) => wait(regionsRows(gameId));
+
+function regionsSetupOnly(gameId, what) {
+  const g = game(gameId);
+  if (!g) return 'No such game';
+  if (!isRegions(g)) return what === 'line' ? 'Only a Region Bingo has a region threshold' : 'Only Region Bingo tiles have points';
+  if (g.status !== 'setup' && g.status !== 'placement') {
+    return what === 'line' ? 'The threshold is fixed once the game has started' : 'Points are fixed once the game has started';
+  }
+  return null;
+}
+
+export function adminSetRegionThreshold(gameId, threshold) {
+  const refused = regionsSetupOnly(gameId, 'line');
+  if (refused) return fail(refused);
+  if (!Number.isInteger(threshold) || threshold < 1 || threshold > 100) {
+    return fail('The threshold is a percentage from 1 to 100');
+  }
+  game(gameId).region_threshold = threshold;
+  return wait(null);
+}
+
+export function adminSetTileWorth(gameId, position, worth) {
+  const refused = regionsSetupOnly(gameId, 'worth');
+  if (refused) return fail(refused);
+  if (!Number.isInteger(worth) || worth < 1 || worth > 100) return fail('A tile is worth 1 to 100 points');
+  const tile = tilesOf(gameId).find((t) => t.position === position);
+  if (!tile) return fail('There is no tile on that square');
+  tile.worth = worth;
+  return wait(null);
+}
+
+export const adminTileWorths = (gameId) => wait(
+  [...tilesOf(gameId)]
+    .sort((a, b) => a.position - b.position)
+    .map((t) => ({ position: t.position, worth: t.worth ?? 1 }))
+);
 
 // ---- the catalogue -------------------------------------------------------
 

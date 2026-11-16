@@ -12,6 +12,7 @@ import TileForm from './TileForm.jsx';
 import SnakesBoard from './snakes/SnakesBoard.jsx';
 import { placeAtPosition, placePosition } from '../lib/territory.js';
 import { REGIONS } from '../lib/territoryWorld.js';
+import { LAST_SQUARE, PER_REGION, regionAt } from '../lib/regions.js';
 import { statusLabel } from '../lib/status.js';
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion.js';
 import {
@@ -123,17 +124,28 @@ export default function BoardBuilder({
     () => new Map(territory && homes ? [...homes].map(([key, team]) => [placePosition(key), team]) : []),
     [territory, homes]
   );
+  // Region Bingo: the 10x10 card cut into the eleven regions, nine squares
+  // each (lib/regions.js), so a square is called by its region. The last
+  // square belongs to none and must stay empty -- start_game refuses a tile
+  // there -- so it is a square that needs no task, like a snake's head.
+  const regions = game.mode === 'regions';
+  const unusedSquares = useMemo(
+    () => new Map(regions ? [[LAST_SQUARE + 1, true]] : []),
+    [regions]
+  );
   // The squares that need no task, whichever mode makes them so.
-  const noTask = snakes ? jumpStarts : homeSquares;
+  const noTask = snakes ? jumpStarts : regions ? unusedSquares : homeSquares;
   const need = size * size - noTask.size;
   // Tiles left on a jump start (or a home) by an older layout or a loaded
   // board: never played, and worth clearing so the board says what is really
   // on it.
   const stranded = tiles.filter((t) => noTask.has(t.position));
   const filled = tiles.length - stranded.length;
+  const regionsFilled = regions ? new Set(tiles.map((t) => regionAt(t.position)).filter(Boolean)).size : 0;
   const squareLabel = (row, col) => (snakes ? `Tile ${toPosition(row, col)}`
     : territory ? placeAtPosition(toPosition(row, col))?.name ?? coordLabel(row, col)
-      : coordLabel(row, col));
+      : regions ? regionSquareLabel(toPosition(row, col))
+        : coordLabel(row, col));
 
   const byPosition = useMemo(
     () => new Map(tiles.map((t) => [t.position, t])),
@@ -247,10 +259,11 @@ export default function BoardBuilder({
       const { row, col } = fromPosition(t.position);
       map.set(key, snakes ? `Tile ${t.position}`
         : territory ? placeAtPosition(t.position)?.name ?? coordLabel(row, col)
-          : coordLabel(row, col));
+          : regions ? regionSquareLabel(t.position)
+            : coordLabel(row, col));
     }
     return map;
-  }, [tiles, current, snakes, territory]);
+  }, [tiles, current, snakes, territory, regions]);
 
   /**
    * The artwork, which is the whole of what a player sees.
@@ -401,7 +414,7 @@ export default function BoardBuilder({
   function nextEmptyAfter(position) {
     const order = snakes
       ? Array.from({ length: LAST_TILE }, (_, i) => i + 1).filter((n) => !jumpStarts.has(n))
-      : cardCells(size).map((c) => c.position).filter((n) => !homeSquares.has(n));
+      : cardCells(size).map((c) => c.position).filter((n) => !noTask.has(n));
     const from = order.indexOf(position);
     for (let step = 1; step <= order.length; step += 1) {
       const p = order[(from + step) % order.length];
@@ -688,7 +701,8 @@ export default function BoardBuilder({
         </p>
         <BuilderGrid size={size} tiles={byPosition} at={null} onPick={() => {}}
                      snakes={snakes} jumpStarts={jumpStarts}
-                     territory={territory} homeSquares={homeSquares} />
+                     territory={territory} homeSquares={homeSquares}
+                     regions={regions} />
       </section>
     );
   }
@@ -727,7 +741,9 @@ export default function BoardBuilder({
           </>
         ) : (
           <>
-            {territory ? <>{filled} of {need} places have a task.</> : <>{filled} of {need} squares filled.</>}
+            {regions
+              ? <>{filled} task{filled === 1 ? '' : 's'} placed, in {regionsFilled} of {REGIONS.length} regions.</>
+              : territory ? <>{filled} of {need} places have a task.</> : <>{filled} of {need} squares filled.</>}
             {territory && filled === 0 && ' The map starts with no tasks. Deal them at random from the catalogue, load a saved board, or give each place its own.'}
             {filled < need && (territory
               ? ' Click a place, then a tile to make it that place’s task.'
@@ -737,6 +753,9 @@ export default function BoardBuilder({
             {snakes && jumpStarts.size === 0 && ' Place the snakes and ladders first: their squares need no task.'}
             {territory && homeSquares.size > 0 && ` The ${homeSquares.size} homes need no task: nobody can take them.`}
             {territory && ' Each square is a place on the map, region by region.'}
+            {regions && ` Each region owns ${PER_REGION} squares, shaded in turn, and needs at least one task —`
+              + ` it need not fill all ${PER_REGION}. ${coordLabel(size, size)} belongs to no region and stays`
+              + ' empty. Points are set on the Points tab.'}
             {' Arrow keys move around the board; Enter opens the square.'}
           </>
         )}
@@ -998,10 +1017,15 @@ export default function BoardBuilder({
         <p className="builder-undo">
           <span>
             <b>{stranded.length}</b> task{stranded.length === 1 ? ' sits' : 's sit'} on
-            {territory
+            {regions
+              // Only the last square can be one, so it is named outright, and
+              // so are the spaces: JSX drops the ones at a line break. Its own
+              // ending too: what it costs here is the start, which refuses it.
+              ? <>{' '}{coordLabel(size, size)}, which belongs to no region — the game cannot start until it is cleared.</>
+              : territory
               ? <>a team&rsquo;s home ({stranded.map((t) => placeAtPosition(t.position)?.name).join(', ')}) —</>
               : <>a snake head or ladder bottom ({stranded.map((t) => t.position).join(', ')}) —</>}
-            nobody lands there, so {stranded.length === 1 ? 'it is' : 'they are'} never played.
+            {!regions && <>nobody lands there, so {stranded.length === 1 ? 'it is' : 'they are'} never played.</>}
           </span>
           <button
             className="ghost"
@@ -1203,6 +1227,7 @@ export default function BoardBuilder({
             jumpStarts={jumpStarts}
             territory={territory}
             homeSquares={homeSquares}
+            regions={regions}
             live={live}
             playerView={playerView}
             at={at}
@@ -1264,6 +1289,14 @@ export default function BoardBuilder({
                 onHold={(entry) => setHeld(entry)}
               />
             </>
+          ) : at && unusedSquares.has(toPosition(at.row, at.col)) ? (
+            <UnusedSquarePanel
+              label={squareLabel(at.row, at.col)}
+              tile={live ? null : current}
+              busy={busy}
+              onClose={() => setAt(null)}
+              onClear={() => { remember(at.row, at.col); onClearTile(at.row, at.col); }}
+            />
           ) : at && homeSquares.has(toPosition(at.row, at.col)) ? (
             <HomeSquarePanel
               label={squareLabel(at.row, at.col)}
@@ -2097,14 +2130,63 @@ function HomeSquarePanel({ label, team, tile, busy, onClose, onClear }) {
   );
 }
 
+/** Region Bingo's last square, which belongs to no region. */
+function UnusedSquarePanel({ label, tile, busy, onClose, onClear }) {
+  return (
+    <>
+      <div className="row builder-head">
+        <h3>{label}</h3>
+        <button className="ghost" onClick={onClose}>Done</button>
+      </div>
+      <p className="muted">
+        The eleven regions take nine squares each, which leaves this one over. It
+        belongs to no region, so it holds no task and the game cannot start with
+        one on it.
+      </p>
+      {tile && (
+        <div className="builder-current">
+          <p className="muted">
+            <b>{tile.name}</b> is on this square and would never be played.
+          </p>
+          <button className="ghost danger" disabled={busy} onClick={onClear}>
+            Clear square
+          </button>
+        </div>
+      )}
+    </>
+  );
+}
+
 // Alternate shading per region on a territory card, so where one region ends
 // and the next begins reads at a glance.
 const REGION_SHADE = new Map(REGIONS.map((r, i) => [r.key, i % 2 ? 'b' : 'a']));
 const REGION_NAME = new Map(REGIONS.map((r) => [r.key, r.name]));
+// The cell caption on a region card has the width of one square, so the long
+// names are cut to the word players use anyway. The full name is in the
+// tooltip and the panel.
+const REGION_SHORT = new Map(REGIONS.map((r) => [r.key, {
+  fremennik: 'Fremennik', desert: 'Desert', kourend: 'Kourend',
+}[r.key] ?? r.name]));
+
+/**
+ * A Region Bingo square by its region and its place among that region's nine:
+ * "Misthalin 3". The coordinate means nothing to anyone here -- players see
+ * the regions on a map, never the grid -- so it is only the last resort, for
+ * the square that belongs to no region.
+ */
+function regionSquareLabel(position) {
+  const key = regionAt(position);
+  if (!key) {
+    const { row, col } = fromPosition(position);
+    return `${coordLabel(row, col)} (no region)`;
+  }
+  return `${REGION_NAME.get(key)} ${((position - 1) % PER_REGION) + 1}`;
+}
 
 function BuilderGrid({
   size = GRID, tiles, at, onPick, playerView = false, live = false,
   snakes = false, jumpStarts = new Map(), territory = false, homeSquares = new Map(),
+  regions = false,
 }) {
   const gridRef = useRef(null);
   // Which cell the Tab key lands on — a roving tabindex, so the board is one
@@ -2240,7 +2322,13 @@ function BuilderGrid({
               const place = territory ? placeAtPosition(position) : null;
               const home = homeSquares.get(position);
               const isHome = home !== undefined;
-              const where = place ? `${place.name} (${REGION_NAME.get(place.region)})` : coordLabel(row, col);
+              // Region Bingo: the region this square belongs to, or none for
+              // the last square, which is drawn as not in use.
+              const region = regions ? regionAt(position) : null;
+              const unused = regions && !region;
+              const where = place ? `${place.name} (${REGION_NAME.get(place.region)})`
+                : region ? regionSquareLabel(position)
+                  : coordLabel(row, col);
               return (
                 <button
                   key={`${row}-${col}`}
@@ -2249,9 +2337,11 @@ function BuilderGrid({
                   tabIndex={position === focusPos ? 0 : -1}
                   className={[
                     'tile-cell builder-cell',
-                    tile || isHome ? '' : 'empty',
+                    tile || isHome || unused ? '' : 'empty',
                     place ? `territory-cell region-${REGION_SHADE.get(place.region)}` : '',
+                    region ? `territory-cell regions-cell region-${REGION_SHADE.get(region)}` : '',
                     isHome ? 'jump-start home-square' : '',
+                    unused ? 'jump-start regions-unused' : '',
                     here ? 'on' : '',
                     playerView ? 'as-player' : '',
                     // Only while a game is live, because before one starts
@@ -2262,18 +2352,24 @@ function BuilderGrid({
                   onClick={() => onPick(row, col, 'pointer')}
                   title={isHome
                     ? `${where} — ${home}'s home, no task needed`
-                    : live && tile?.claimed
-                      ? `${tile.name} — locked in by a team`
-                      : tile ? (place ? `${where}: ${tile.name}` : tile.name) : `${where} — empty`}
+                    : unused
+                      ? `${where} — belongs to no region, so it stays empty${tile ? ` (${tile.name} is on it)` : ''}`
+                      : live && tile?.claimed
+                        ? `${tile.name} — locked in by a team`
+                        : tile ? (place || region ? `${where}: ${tile.name}` : tile.name) : `${where} — empty`}
                 >
                   {/* In the player view the artwork is the whole cell, the
                       way it is on the enemy board: no caption to read the
                       square by, which is the point of looking. `standIn` so a
                       square with no icon shows the same placeholder a team
                       would actually be given, rather than looking empty. */}
-                  {!playerView && <b>{place ? place.name : coordLabel(row, col)}</b>}
+                  {!playerView && (
+                    <b>{place ? place.name : region ? REGION_SHORT.get(region) : coordLabel(row, col)}</b>
+                  )}
                   {isHome ? (
                     <span className="jump-start-what">🏠 Home</span>
+                  ) : unused ? (
+                    <span className="jump-start-what">Not used</span>
                   ) : (
                     <>
                       {playerView

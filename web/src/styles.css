@@ -7106,3 +7106,125 @@ body.dragging-jump * { cursor: grabbing !important; user-select: none; }
   .datetime-icon { transition: none; }
 }
 @keyframes datetime-fade { from { opacity: 0; } to { opacity: 1; } }
+
+/* ==========================================================================
+   Region Bingo — organiser
+   The board builder's region squares and the Points step (RegionPoints.jsx).
+   One contiguous block; the players' side keeps its own section.
+   ========================================================================== */
+
+/* The builder: a region's nine squares wrap across rows of ten, so the
+   alternate shade is a touch stronger than territory's, where a region is a
+   tidy run of places. */
+button.builder-cell.regions-cell.region-b:not(.on) { background-color: rgba(242, 193, 78, .075); }
+/* The square that belongs to no region: hatched, so it reads as not part of
+   the card rather than as one more empty square to fill. */
+button.builder-cell.regions-unused {
+  background: repeating-linear-gradient(135deg, var(--fill-3) 0 6px, transparent 6px 12px);
+  border-style: dashed;
+  opacity: .7;
+}
+button.builder-cell.regions-unused.on { opacity: 1; }
+
+/* ---- Points ---- */
+.region-points-locked { margin-top: 0; }
+
+/* The line: one control, its value large beside its name, the rule under it
+   in plain words. */
+.region-line {
+  display: grid; gap: var(--s-2);
+  margin: var(--s-2) 0 var(--s-5);
+  padding: var(--s-4);
+  border-radius: var(--r-lg);
+  background: var(--fill-3);
+}
+.region-line-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-3); }
+.region-line-head label {
+  display: block; font-size: var(--t-subhead); font-weight: 600; color: var(--text);
+}
+.region-line-value {
+  font-size: var(--t-title2); font-weight: 700; color: var(--gold);
+  font-variant-numeric: tabular-nums; letter-spacing: -.02em;
+}
+.region-line input[type="range"] {
+  width: 100%; padding: 0; margin: 0;
+  background: none; border: none; box-shadow: none;
+  accent-color: var(--gold);
+}
+.region-line p { margin: 0; }
+.region-line .row { margin-top: var(--s-1); }
+
+.region-points-sum { margin: 0 0 var(--s-3); color: var(--label-2); font-size: var(--t-subhead); }
+
+/* One card per region, in map order, as many across as fit. */
+.region-points-grid {
+  display: grid; gap: var(--s-3);
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+}
+.region-points-card {
+  display: grid; align-content: start; gap: var(--s-2);
+  padding: var(--s-3) var(--s-4) var(--s-4);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  background: var(--panel-solid);
+}
+.region-points-card header {
+  display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-2);
+}
+.region-points-card h3 { margin: 0; }
+.region-points-need {
+  font-size: var(--t-footnote); color: var(--label-2); white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.region-points-need b { color: var(--gold); font-weight: 700; }
+.region-points-need.missing { color: var(--hit-lit); }
+/* An empty region is the thing to fix on this screen, so it is the one card
+   that is outlined. */
+.region-points-card.empty { border-color: rgba(255, 69, 58, .45); background: rgba(255, 69, 58, .05); }
+.region-points-card.empty p { margin: 0; font-size: var(--t-footnote); }
+
+.region-points-card ul { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-1); }
+.region-points-card li {
+  display: grid; grid-template-columns: 1.6rem minmax(0, 1fr) auto;
+  align-items: center; gap: var(--s-2);
+  min-height: 2.2rem;
+}
+.region-points-card li .tile-icon,
+.region-points-icon { width: 1.6rem; height: 1.6rem; object-fit: contain; }
+.region-points-icon { display: block; border-radius: var(--r-xs); background: var(--fill-3); }
+.region-points-name {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: var(--t-subhead);
+}
+.region-points-error { grid-column: 2 / -1; margin: 0; font-size: var(--t-footnote); }
+.region-points-fixed { font-size: var(--t-footnote); color: var(--label-2); font-variant-numeric: tabular-nums; }
+
+/* The stepper: − [n] +, one pill. Big enough targets for a thumb. */
+.region-points-stepper {
+  display: inline-flex; align-items: center;
+  border-radius: var(--r-pill);
+  background: var(--fill-3);
+  transition: opacity .2s var(--ease-out);
+}
+.region-points-stepper.saving { opacity: .6; }
+.region-points-stepper button {
+  width: 2rem; height: 2rem; padding: 0;
+  border-radius: var(--r-pill);
+  background: none;
+  font-size: 1.05rem; line-height: 1;
+}
+.region-points-stepper button:disabled { background: none; }
+.region-points-stepper input {
+  width: 2.6rem; padding: .2rem 0;
+  border: none; background: none;
+  text-align: center; font-weight: 600; font-variant-numeric: tabular-nums;
+}
+.region-points-stepper input:focus { background: var(--fill-2); box-shadow: var(--glow-sm); }
+.region-points-card li.has-error .region-points-stepper { box-shadow: 0 0 0 1px rgba(255, 69, 58, .55); }
+
+@media (max-width: 420px) {
+  .region-points-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .region-points-stepper { transition: none; }
+}

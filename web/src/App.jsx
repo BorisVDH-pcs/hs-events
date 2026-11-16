@@ -33,6 +33,7 @@ import SideNav from './components/SideNav.jsx';
 import BingoGame from './components/bingo/BingoGame.jsx';
 import SnakesGame from './components/snakes/SnakesGame.jsx';
 import TerritoryLive from './components/territory/TerritoryLive.jsx';
+import RegionsLive from './components/regions/RegionsLive.jsx';
 import ChallengeGame from './components/challenge/ChallengeGame.jsx';
 import { listMyGames } from './lib/games.js';
 import { readMuted, writeMuted } from './lib/sound.js';
@@ -587,9 +588,10 @@ export default function App() {
   const isSnakes = game.game?.mode === 'snakes';
   const isTerritory = game.game?.mode === 'territory';
   const isChallenge = game.game?.mode === 'challenge';
+  const isRegions = game.game?.mode === 'regions';
   // Everything written for battleships alone: the guide, its board, its slots.
   const isBattleships = Boolean(game.game)
-    && !isBingo && !isSnakes && !isTerritory && !isChallenge;
+    && !isBingo && !isSnakes && !isTerritory && !isChallenge && !isRegions;
   const guideMode = isSnakes ? 'snakes' : isTerritory ? 'territory' : 'battleships';
   // Matches the column's own default, set to 3 by migration 0031. It was 2
   // here long after the database moved, which is the kind of disagreement that
@@ -701,9 +703,9 @@ export default function App() {
             {muted ? '🔇' : '🔊'}
             <span className="sound-toggle-label">{muted ? 'Sound off' : 'Sound on'}</span>
           </button>
-          {/* Battleships, Snakes and Territory have a guide; bingo and
-              challenge have no written rules yet. */}
-          {showBoard && !isBingo && !isChallenge && (
+          {/* Battleships, Snakes and Territory have a guide; bingo, Region
+              Bingo and challenge have no written rules yet. */}
+          {showBoard && !isBingo && !isChallenge && !isRegions && (
             <button className="link" onClick={() => guideRef.current?.openWelcome()}>
               📖 How to Play
             </button>
@@ -767,7 +769,7 @@ export default function App() {
         />
       )}
 
-      {showBoard && !isBingo && !isChallenge && (
+      {showBoard && !isBingo && !isChallenge && !isRegions && (
         <Guide
           ref={guideRef}
           // Re-mounted per mode, so a game switch never shows the other's steps.
@@ -871,6 +873,21 @@ export default function App() {
           myRole={myRole}
           tiles={tiles}
           territory={game.territory}
+          events={events}
+          evidence={evidence}
+          onRefresh={game.refresh}
+        />
+      )}
+
+      {game.game && !waitingScreen && isRegions && (
+        <RegionsLive
+          game={game.game}
+          teams={teams}
+          myTeamId={myTeamId}
+          myRole={myRole}
+          tiles={tiles}
+          regions={game.regions}
+          standings={game.standings}
           events={events}
           evidence={evidence}
           onRefresh={game.refresh}

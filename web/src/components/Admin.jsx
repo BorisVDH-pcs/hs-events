@@ -15,7 +15,7 @@ import {
   adminSaveBoardPreset, adminApplyBoardPreset, adminDeleteBoardPreset,
   adminNewGame, adminAddTeam, adminDeleteTeam, adminSetEndTime, adminEndGame,
   listBoardJumps, adminSetSnakes, adminSetTerritoryHomes, snakesStandings, adminSnakesEndGame,
-  territoryStandings,
+  territoryStandings, regionsStandings,
   adminListTileSubmissions, adminAcceptTileSubmission, adminRefuseTileSubmission,
   adminNewChallenge, adminChallengeEntries, adminChallengeSetFigure,
   adminChallengeVerify, adminChallengeSetTeam, adminChallengeWom,
@@ -27,6 +27,9 @@ import { LAST_TILE, isLadder } from '../lib/snakes.js';
 import { TASK_GRID, homesProblem, placePosition, teamHomes } from '../lib/territory.js';
 import TerritoryHomes from './territory/TerritoryHomes.jsx';
 import TerritoryAdminTrack from './territory/TerritoryAdminTrack.jsx';
+import RegionPoints from './regions/RegionPoints.jsx';
+import RegionStandings from './regions/RegionStandings.jsx';
+import { REGIONS, boardProblems, pts, regionAt } from '../lib/regions.js';
 import SnakesJumpEditor from './snakes/SnakesJumpEditor.jsx';
 import useJumpDraft from './snakes/useJumpDraft.js';
 import SnakesAdminTrack from './snakes/SnakesAdminTrack.jsx';
@@ -98,6 +101,18 @@ const TERRITORY_STEP_HINT = {
   finished:  'This conquest is over.',
 };
 
+// Region Bingo starts like bingo -- preparation optional -- but its card is cut
+// into the eleven regions, and nothing happens at the start until each team's
+// captain picks a first region. So a captain is part of being ready here.
+const REGIONS_STEP_HINT = {
+  setup:     'Give every region at least one tile and set their points, add players and a captain to '
+           + 'every team, then start — or open preparation first so players can see their team.',
+  placement: 'Players can see their team and the countdown. Once you start, each captain picks their '
+           + 'team’s first region.',
+  active:    'Region Bingo is running. It ends when the end time passes, or when you end it.',
+  finished:  'This Region Bingo is over.',
+};
+
 // A challenge has no board to fill and no fleet to wait on, so the only thing
 // between creating one and starting it is people signing up -- which is theirs
 // to do, not the organiser's.
@@ -115,6 +130,7 @@ const isBingoGame = (g) => g?.mode === 'bingo';
 const isSnakesGame = (g) => g?.mode === 'snakes';
 const isTerritoryGame = (g) => g?.mode === 'territory';
 const isChallengeGame = (g) => g?.mode === 'challenge';
+const isRegionsGame = (g) => g?.mode === 'regions';
 const NO_JUMPS = [];
 // Same reason as NO_JUMPS: a fresh [] every render would be a new
 // dependency every render, and loadGames below is keyed on it.
@@ -200,6 +216,20 @@ function readinessGaps(game, counts, teams, members, jumps = NO_JUMPS, setup = n
     if (counts && counts.tile_count < need) gaps.push(`${need - counts.tile_count} more tasks`);
     if (gameTeams.length && homesProblem(teamHomes(gameTeams))) gaps.push('homes');
     if (gameTeams.length === 0) gaps.push('a team');
+    if (gameTeams.some((t) => !members.some((m) => m.team_id === t.id))) gaps.push('players');
+    return gaps;
+  }
+
+  // Region Bingo: a tile in every region, not a full card. Fewer tiles than
+  // regions is the only shortfall a count can prove; which region is empty is
+  // the checklist's to say. The line always has a value (50 unless changed),
+  // so there is nothing about it to badge.
+  if (isRegionsGame(game)) {
+    if (counts && counts.tile_count < REGIONS.length) gaps.push('a tile in every region');
+    if (gameTeams.length === 0) gaps.push('a team');
+    if (gameTeams.some((t) => !members.some((m) => m.team_id === t.id && m.role === 'captain'))) {
+      gaps.push('a captain');
+    }
     if (gameTeams.some((t) => !members.some((m) => m.team_id === t.id))) gaps.push('players');
     return gaps;
   }
@@ -294,6 +324,11 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
   // game opens where you were working on it.
   const [configTabs, setConfigTabs] = useState(() => readTabMemory(CONFIG_TABS_KEY));
   const [trackTabs, setTrackTabs] = useState(() => readTabMemory(TRACK_TABS_KEY));
+  // Region Bingo games whose Points tab has been opened, by id. The nearest
+  // thing to "the points have been looked at" there is: a board left at 1
+  // point a tile and a 50% line is a legal game, so nothing can be wrong with
+  // it -- only unconsidered. Remembered like the tabs, so it survives a reload.
+  const [pointsSeen, setPointsSeen] = useState(() => readTabMemory(POINTS_SEEN_KEY));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
@@ -637,6 +672,7 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
   const snakesMode = isSnakesGame(game);
   const territoryMode = isTerritoryGame(game);
   const challengeMode = isChallengeGame(game);
+  const regionsMode = isRegionsGame(game);
   const challengeSetup = game ? challengeSetups[game.id] ?? null : null;
   // Each team's home: the one the organiser picked, or the suggestion for its
   // slot until they do. A home needs no task, like a snake's head.
@@ -648,8 +684,9 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
     { refresh: ['games'] }
   );
   // Bingo and snakes share everything about teams and starting: any number of
-  // teams, no captains or fleets to wait on, preparation optional.
-  const cardLike = bingo || snakesMode || territoryMode;
+  // teams, no captains or fleets to wait on, preparation optional. Region
+  // Bingo too, except that it does wait on captains -- its checklist says so.
+  const cardLike = bingo || snakesMode || territoryMode || regionsMode;
   const teamsWithoutPlayers = gameTeams.filter((t) => !members.some((m) => m.team_id === t.id));
 
   // Bingo's list is shorter because start_game asks less of it: a full card,
@@ -754,6 +791,43 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
     ...cardChecks.filter((c) => c.key !== 'tiles'),
   ] : null;
 
+  // Region Bingo: regions_start_problem's rules, said up front -- a tile in
+  // every region, nothing on the square that belongs to none, and a captain on
+  // every team, since the captain picks the first region. Then bingo's teams
+  // and players. The points are never wrong, only unreviewed, so that row is
+  // optional.
+  const regionsEmpty = regionsMode
+    ? REGIONS.filter((r) => !tiles.some((t) => regionAt(t.position) === r.key))
+    : [];
+  const regionsChecks = game && regionsMode ? [
+    {
+      key: 'tiles', label: 'Tiles', required: true,
+      ok: boardProblems(tiles).length === 0,
+      detail: `${REGIONS.length - regionsEmpty.length} of ${REGIONS.length} regions`,
+      fix: tiles.length === 0
+        ? 'Nothing on the board yet. Every region needs at least one tile, and can hold up to nine.'
+        : boardProblems(tiles).join(' '),
+    },
+    {
+      key: 'points', label: 'Points', required: false,
+      ok: Boolean(pointsSeen[game.id]),
+      detail: `line at ${game.region_threshold ?? 50}%`,
+      fix: 'Every tile is worth 1 point until you change it, and a region completes at 50% of its points. '
+        + 'Look them over before the start — both are fixed once it begins.',
+    },
+    ...cardChecks.filter((c) => c.key === 'teams' || c.key === 'roster'),
+    {
+      key: 'captains', label: 'Captains', required: true,
+      ok: gameTeams.length > 0 && teamsWithoutCaptain.length === 0,
+      detail: `${gameTeams.length - teamsWithoutCaptain.length} of ${gameTeams.length}`,
+      fix: teamsWithoutCaptain.length
+        ? `${teamsWithoutCaptain.map((t) => t.name).join(' and ')} — the captain picks the team’s first `
+          + 'region once the game starts, so every team needs one.'
+        : 'Add a team first.',
+    },
+    ...cardChecks.filter((c) => c.key === 'signups' || c.key === 'discord'),
+  ] : null;
+
   // Challenge: no board, no captains, no fleets. What stands between it and
   // starting is people signing up, which is theirs to do and not the
   // organiser's -- so this list is shorter than every other mode's and most of
@@ -795,7 +869,7 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
     },
   ] : null;
 
-  const checks = !game ? [] : challengeChecks ?? bingoChecks ?? snakesChecks ?? territoryChecks ?? [
+  const checks = !game ? [] : challengeChecks ?? bingoChecks ?? snakesChecks ?? territoryChecks ?? regionsChecks ?? [
     {
       key: 'tiles', label: 'Tiles', required: true,
       ok: tiles.length === needTiles,
@@ -897,11 +971,21 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
   const activePane = !game && !GAME_INDEPENDENT_PANES.includes(allowedPane) ? 'games' : allowedPane;
 
   const storedConfigTab = (game && configTabs[game.id]) || 'game';
+  const configTabList = challengeMode ? CHALLENGE_CONFIG_TABS
+    : regionsMode ? REGIONS_CONFIG_TABS
+      : CONFIG_TABS;
   // A remembered tab can name one this mode does not have — the same browser
   // was on Board for the last game it opened.
-  const configTab = challengeMode && !CHALLENGE_CONFIG_TABS.some((t) => t.key === storedConfigTab)
-    ? 'game'
-    : storedConfigTab;
+  const configTab = configTabList.some((t) => t.key === storedConfigTab) ? storedConfigTab : 'game';
+  const pointsOpen = activePane === 'configure' && regionsMode && configTab === 'points';
+  useEffect(() => {
+    if (!pointsOpen || !game || pointsSeen[game.id]) return;
+    setPointsSeen((prev) => {
+      const next = { ...prev, [game.id]: true };
+      writeTabMemory(POINTS_SEEN_KEY, next);
+      return next;
+    });
+  }, [pointsOpen, game, pointsSeen]);
   const openConfigTab = (key) => {
     if (!game) return;
     setConfigTabs((prev) => {
@@ -1034,7 +1118,8 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
             : mode === 'bingo' ? 'Bingo created. Fill its card next.'
               : mode === 'snakes' ? 'Snakes and Ladders created. Place the snakes and ladders, then fill the board.'
                 : mode === 'territory' ? 'Territory created. Its places have no tasks yet — fill them on the Board tab.'
-                  : 'Game created. Add its tiles next.')
+                  : mode === 'regions' ? 'Region Bingo created. Give each region its tiles on the Board tab, then set their points.'
+                    : 'Game created. Add its tiles next.')
             .then((id) => {
               if (worked(id) && id) { setGameId(id); setPane('configure'); }
               return id;
@@ -1069,6 +1154,7 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
                   )}
                   {isSnakesGame(g) && <span className="pill mode-pill">Snakes &amp; Ladders</span>}
                   {isTerritoryGame(g) && <span className="pill mode-pill">Territory</span>}
+                  {isRegionsGame(g) && <span className="pill mode-pill">Region Bingo</span>}
                   {isChallengeGame(g) && <span className="pill mode-pill">Challenge</span>}
                   {g.is_featured && (
                     <span className="pill" title="Unassigned players see this game's countdown">
@@ -1224,7 +1310,7 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
             tab={configTab}
             onPick={openConfigTab}
             badge={configTabBadge}
-            tabs={challengeMode ? CHALLENGE_CONFIG_TABS : CONFIG_TABS}
+            tabs={configTabList}
           />
 
           {/* All four stay mounted and only the open one shows, so a half-typed
@@ -1237,10 +1323,12 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
               {bingo && <span className="pill mode-pill">Bingo · {game.grid_size}×{game.grid_size}</span>}
               {snakesMode && <span className="pill mode-pill">Snakes &amp; Ladders</span>}
               {territoryMode && <span className="pill mode-pill">Territory</span>}
+              {regionsMode && <span className="pill mode-pill">Region Bingo</span>}
               {challengeMode && <span className="pill mode-pill">Challenge</span>}{' '}
               {(challengeMode ? CHALLENGE_STEP_HINT : bingo ? BINGO_STEP_HINT
                 : snakesMode ? SNAKES_STEP_HINT
-                : territoryMode ? TERRITORY_STEP_HINT : STEP_HINT)[game.status]}
+                : territoryMode ? TERRITORY_STEP_HINT
+                : regionsMode ? REGIONS_STEP_HINT : STEP_HINT)[game.status]}
             </p>
 
             <SetupChecklist
@@ -1277,7 +1365,9 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
                       ? 'The race has started — every team can roll.'
                       : territoryMode
                         ? 'The conquest has begun — every team marches out from home.'
-                        : 'Game started — fleets are now frozen.'))}
+                        : regionsMode
+                          ? 'Region Bingo has started — each captain now picks their team’s first region.'
+                          : 'Game started — fleets are now frozen.'))}
               >
                 {challengeMode ? 'Start event' : 'Start game'}
               </button>
@@ -1371,6 +1461,39 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
                   End game now
                 </button>
               )}
+              {/* Region Bingo: most points wins, and the dialog names the team
+                  on top now. A tile landing in between can change that; the
+                  server works the standings out again as it ends the game,
+                  and the feed names whoever it finds. */}
+              {regionsMode && game.status === 'active' && (
+                <button
+                  className="danger"
+                  disabled={busy}
+                  onClick={async () => {
+                    let rows;
+                    try {
+                      rows = (await regionsStandings(game.id)) ?? [];
+                    } catch (err) {
+                      setError(err.message);
+                      return;
+                    }
+                    const leader = rows[0];
+                    const scored = Boolean(leader && leader.points > 0);
+                    const message = scored
+                      ? `${leader.team_name} leads with ${pts(leader.points)} and wins unless a tile `
+                        + 'lands before you confirm.\nSubmissions and picks close now for every team.'
+                      : 'Nobody has scored yet, so nobody wins.\nSubmissions and picks close now for every team.';
+                    if (!(await confirm(message, {
+                      title: `End "${game.name}" now?`,
+                      confirmLabel: scored ? `End it — ${leader.team_name} wins` : 'End the game',
+                      danger: true,
+                    }))) return;
+                    run(() => adminEndGame(game.id), 'Region Bingo is over.');
+                  }}
+                >
+                  End game now
+                </button>
+              )}
               {/* Challenge: the same button, and deliberately the same one —
                   admin_end_game hands a challenge to challenge_end, because
                   ending a game is one button whatever the mode. A ranking
@@ -1438,7 +1561,7 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
                 server refuses every submission, and the standings at that point
                 are the result. Editable while running, so an evening can be
                 extended — but never into the past, which would end it by stealth. */}
-            {(bingo || territoryMode || challengeMode) && game.status !== 'finished' && (
+            {(bingo || territoryMode || challengeMode || regionsMode) && game.status !== 'finished' && (
               <TimeEditor
                 label="End time"
                 hint={challengeMode
@@ -1448,7 +1571,9 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
                 resetKey={game.id}
                 busy={busy}
                 onSave={(iso) => run(() => adminSetEndTime(game.id, iso),
-                  iso ? 'End time saved.' : 'End time cleared — the game now runs until a card is full.')}
+                  iso ? 'End time saved.'
+                    : regionsMode ? 'End time cleared — the game now runs until you end it.'
+                      : 'End time cleared — the game now runs until a card is full.')}
               />
             )}
 
@@ -1468,6 +1593,33 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
                       { title: `Reset "${game.name}" to preparation?`, confirmLabel: 'Reset it', danger: true }
                     ))) return;
                     run(() => adminResetGame(game.id, true), 'Bingo reset — every tile is open again once you start.');
+                  }}
+                >
+                  Reset to preparation
+                </button>
+              </div>
+            )}
+
+            {/* admin_reset_game re-locks every region, so the captains pick
+                again from the start. */}
+            {regionsMode && (game.status === 'active' || game.status === 'finished') && (
+              <div className="row" style={{ marginTop: '.8rem' }}>
+                <button
+                  className="danger"
+                  disabled={busy}
+                  onClick={async () => {
+                    if (!(await confirm(
+                      'Cleared: every completed tile and submission, every region a team opened and every '
+                      + 'pick, the activity feed, and the winner. Every region is locked again.\n'
+                      + 'Kept: the tiles and their points, the line, the teams and the roster.\n\n'
+                      + (game.ends_at && Date.parse(game.ends_at) <= Date.now()
+                        ? 'The end time has already passed — set a new one before starting again.\n\n'
+                        : '')
+                      + 'This cannot be undone.',
+                      { title: `Reset "${game.name}" to preparation?`, confirmLabel: 'Reset it', danger: true }
+                    ))) return;
+                    run(() => adminResetGame(game.id, true),
+                      'Region Bingo reset — once you start, each captain picks a first region again.');
                   }}
                 >
                   Reset to preparation
@@ -1816,6 +1968,21 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
           />
           </div>
 
+          {/* Region Bingo's own step: what each tile is worth, and the line.
+              Keyed on the game so a half-typed number never follows the
+              organiser into another one. */}
+          {regionsMode && (
+            <div className="config-pane" hidden={configTab !== 'points'}>
+              <RegionPoints
+                key={game.id}
+                game={game}
+                tiles={tiles}
+                active={pointsOpen}
+                onSaved={loadGames}
+              />
+            </div>
+          )}
+
           <div className="config-pane" hidden={configTab !== 'teams'}>
           <section className="card">
             <h2>{cardLike ? 'Teams' : 'Team names'}</h2>
@@ -1870,6 +2037,7 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
           <Roster
             bingo={cardLike}
             snakes={snakesMode}
+            regions={regionsMode}
             gameTeams={gameTeams}
             profiles={profiles}
             members={members}
@@ -2034,6 +2202,7 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
                   />
                 )}
                 {territoryMode && <TerritoryAdminTrack game={game} />}
+                {regionsMode && <RegionsAdminTrack game={game} />}
                 {!cardLike && (
                   <section className="card">
                     <CardHead
@@ -2118,6 +2287,62 @@ function TeamScreens({ game, teams, onViewAs }) {
 }
 
 /**
+ * The organiser's view of a running Region Bingo: the standings as the server
+ * orders them -- most points first, a tie to whoever got there first -- which
+ * is who wins if the game ends now. Each team's map is one click away under
+ * Team screens.
+ *
+ * Re-reads on every game event, which every completed tile, opened region and
+ * revoke writes. The same shape as TerritoryAdminTrack; it lives here only
+ * because the regions folder belongs to the players' side.
+ */
+function RegionsAdminTrack({ game }) {
+  const [rows, setRows] = useState(null);
+  const [loadError, setLoadError] = useState(null);
+
+  const load = useCallback(async () => {
+    try {
+      setRows((await regionsStandings(game.id)) ?? []);
+      setLoadError(null);
+    } catch (err) {
+      setLoadError(err.message);
+    }
+  }, [game.id]);
+
+  useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel(`admin-regions:${game.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'game_events', filter: `game_id=eq.${game.id}` },
+        () => load()
+      )
+      .subscribe();
+    return () => supabase.removeChannel(channel);
+  }, [game.id, load]);
+
+  return (
+    <section className="card">
+      {rows && (
+        <RegionStandings
+          rows={rows}
+          myTeamId={null}
+          title={game.status === 'finished' ? 'Final standings' : 'Standings'}
+        />
+      )}
+      {loadError && <p className="error">{loadError}</p>}
+      <p className="muted">
+        A team scores the points of every tile it completes. Under each team: the regions it has
+        opened, a tick on those it has completed ({game.region_threshold ?? 50}% of their points),
+        and any pick it has not spent. A tie goes to the team that reached its score first.
+      </p>
+    </section>
+  );
+}
+
+/**
  * Configure, split four ways. It was one scroll -- start buttons, the board,
  * the whole catalogue, teams, a roster listing every free player once per
  * team, Discord -- so reaching Discord meant paging past all of it.
@@ -2134,10 +2359,21 @@ const CONFIG_TABS = [
 // a board it has not got.
 const CHALLENGE_CONFIG_TABS = CONFIG_TABS.filter((t) => t.key === 'game' || t.key === 'discord');
 
+// Region Bingo has a step no other mode has: what each tile is worth, and the
+// line a team must reach in a region. Straight after Board, because the points
+// are given to the tiles that are on it. Also the superset of every mode's
+// tabs, which is what the checklist looks a tab's label up in.
+const REGIONS_CONFIG_TABS = [
+  ...CONFIG_TABS.slice(0, 2),
+  { key: 'points', label: 'Points' },
+  ...CONFIG_TABS.slice(2),
+];
+
 // Which tab fixes each setup check (SetupChecklist keys). Fleets are placed by
 // captains, so that one stays on Game.
 const CHECK_TAB = {
-  tiles: 'board', jumps: 'board', homes: 'board', teams: 'teams', captains: 'teams', roster: 'teams', discord: 'discord',
+  tiles: 'board', jumps: 'board', homes: 'board', points: 'points',
+  teams: 'teams', captains: 'teams', roster: 'teams', discord: 'discord',
 };
 
 // Which sub-tab each game was last left on, per pane. Track keeps its own
@@ -2145,6 +2381,7 @@ const CHECK_TAB = {
 // different answers about the same game.
 const CONFIG_TABS_KEY = 'hs-admin-config-tabs';
 const TRACK_TABS_KEY = 'hs-admin-track-tabs';
+const POINTS_SEEN_KEY = 'hs-admin-points-seen';
 
 function readTabMemory(key) {
   try {
@@ -2170,7 +2407,7 @@ function writeTabMemory(key, tabs) {
  * moving between games, and only its label changes.
  */
 const TRACK_BOARD_LABEL = {
-  battleships: 'Boards', bingo: 'Cards', snakes: 'Board', territory: 'Map',
+  battleships: 'Boards', bingo: 'Cards', snakes: 'Board', territory: 'Map', regions: 'Standings',
 };
 
 function trackTabsFor(game, { hasWom, hasScreens }) {
@@ -2206,6 +2443,8 @@ const EVIDENCE_RULE = {
     + 'Revoking one can take a tile back off a team.',
   territory: 'There is nothing to approve — the screenshot that meets a task is what captures the place. '
     + 'Revoking one can hand a place back.',
+  regions: 'There is nothing to approve — attaching what the tile asks for is what completes it and scores '
+    + 'its points. Revoking one takes those points back, and can drop a region below the line.',
 };
 
 function ConfigTabs({ tab, onPick, badge, tabs = CONFIG_TABS, label = 'Configure' }) {
@@ -2316,7 +2555,7 @@ function CheckGroup({ title, items, onGo, quiet = false }) {
         {items.map((c) => {
           // Fleets have no tab -- captains place them on their own screens --
           // so that row gets prose and no button, which is the honest answer.
-          const where = CONFIG_TABS.find((t) => t.key === CHECK_TAB[c.key])?.label ?? null;
+          const where = REGIONS_CONFIG_TABS.find((t) => t.key === CHECK_TAB[c.key])?.label ?? null;
           return (
             <li key={c.key} className={c.ok ? 'ok' : (c.required ? 'todo' : 'optional')}>
               <span className="tick" aria-hidden="true">{c.ok ? '✓' : (c.required ? '○' : '–')}</span>
@@ -2350,6 +2589,7 @@ const MODES = [
   { key: 'bingo', label: 'Bingo', blurb: 'Any number of teams on one card. Most tiles wins.' },
   { key: 'snakes', label: 'Snakes & Ladders', blurb: 'Teams race up a 100-tile board, snakes and all.' },
   { key: 'territory', label: 'Territory', blurb: 'Teams take ground on the OSRS map. Biggest empire wins.' },
+  { key: 'regions', label: 'Region Bingo', blurb: 'Score in an OSRS region to open another. Most points wins.' },
   { key: 'challenge', label: 'Challenge', blurb: 'No board. Boss, raid or skill of the week.' },
 ];
 
@@ -2443,9 +2683,12 @@ function NewGame({ busy, onCreate, modeChoices = MODES }) {
   const bingo = mode === 'bingo';
   const snakes = mode === 'snakes';
   const territory = mode === 'territory';
+  const regions = mode === 'regions';
   const challenge = mode === 'challenge';
   // Every mode but battleships takes any number of teams.
-  const multi = bingo || snakes || territory;
+  const multi = bingo || snakes || territory || regions;
+  // The modes whose game ends at a time rather than on a finishing square.
+  const timed = bingo || territory || regions;
   const names = multi ? teamNames : teamNames.slice(0, 2);
   const filled = names.map((n) => n.trim()).filter(Boolean);
   // Case-insensitive, like the server: "Alpha" and "alpha" read as one team in
@@ -2505,7 +2748,8 @@ function NewGame({ busy, onCreate, modeChoices = MODES }) {
             <div className="wizard-fields">
               <label className="field-wide">Event name
                 <input value={name} onChange={(e) => setName(e.target.value)}
-                       placeholder={bingo ? 'Clan Bingo' : snakes ? 'Snakes and Ladders' : territory ? 'Conquest of Gielinor' : 'Battleships V4'} />
+                       placeholder={bingo ? 'Clan Bingo' : snakes ? 'Snakes and Ladders' : territory ? 'Conquest of Gielinor'
+                         : regions ? 'Region Bingo' : 'Battleships V4'} />
               </label>
               {bingo && (
                 <label>Card size
@@ -2521,11 +2765,13 @@ function NewGame({ busy, onCreate, modeChoices = MODES }) {
                   announced" until one is set from Configure. */}
               <DateTimeField label="Start time" hint="(optional)"
                              value={startsAt} onChange={setStartsAt} />
-              {(bingo || territory) && (
+              {timed && (
                 <span
                   title={territory
                     ? 'The biggest empire at this moment wins.'
-                    : 'Without an end time, the game runs until a team fills the card.'}
+                    : regions
+                      ? 'The team with the most points at this moment wins.'
+                      : 'Without an end time, the game runs until a team fills the card.'}
                 >
                   <DateTimeField label="End time" hint="(optional)"
                                  value={endsAt} onChange={setEndsAt} />
@@ -2550,6 +2796,14 @@ function NewGame({ busy, onCreate, modeChoices = MODES }) {
               <p className="muted new-game-note">
                 Always the 100-tile board. It ends when a team completes tile 100, or
                 when you end it from Configure.
+              </p>
+            )}
+            {regions && (
+              <p className="muted new-game-note">
+                The OSRS map in its 11 regions, each holding 1 to 9 tiles worth the points
+                you give them. Each team&rsquo;s captain picks a first region; scoring enough in
+                a region opens another. Most points at the end time wins — without one, it
+                runs until you end it.
               </p>
             )}
           </>
@@ -2593,6 +2847,12 @@ function NewGame({ busy, onCreate, modeChoices = MODES }) {
                 </button>
               )}
             </div>
+            {regions && (
+              <p className="muted new-game-note">
+                Every team needs a captain before the start: the captain picks the team&rsquo;s
+                first region. You choose them in Roster once the event exists.
+              </p>
+            )}
             {duplicate && <p className="error">Two teams have the same name.</p>}
           </>
         )}
@@ -2616,7 +2876,7 @@ function NewGame({ busy, onCreate, modeChoices = MODES }) {
                 teams: filled,
                 gridSize: bingo ? gridSize : territory ? TASK_GRID : 10,
                 startsAt: startsAt ? new Date(startsAt).toISOString() : null,
-                endsAt: (bingo || territory) && endsAt ? new Date(endsAt).toISOString() : null,
+                endsAt: timed && endsAt ? new Date(endsAt).toISOString() : null,
               });
               if (worked(result)) {
                 setName(''); setTeamNames(['', '']); setStartsAt(''); setEndsAt(''); setAt(0);
@@ -3229,7 +3489,7 @@ function Signups({ signups, busy, confirm, onRemove }) {
   );
 }
 
-function Roster({ bingo, snakes = false, gameTeams, profiles, members, signups = [], busy, onSet, onRemove, onAddMany }) {
+function Roster({ bingo, snakes = false, regions = false, gameTeams, profiles, members, signups = [], busy, onSet, onRemove, onAddMany }) {
   const taken = new Set(
     members
       .filter((m) => gameTeams.some((g) => g.id === m.team_id))
@@ -3293,6 +3553,9 @@ function Roster({ bingo, snakes = false, gameTeams, profiles, members, signups =
         themselves up for this event from their own screen.
         {snakes
           ? ' A captain can rename their team; anyone on a team can roll and complete its tiles.'
+          : regions
+          ? ' A captain picks their team’s first region and can rename the team; anyone on a team can '
+            + 'complete its tiles and spend its picks.'
           : bingo
           ? ' A captain can rename their team; anyone on a team can complete its tiles.'
           : ' Only a captain (or you) can place that team’s fleet.'}

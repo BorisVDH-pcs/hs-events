@@ -4,6 +4,7 @@ import { signedUrls } from '../lib/evidence.js';
 import { coordLabel, fromPosition } from '../lib/board.js';
 import { millionsLabel } from '../lib/millions.js';
 import { placeAtPosition } from '../lib/territory.js';
+import { regionAt, regionByKey } from '../lib/regions.js';
 import { useConfirm } from './ConfirmDialog.jsx';
 
 /**
@@ -123,6 +124,20 @@ function consequences(p) {
     }
     if (p.winner_changed) out.push('The winner changes to whoever now has the highest score.');
     out.push('Everyone sees the map change, but not why.');
+  } else if (p.mode === 'regions') {
+    // Region Bingo: the tile's points come off. Whether that drops the region
+    // below the line is not in the preview, so it is said as what would follow.
+    const region = squareLabel(p.position, p.mode);
+    if (p.uncompleted) {
+      out.push(`The tile is no longer complete — ${p.team_name} loses its points and can submit against it again.`);
+      out.push(`If that takes ${p.team_name} below the line in ${region}, the region is no longer complete: `
+        + 'a pick it earned and they have not spent yet is taken back. A region they already opened with it '
+        + 'stays open.');
+    } else if (p.was_completed) {
+      out.push('The tile still meets its target without this piece, so it stays completed and keeps its points.');
+    }
+    if (p.winner_changed) out.push('The game is over, so the winner is checked again — it changes to whoever now has the most points.');
+    out.push('Other teams are told nothing, though the standings show the lower score.');
   } else if (p.mode === 'bingo') {
     if (p.uncompleted) {
       out.push(`The tile is no longer complete — it stops counting for ${p.team_name}, who can submit against it again.`);
@@ -159,7 +174,7 @@ function consequences(p) {
   // this in the middle of a live event, and "does the other team find out"
   // is the question they will actually have — worth answering in the dialog
   // rather than leaving them to reason about RLS policies.
-  if (p.mode !== 'bingo' && p.mode !== 'snakes' && p.mode !== 'territory') {
+  if (p.mode !== 'bingo' && p.mode !== 'snakes' && p.mode !== 'territory' && p.mode !== 'regions') {
     out.push(p.announced_to_all
       ? `The other team is told a shot was withdrawn — not which square, which tile, or what was on it.`
       : `The other team is told nothing.`);
@@ -191,6 +206,8 @@ function squareLabel(position, mode) {
   if (mode === 'snakes') return `Tile ${position}`;
   // Territory: a task belongs to a place, and players know it by its name.
   if (mode === 'territory') return placeAtPosition(position)?.name ?? `Square ${position}`;
+  // Region Bingo: the region, which is what players and the feed call it.
+  if (mode === 'regions') return regionByKey.get(regionAt(position))?.name ?? `Square ${position}`;
   const { row, col } = fromPosition(position);
   return coordLabel(row, col);
 }
@@ -498,7 +515,8 @@ export default function EvidenceReview({ gameId, mode }) {
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder={mode === 'snakes' ? 'Tile name or number' : mode === 'territory' ? 'Task or place' : 'Tile name or square'}
+          placeholder={mode === 'snakes' ? 'Tile name or number' : mode === 'territory' ? 'Task or place'
+            : mode === 'regions' ? 'Tile name or region' : 'Tile name or square'}
           aria-label="Filter by tile"
         />
         <select value={team} onChange={(e) => setTeam(e.target.value)} aria-label="Filter by team">

@@ -1,9 +1,9 @@
 # Region Bingo — rules sheet
 
 Agreed with Boris, 2026-11-16, from an idea raised in the clan Discord. A
-proposed new game mode on High Society Events, next to Battleships, Bingo,
-Snakes & Ladders, Territory and Challenge. **Status: rules agreed, nothing
-built yet.** "Region Bingo" is a working name.
+game mode on High Society Events, next to Battleships, Bingo, Snakes &
+Ladders, Territory and Challenge. **Status: built** (section 7); first live
+game still to come.
 
 **In one line:** every OSRS region holds its own pool of tasks. Score enough
 points in a region and you unlock another one of your choice. Most points wins.
@@ -47,9 +47,10 @@ picked so the game can be played. Each one is easy to change.
 - **The unlock threshold, x%**: the organiser sets it for each game.
   **(decided)**
 - **Timer**: an end time, as in bingo.
-- **At most 100 tiles per game**, across all regions. Every mode numbers its
-  tiles on a 10×10 grid. With all 11 regions that is about 9 per region on
-  average.
+- **Up to 9 tiles per region.** Every mode numbers its tiles on a 10×10
+  grid; here each region owns 9 of its squares (square 100 is not used), so a
+  game holds at most 99 tiles. A region needs at least one tile before the
+  game can start.
 
 ## 3. Playing
 
@@ -72,6 +73,10 @@ picked so the game can be played. Each one is easy to change.
    lock or block a tile for another.
 7. A tile scores its points when it is completed. Part-done tiles score
    nothing.
+8. **Pressing a region the team has opened zooms the map into it**: the rest
+   of the world goes dark, the region takes its own colour and its tiles lie
+   over it as cards. "World map" (or Esc) zooms back out. A region the team
+   hasn't opened stays on the world map, with the pick button beside it.
 
 ### Unlocking a region
 
@@ -127,23 +132,34 @@ and on Discord too.
 - After playing it once: is the organiser's x% about right, and are 11 regions
   too many for the clan's team sizes?
 
-## 7. How it could be built (not started)
+## 7. How it is built
 
 Following "Adding another mode" in [multi-game-plan.md](multi-game-plan.md):
 
-- **Mode**: a new `game_mode` value in its own migration, as every mode has.
-- **The map**: Territory's map image and its region outlines in
-  `web/public/territory/areas.json`, which already holds all 11.
-- **Tiles**: each tile on the board needs its **region** and its **points**.
-  Territory's trick (one fixed square per place) doesn't fit pools of
-  different sizes, so the region has to be stored on the tile.
-- **Opened regions**: a log of which team opened which region, when and by whom.
-  Picks are worked out from that log and the completed regions.
-- **Rules in the database**, as everywhere else: `add_evidence` refuses a tile
-  in a region the team hasn't opened, a new pick RPC checks the team has a pick
-  to spend, and `tiles_for_me` hides tiles in unopened regions.
-- **From Bingo**: own progress with no claim step (`bingo_open_tile`), the timer
-  and `bingo_settle`, and how the winner is chosen.
-- **Tests**: a smoke test like `scripts/territory-smoke-test.sql`. Migrations
-  reach the live database when they are merged to `main`, so run them on a
-  spare Supabase project first.
+- **Mode**: `game_mode` `regions`, with the feed events `region_opened` and
+  `region_completed`
+  (`supabase/migrations/20261116120000_regions_enums.sql`).
+- **Everything else in one migration**,
+  `supabase/migrations/20261116120100_regions_mode.sql`:
+  - **The map**: Territory's map image and the 11 region outlines in
+    `web/public/territory/areas.json`.
+  - **A tile's region is its square**: region *k* (in map order) owns squares
+    9(k−1)+1 to 9k. **Its points** are `tiles.worth`, the threshold is
+    `games.region_threshold`. The board builder sets both.
+  - **Opened regions** are a log, `region_unlocks`: who opened what, when, and
+    which complete region paid for it. Picks are never stored; they are the
+    complete regions that have not paid for one yet, so a revoked screenshot
+    takes an unspent pick back by itself.
+  - **The rules live in the database**: `regions_pick` checks the captain
+    (first pick) and that the team has a pick. `add_evidence` refuses a tile in
+    a region the team hasn't opened. `tiles_for_team` hides those tiles, and
+    the public feed never names one.
+  - **From Bingo**: own progress with no claim step, the timer and
+    `regions_settle`, and how the winner is chosen (most points, the earliest
+    to reach them on a tie).
+- **Front end**: `web/src/lib/regions.js` (rules, wording; `npm run
+  test:regions`) and `web/src/components/regions/`. Try it without a database
+  on `npm run preview:evidence` at `/preview-regions.html`.
+- **Tests**: `scripts/regions-smoke-test.sql`. Migrations reach the live
+  database when they are merged to `main`, so run them on a spare Supabase
+  project first.

@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LINKS, MAP, PLACES, REGIONS, toPixel } from '../../lib/territoryWorld.js';
 import { defaultBonuses, placeByKey, placeState, regionHolders } from '../../lib/territory.js';
 import { markerColor } from '../../lib/snakes.js';
+import useAreas from './useAreas.js';
 
 // How big things are ON SCREEN, in CSS pixels, whatever the zoom. The SVG is
 // drawn in map pixels, so each is multiplied by the current scale `k`. Lines
@@ -15,7 +16,6 @@ const REGION_LABEL = 11.5;
 const NAMES_AT = 1.9;
 const MAX_ZOOM = 5;   // map px per screen px at the closest: 1 / MAX_ZOOM
 const IMG = `${import.meta.env.BASE_URL}${MAP.src}`;
-const AREAS = `${import.meta.env.BASE_URL}territory/areas.json`;
 
 const pairKey = (a, b) => (a < b ? `${a}|${b}` : `${b}|${a}`);
 const pixel = new Map(PLACES.map((p) => [p.key, toPixel(p.x, p.y)]));
@@ -29,21 +29,6 @@ const fallbackLabels = Object.fromEntries(REGIONS.map((r) => {
   const ps = PLACES.filter((p) => p.region === r.key).map((p) => pixel.get(p.key));
   return [r.key, [ps.reduce((s, p) => s + p.px, 0) / ps.length, ps.reduce((s, p) => s + p.py, 0) / ps.length]];
 }));
-
-// The land each place owns, as SVG paths, generated once from the map image
-// (see docs/territory-rules.md, "The map"). Fetched rather than imported so
-// the 65 KB stays out of the app bundle for the modes that never draw it.
-let areasRequest;
-function useAreas() {
-  const [areas, setAreas] = useState(null);
-  useEffect(() => {
-    let live = true;
-    areasRequest ??= fetch(AREAS).then((r) => (r.ok ? r.json() : null)).catch(() => null);
-    areasRequest.then((a) => { if (live) setAreas(a); });
-    return () => { live = false; };
-  }, []);
-  return areas;
-}
 
 // A route longer than this (map px) crosses half the world -- the quetzal to
 // Civitas, the boat to Kourend -- and would scrawl over everything between,

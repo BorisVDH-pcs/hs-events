@@ -2,6 +2,7 @@ import { fromPosition, coordLabel } from '../lib/board.js';
 import { evidenceEventText, revokedProgressText } from '../lib/eventText.js';
 import { snakesEventText } from '../lib/snakes.js';
 import { territoryEventText } from '../lib/territory.js';
+import { regionsEventText } from '../lib/regions.js';
 import { challengeEventText } from '../lib/challenge.js';
 
 /**
@@ -59,6 +60,10 @@ export default function EventFeed({ events, teams, myTeamId }) {
     // Territory names its places rather than coordinates, the same way.
     const territory = territoryEventText(e, who);
     if (territory) return territory;
+    // Region Bingo names regions, and never a tile in a public line: other
+    // teams must not learn the tasks of a region they have not opened.
+    const regions = regionsEventText(e, who);
+    if (regions) return regions;
     // A challenge has no board at all: its lines are figures and a ladder.
     const challenge = challengeEventText(e, who);
     if (challenge) return challenge;
