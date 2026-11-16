@@ -20,6 +20,10 @@ organiser picks the kind when they create it.
 | **Territory** | Teams take ground on the OSRS map. Biggest empire wins. | [rules](docs/territory-rules.md) |
 | **Challenge** | No board. Boss, raid or skill of the week. | [rules](docs/challenge-mode.md) |
 
+**Planned: Region Bingo.** Every OSRS region holds its own pool of tasks; score
+enough points in one to unlock another. Rules agreed, not built yet:
+[rules](docs/region-bingo-rules.md).
+
 **Battleships.** Two teams, each hiding a fleet on one shared grid of tasks. You
 fire by picking a square, doing the task behind it and sending the evidence —
 whether that is a hit depends only on whether a hull is under it. No turn order,
