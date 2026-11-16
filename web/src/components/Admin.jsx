@@ -805,7 +805,7 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
       ok: boardProblems(tiles).length === 0,
       detail: `${REGIONS.length - regionsEmpty.length} of ${REGIONS.length} regions`,
       fix: tiles.length === 0
-        ? 'Nothing on the board yet. Every region needs at least one tile, and can hold up to nine.'
+        ? 'Nothing on the board yet. Every region needs at least one tile, and can hold as many as you like.'
         : boardProblems(tiles).join(' '),
     },
     {
@@ -2800,7 +2800,7 @@ function NewGame({ busy, onCreate, modeChoices = MODES }) {
             )}
             {regions && (
               <p className="muted new-game-note">
-                The OSRS map in its 11 regions, each holding 1 to 9 tiles worth the points
+                The OSRS map in its 11 regions, each holding as many tiles as you like, worth the points
                 you give them. Each team&rsquo;s captain picks a first region; scoring enough in
                 a region opens another. Most points at the end time wins — without one, it
                 runs until you end it.

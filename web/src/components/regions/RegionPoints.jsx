@@ -163,7 +163,7 @@ export default function RegionPoints({ game, tiles, active = true, onSaved }) {
     if (Number.isInteger(n) && n >= MIN && n <= MAX) effective.set(position, n);
   }
   const regions = builderRegions(tiles, effective, line);
-  const problems = boardProblems(tiles).filter((p) => p.startsWith('Square 100'));
+  const problems = boardProblems(tiles).filter((p) => p.startsWith('A tile sits past'));
   const filledRegions = regions.filter((r) => r.count > 0).length;
   const totalTiles = regions.reduce((n, r) => n + r.count, 0);
   const totalPoints = regions.reduce((n, r) => n + r.total, 0);

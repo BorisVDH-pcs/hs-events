@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   LAST_SQUARE, PER_REGION, REGIONS, boardProblems, builderRegions, fromServer, needFor,
-  lineNote, nextStep, payingRegion, pickConfirm, pickRefusal, progress, regionAt, regionStatus,
-  regionsEventText, resultText, squaresOf, teamsWithoutCaptain,
+  LAST_ROW, lineNote, nextSquareIn, nextStep, payingRegion, pickConfirm, pickRefusal, progress,
+  regionAt, regionStatus, regionsEventText, resultText, squaresOf, teamsWithoutCaptain, tilesIn,
 } from '../src/lib/regions.js';
 
 const migrations = new URL('../../supabase/migrations/', import.meta.url);
@@ -20,23 +20,38 @@ const serverOrder = [...block.matchAll(/\('([a-z]+)', '([^']+)', \d+, (\d+)\)/g)
   .map((m) => [m[1], m[2]]);
 assert.deepEqual(REGIONS.map((r) => [r.key, r.name]), serverOrder, 'regions in the server\'s sort order, same names');
 
-assert.equal(PER_REGION, 9);
-assert.equal(LAST_SQUARE, 99);
+assert.equal(PER_REGION, 100);
+assert.equal(LAST_SQUARE, 1100);
+assert.equal(LAST_ROW, 110);
 assert.equal(regionAt(1), 'misthalin');
-assert.equal(regionAt(9), 'misthalin');
-assert.equal(regionAt(10), 'asgarnia');
-assert.equal(regionAt(91), 'varlamore');
-assert.equal(regionAt(99), 'varlamore');
-assert.equal(regionAt(100), null, 'square 100 has no region');
+assert.equal(regionAt(100), 'misthalin');
+assert.equal(regionAt(101), 'asgarnia');
+assert.equal(regionAt(1001), 'varlamore');
+assert.equal(regionAt(1100), 'varlamore');
+assert.equal(regionAt(1101), null, 'past Varlamore is no region');
 assert.equal(regionAt(0), null);
 assert.equal(regionAt(2.5), null);
 const all = REGIONS.flatMap((r) => squaresOf(r.key));
-assert.deepEqual(all, Array.from({ length: 99 }, (_, i) => i + 1), 'the regions cut squares 1-99 exactly once');
+assert.deepEqual(all, Array.from({ length: 1100 }, (_, i) => i + 1), 'the regions cut squares 1-1100 exactly once');
 for (const r of REGIONS) for (const p of squaresOf(r.key)) assert.equal(regionAt(p), r.key);
 assert.deepEqual(squaresOf('nowhere'), []);
 
 // The server's own formula, kept in step.
 const mode = readFileSync(new URL('20261116120100_regions_mode.sql', migrations), 'utf8');
+const grow = readFileSync(new URL('20261116150000_regions_room_to_grow.sql', migrations), 'utf8');
+assert.ok(grow.includes('p_position between 1 and 1100 and r.sort = (p_position - 1) / 100 + 1'),
+  'server cuts regions into blocks of a hundred, as regionAt does');
+assert.ok(grow.includes("when v_game.mode = 'regions' then 110"), 'server lets a region game run to row 110');
+
+// Adding a task: after the region's last, then into a gap once it is full.
+assert.equal(nextSquareIn([], 'asgarnia'), 101);
+assert.equal(nextSquareIn([{ position: 101 }, { position: 103 }], 'asgarnia'), 104, 'after the last, not into the gap');
+assert.equal(nextSquareIn([{ position: 200 }], 'asgarnia'), 101, 'last square taken: first gap');
+const fullAsgarnia = squaresOf('asgarnia').map((position) => ({ position }));
+assert.equal(nextSquareIn(fullAsgarnia, 'asgarnia'), null, 'a full region has no room');
+assert.equal(nextSquareIn(fullAsgarnia, 'kandarin'), 201);
+assert.equal(nextSquareIn([], 'nowhere'), null);
+assert.deepEqual(tilesIn([{ position: 205 }, { position: 7 }, { position: 201 }], 'kandarin').map((t) => t.position), [201, 205]);
 assert.ok(mode.includes('r.sort = (p_position - 1) / 9 + 1'), 'server cuts nine squares per region');
 assert.ok(mode.includes('* g.region_threshold + 99) / 100'), 'server rounds x% up the same way');
 
@@ -55,7 +70,7 @@ const server = {
     { id: 't1', position: 1, name: 'Kill a goblin', claim_status: 'completed' },
     { id: 't2', position: 2, name: 'Smith a bar' },
     { id: 't3', position: 3, name: 'Catch a shrimp' },
-    { id: 't19', position: 19, name: 'Seers agility' },
+    { id: 't201', position: 201, name: 'Seers agility' },
   ],
   regions: {
     threshold: 50,
@@ -69,7 +84,7 @@ const server = {
       { key: 'kandarin', opened: true, complete: false, funds: false, points: 0, need: 1, total: 1, tiles: 1, funded_by: null },
       ...REGIONS.slice(3).map((r) => ({ key: r.key, opened: false })),
     ],
-    worth: { 1: 2, 2: 3, 3: 5, 19: 1 },
+    worth: { 1: 2, 2: 3, 3: 5, 201: 1 },
   },
 };
 const view = fromServer(server);
@@ -161,19 +176,19 @@ assert.equal(regionsEventText(ev('evidence_submitted', {}), 'Red'), null, 'share
 
 // ---- The organiser's side ----
 const adminTiles = [
-  { position: 1, name: 'a' }, { position: 2, name: 'b' }, { position: 10, name: 'c' }, { position: 100, name: 'x' },
+  { position: 1, name: 'a' }, { position: 2, name: 'b' }, { position: 101, name: 'c' }, { position: 1101, name: 'x' },
 ];
-const rows = builderRegions(adminTiles, new Map([[1, 2], [2, 3], [10, 4]]), 50);
+const rows = builderRegions(adminTiles, new Map([[1, 2], [2, 3], [101, 4]]), 50);
 assert.equal(rows.length, 11);
 assert.equal(rows[0].count, 2);
 assert.equal(rows[0].total, 5);
 assert.equal(rows[0].need, 3);
 assert.equal(rows[1].total, 4);
 assert.equal(rows[2].count, 0);
-assert.equal(rows[0].squares.length, 9);
+assert.equal(rows[0].squares.length, 100);
 const problems = boardProblems(adminTiles);
 assert.equal(problems.length, 2);
-assert.match(problems[0], /Square 100/);
+assert.match(problems[0], /past Varlamore/);
 assert.match(problems[1], /Still empty: Kandarin, Fremennik Provinces,.*Varlamore\./);
 assert.deepEqual(boardProblems(REGIONS.map((r) => ({ position: squaresOf(r.key)[0] }))), []);
 

@@ -47,10 +47,12 @@ picked so the game can be played. Each one is easy to change.
 - **The unlock threshold, x%**: the organiser sets it for each game.
   **(decided)**
 - **Timer**: an end time, as in bingo.
-- **Up to 9 tiles per region.** Every mode numbers its tiles on a 10×10
-  grid; here each region owns 9 of its squares (square 100 is not used), so a
-  game holds at most 99 tiles. A region needs at least one tile before the
-  game can start.
+- **Up to 100 tiles per region.** The organiser builds the board on the map:
+  press a region, it zooms in like it does for a team, and its tiles lie over
+  it as cards with an **Add a task** card at the end. Add as many as you like,
+  up to 100 in a region. A region needs at least one tile before the game can
+  start. There is no random deal for this mode, and a saved board only loads
+  into another Region Bingo game.
 
 ## 3. Playing
 
@@ -144,8 +146,13 @@ Following "Adding another mode" in [multi-game-plan.md](multi-game-plan.md):
   - **The map**: Territory's map image and the 11 region outlines in
     `web/public/territory/areas.json`.
   - **A tile's region is its square**: region *k* (in map order) owns squares
-    9(k−1)+1 to 9k. **Its points** are `tiles.worth`, the threshold is
+    100(k−1)+1 to 100k, ten to a row, so a region game's rows run to 110.
+    **Its points** are `tiles.worth`, the threshold is
     `games.region_threshold`. The board builder sets both.
+    (The first cut gave each region 9 squares;
+    `supabase/migrations/20261116150000_regions_room_to_grow.sql` moved to
+    blocks of 100, moved the tiles already placed, and marks saved boards as
+    region boards or cards.)
   - **Opened regions** are a log, `region_unlocks`: who opened what, when, and
     which complete region paid for it. Picks are never stored; they are the
     complete regions that have not paid for one yet, so a revoked screenshot
@@ -158,7 +165,9 @@ Following "Adding another mode" in [multi-game-plan.md](multi-game-plan.md):
     `regions_settle`, and how the winner is chosen (most points, the earliest
     to reach them on a tie).
 - **Front end**: `web/src/lib/regions.js` (rules, wording; `npm run
-  test:regions`) and `web/src/components/regions/`. Try it without a database
+  test:regions`) and `web/src/components/regions/`. The organiser's board is
+  `RegionBuilderMap.jsx` inside the usual `BoardBuilder` (try it on
+  `/preview-admin.html`, game "Region Bingo — Leagues", Configure → Board). Try it without a database
   on `npm run preview:evidence` at `/preview-regions.html`.
 - **Tests**: `scripts/regions-smoke-test.sql`. Migrations reach the live
   database when they are merged to `main`, so run them on a spare Supabase

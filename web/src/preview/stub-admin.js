@@ -375,7 +375,6 @@ const skippedOf = (id) => new Set([...startsOf(id), ...homeSquaresOf(id)]);
 // Region Bingo: the last square belongs to no region, so the deal skips it.
 // Only the deal: as on the server, a tile can still be put or moved there by
 // hand, and it is start_game that refuses it.
-const unusedOf = (id) => (isRegions(game(id)) ? new Set([LAST_SQUARE + 1]) : new Set());
 
 /**
  * Hand a territory game's board to the player harness (/preview-territory.html)
@@ -794,6 +793,8 @@ export function adminClearBoard(gameId) {
 
 export function adminAutofillBoard(gameId) {
   const g = game(gameId);
+  // Region Bingo: tasks go in region by region, never dealt (20261116150000).
+  if (isRegions(g)) return wait({ filled: 0, empty: 0, pool: library.length, similar: 0 });
   const list = tilesOf(gameId);
   const used = new Set(list.map((t) => t.library_id));
   const pool = library.filter((e) => !used.has(e.id)).sort(() => Math.random() - .5);
@@ -803,7 +804,6 @@ export function adminAutofillBoard(gameId) {
     for (let col = 1; col <= g.grid_size; col++) {
       if (list.some((t) => t.row === row && t.col === col)) continue;
       if (skippedOf(gameId).has(pos(row, col))) continue;   // snake heads, ladder feet, homes
-      if (unusedOf(gameId).has(pos(row, col))) continue;    // Region Bingo's square 100
       empty++;
       const entry = pool.shift();
       if (entry) { list.push(fromLibrary(entry, row, col)); filled++; }
@@ -832,14 +832,21 @@ export function adminSaveBoardPreset(gameId, name) {
   const g = game(gameId);
   const existing = presets.find((p) => p.name === name);
   const snap = structuredClone(tilesOf(gameId));
-  if (existing) Object.assign(existing, { tiles: snap, squares: snap.length, grid_size: g.grid_size, updated_at: now() });
-  else presets.unshift({ id: uid(), name, grid_size: g.grid_size, squares: snap.length, tiles: snap,
+  const regions = isRegions(g);
+  if (existing) Object.assign(existing, { tiles: snap, squares: snap.length, grid_size: g.grid_size, regions, updated_at: now() });
+  else presets.unshift({ id: uid(), name, grid_size: g.grid_size, squares: snap.length, tiles: snap, regions,
                          created_at: now(), updated_at: now(), created_by_name: 'HS Organiser' });
   return wait({ name, squares: snap.length });
 }
 
 export function adminApplyBoardPreset(gameId, presetId) {
   const p = presets.find((x) => x.id === presetId);
+  if (p.regions && !isRegions(game(gameId))) {
+    return fail('That is a Region Bingo board — it only loads into a Region Bingo game');
+  }
+  if (!p.regions && isRegions(game(gameId))) {
+    return fail('That board is a card, not a Region Bingo board — build a region game on its map');
+  }
   if (p.grid_size !== game(gameId).grid_size) {
     return fail(`That board is ${p.grid_size}×${p.grid_size}; this game is not`);
   }
@@ -866,7 +873,7 @@ export const adminTestTile = () => fail('Test submit needs the database — not 
 
 function regionsStartProblem(gameId) {
   const list = tilesOf(gameId);
-  if (list.some((t) => t.position > LAST_SQUARE)) return 'Square 100 belongs to no region — clear it first';
+  if (list.some((t) => t.position > LAST_SQUARE)) return 'A tile sits past Varlamore’s last square, in no region — clear it first';
   const filled = new Set(list.map((t) => regionAt(t.position)).filter(Boolean));
   const empty = REGIONS.filter((r) => !filled.has(r.key)).map((r) => r.name);
   if (empty.length) return `Every region needs at least one tile. Still empty: ${empty.join(', ')}`;

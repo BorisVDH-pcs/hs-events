@@ -18,10 +18,10 @@
 -- IS the report, one PASS/FAIL line per check. Look for any line starting with
 -- FAIL, or a "STOPPED at" line if something broke part-way.
 --
--- The board (docs/region-bingo-rules.md): region k owns squares (k-1)*9+1 to
--- k*9, square 100 none. Game 1 puts
+-- The board (docs/region-bingo-rules.md): region k owns squares (k-1)*100+1
+-- to k*100, ten to a row, so a region game runs to row 110. Game 1 puts
 --   Misthalin  squares 1, 2, 3   worth 2, 3, 5  (total 10, needs 5 at 50%)
---   Asgarnia   squares 10, 11    worth 4, 4     (total 8,  needs 4)
+--   Asgarnia   squares 101, 102  worth 4, 4     (total 8,  needs 4)
 --   the other nine regions       one tile each, worth 1
 --
 -- The games:
@@ -31,6 +31,8 @@
 --      winner, and a reset.
 --   2. One team, the board copied from game 1 through a saved board -- the
 --      points come along; the organiser ends it; nobody scored, nobody wins.
+--   3. Room to grow: far more than nine tasks in a region, the edges of the
+--      board, the random deal, and which saved boards load where.
 
 create function pg_temp.smoke_as(p_id uuid) returns void
 language plpgsql as $$
@@ -79,9 +81,9 @@ declare
   v_mate  uuid := gen_random_uuid();
   v_blue  uuid := gen_random_uuid();
   v_out   uuid := gen_random_uuid();
-  g1 uuid; g2 uuid;
+  g1 uuid; g2 uuid; g3 uuid; gb uuid; card uuid;
   red uuid; blue uuid; solo uuid;
-  t uuid[] := array_fill(null::uuid, array[100]);
+  t uuid[] := array_fill(null::uuid, array[1100]);
   ev uuid; preset uuid;
   res jsonb; st jsonb;
   s text;
@@ -145,8 +147,8 @@ begin
     t[1]  := pg_temp.smoke_tile(g1, 1, 2);
     t[2]  := pg_temp.smoke_tile(g1, 2, 3);
     t[3]  := pg_temp.smoke_tile(g1, 3, 5);
-    t[10] := pg_temp.smoke_tile(g1, 10, 4);
-    t[11] := pg_temp.smoke_tile(g1, 11, 4);
+    t[101] := pg_temp.smoke_tile(g1, 101, 4);
+    t[102] := pg_temp.smoke_tile(g1, 102, 4);
     t[100] := pg_temp.smoke_tile(g1, 100, 1);
     select count(*), sum(worth) into n, n2 from admin_tile_worths(g1);
     v_log := v_log || pg_temp.smoke_line(v_step, n = 6 and n2 = 19, n || ' tiles, ' || n2 || ' points');
@@ -174,13 +176,9 @@ begin
     v_log := v_log || pg_temp.smoke_line(v_step, n = 4 and n2 = 3, 'Misthalin ' || n || ', Asgarnia ' || n2);
     perform admin_set_region_threshold(g1, 50);
 
-    v_step := 'cannot start with a tile on square 100';
-    begin
-      perform start_game(g1);
-      v_log := v_log || pg_temp.smoke_line(v_step, false, 'it started');
-    exception when others then
-      v_log := v_log || pg_temp.smoke_line(v_step, sqlerrm ilike '%square 100%', sqlerrm);
-    end;
+    v_step := 'square 100 is Misthalin''s hundredth: 4 tasks there';
+    select tiles, total into n, n2 from regions_totals(g1) where region = 'misthalin';
+    v_log := v_log || pg_temp.smoke_line(v_step, n = 4 and n2 = 11, n || ' tasks, ' || n2 || ' points');
 
     perform admin_clear_tile(g1, 10::smallint, 10::smallint);
     v_step := 'cannot start with empty regions, and says which';
@@ -195,7 +193,7 @@ begin
 
     v_step := 'one tile, worth 1, in each of the other nine regions';
     for k in 3 .. 11 loop
-      t[(k - 1) * 9 + 1] := pg_temp.smoke_tile(g1, (k - 1) * 9 + 1, 1);
+      t[(k - 1) * 100 + 1] := pg_temp.smoke_tile(g1, (k - 1) * 100 + 1, 1);
     end loop;
     select count(*), sum(total) into n, n2 from regions_totals(g1) where tiles > 0;
     v_log := v_log || pg_temp.smoke_line(v_step, n = 11 and n2 = 27, n || ' regions, ' || n2 || ' points');
@@ -335,7 +333,7 @@ begin
 
     v_step := 'a tile in a region the team has not opened cannot be started';
     begin
-      perform regions_open_tile(t[10]);
+      perform regions_open_tile(t[101]);
       v_log := v_log || pg_temp.smoke_line(v_step, false, 'it opened');
     exception when others then
       v_log := v_log || pg_temp.smoke_line(v_step, sqlerrm ilike '%not opened that region%', sqlerrm);
@@ -463,14 +461,14 @@ begin
     -- Game 1: revokes
     -- ========================================================
     v_step := 'Blue completes square 10 (4 of 8): Asgarnia complete, one pick';
-    res := pg_temp.smoke_complete(g1, blue, t[10]);
+    res := pg_temp.smoke_complete(g1, blue, t[101]);
     select picks into n from regions_standings(g1) where team_id = blue;
     v_log := v_log || pg_temp.smoke_line(v_step, (res ->> 'completed')::boolean and n = 1, n || ' pick(s)');
 
     perform pg_temp.smoke_as(v_admin);
     v_step := 'a revoke before the pick is spent takes the pick back';
     select e.id into ev from tile_evidence e join tile_claims c on c.id = e.claim_id
-     where c.team_id = blue and c.tile_id = t[10];
+     where c.team_id = blue and c.tile_id = t[101];
     res := admin_revoke_evidence(ev, false);
     select picks, points into n, n2 from regions_standings(g1) where team_id = blue;
     v_log := v_log || pg_temp.smoke_line(v_step, (res ->> 'uncompleted')::boolean and n = 0 and n2 = 0,
@@ -486,14 +484,14 @@ begin
     end;
 
     v_step := 'Blue redoes square 10, gets the pick back and opens Kandarin';
-    res := pg_temp.smoke_complete(g1, blue, t[10]);
+    res := pg_temp.smoke_complete(g1, blue, t[101]);
     res := regions_pick(g1, 'kandarin');
     v_log := v_log || pg_temp.smoke_line(v_step, res ->> 'funded_by' = 'asgarnia', res::text);
 
     perform pg_temp.smoke_as(v_admin);
     v_step := 'a revoke after the pick is spent leaves Kandarin open';
     select e.id into ev from tile_evidence e join tile_claims c on c.id = e.claim_id
-     where c.team_id = blue and c.tile_id = t[10];
+     where c.team_id = blue and c.tile_id = t[101];
     res := admin_revoke_evidence(ev, false);
     perform pg_temp.smoke_as(v_blue);
     select count(*) into n from tiles_for_me(g1);
@@ -503,7 +501,7 @@ begin
                n || ' tiles visible, ' || n2 || ' pick(s), ' || n3 || ' points');
 
     v_step := 'back over the line on square 11: Asgarnia does not pay twice';
-    res := pg_temp.smoke_complete(g1, blue, t[11]);
+    res := pg_temp.smoke_complete(g1, blue, t[102]);
     select picks, points into n, n2 from regions_standings(g1) where team_id = blue;
     select count(*) into n3 from game_events
      where game_id = g1 and team_id = blue and type = 'region_completed';
@@ -546,7 +544,7 @@ begin
     perform pg_temp.smoke_as(v_red);
     v_step := 'after the deadline, starting a tile is refused';
     begin
-      perform regions_open_tile(t[19]);
+      perform regions_open_tile(t[201]);
       v_log := v_log || pg_temp.smoke_line(v_step, false, 'it opened');
     exception when others then
       v_log := v_log || pg_temp.smoke_line(v_step, sqlerrm ilike '%Time is up%', sqlerrm);
@@ -659,6 +657,79 @@ begin
       v_log := v_log || pg_temp.smoke_line(v_step, false, 'it was allowed');
     exception when others then
       v_log := v_log || pg_temp.smoke_line(v_step, sqlerrm ilike '%not running%', sqlerrm);
+    end;
+
+    -- ========================================================
+    -- Game 3: room to grow
+    -- ========================================================
+    v_step := 'twenty-five tasks in Kandarin, squares 201 to 225';
+    g3 := admin_new_game('Smoke regions 3', 'regions', array['Solo3'], 10::smallint, null);
+    for k in 201 .. 225 loop
+      perform pg_temp.smoke_tile(g3, k, 1 + k % 3);
+    end loop;
+    select tiles into n from regions_totals(g3) where region = 'kandarin';
+    select count(*) into n2 from regions_totals(g3) where tiles > 0;
+    v_log := v_log || pg_temp.smoke_line(v_step, n = 25 and n2 = 1, n || ' in Kandarin, ' || n2 || ' region(s) used');
+
+    v_step := 'Varlamore''s last square, 1100 (row 110), takes a task';
+    perform pg_temp.smoke_tile(g3, 1100, 2);
+    v_log := v_log || pg_temp.smoke_line(v_step,
+               regions_region_at(1100) = 'varlamore' and regions_region_at(1001) = 'varlamore'
+               and regions_region_at(1000) = 'kourend' and regions_region_at(1101) is null,
+               (select tiles || ' in Varlamore' from regions_totals(g3) where region = 'varlamore'));
+
+    v_step := 'row 111 is off the board';
+    begin
+      perform admin_set_tile(g3, 111::smallint, 1::smallint, jsonb_build_object('name', 'Too far'));
+      v_log := v_log || pg_temp.smoke_line(v_step, false, 'it was placed');
+    exception when others then
+      v_log := v_log || pg_temp.smoke_line(v_step, sqlerrm ilike '%off a%', sqlerrm);
+    end;
+
+    v_step := 'column 11 is off the board';
+    begin
+      perform admin_set_tile(g3, 5::smallint, 11::smallint, jsonb_build_object('name', 'Too wide'));
+      v_log := v_log || pg_temp.smoke_line(v_step, false, 'it was placed');
+    exception when others then
+      v_log := v_log || pg_temp.smoke_line(v_step, sqlerrm ilike '%off a%', sqlerrm);
+    end;
+
+    v_step := 'a task moves from Kandarin (201) to Morytania (501)';
+    res := admin_swap_tiles(g3, 21, 1, 51, 1);
+    select tiles into n from regions_totals(g3) where region = 'kandarin';
+    select tiles into n2 from regions_totals(g3) where region = 'morytania';
+    v_log := v_log || pg_temp.smoke_line(v_step, n = 24 and n2 = 1, 'Kandarin ' || n || ', Morytania ' || n2);
+
+    v_step := 'the random deal deals nothing onto a region game';
+    res := admin_autofill_board(g3);
+    select count(*) into n from tiles where game_id = g3;
+    v_log := v_log || pg_temp.smoke_line(v_step,
+               coalesce((res ->> 'filled')::int, 0) = 0 and n = 26, n || ' tasks, ' || res::text);
+
+    v_step := 'game 1''s saved board is listed as a region board';
+    select regions into b from admin_list_board_presets() where id = preset;
+    v_log := v_log || pg_temp.smoke_line(v_step, b, coalesce(b::text, 'not listed'));
+
+    v_step := 'a region board will not load into a bingo card';
+    gb := admin_new_game('Smoke card', 'bingo', array['Card'], 10::smallint, null);
+    begin
+      perform admin_apply_board_preset(gb, preset);
+      v_log := v_log || pg_temp.smoke_line(v_step, false, 'it loaded');
+    exception when others then
+      v_log := v_log || pg_temp.smoke_line(v_step, sqlerrm ilike '%only loads into a Region Bingo game%', sqlerrm);
+    end;
+
+    v_step := 'and a card will not load into a region game';
+    perform admin_set_tile(gb, 1::smallint, 1::smallint, jsonb_build_object('name', 'Card task'));
+    res := admin_save_board_preset(gb, 'Smoke card board ' || gen_random_uuid());
+    card := (res ->> 'id')::uuid;
+    begin
+      perform admin_apply_board_preset(g3, card);
+      v_log := v_log || pg_temp.smoke_line(v_step, false, 'it loaded');
+    exception when others then
+      v_log := v_log || pg_temp.smoke_line(v_step,
+                 sqlerrm ilike '%not a Region Bingo board%'
+                 and not (select regions from admin_list_board_presets() where id = card), sqlerrm);
     end;
 
     v_step := 'done';

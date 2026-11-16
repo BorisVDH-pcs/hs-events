@@ -27,6 +27,8 @@ const NAMES_FROM = 560;
 // small region would otherwise fill the frame with a few blurry pixels).
 const ZOOM_MS = 700;
 const MIN_VIEW = 760;
+const NONE = new Set();
+const NOBODY = new Map();
 
 // Each region's own colour, washed over its corner of the map when the team
 // steps into it: meadow, stone, wheat, ice, blood, swamp, sand, lava,
@@ -68,10 +70,17 @@ const REGION_TINT = {
  *   presence   Map region key -> [team], the teams that have opened it
  *   focus      region key to step into, or null for the world
  *   activeTile the task open in the side panel, outlined among the cards
+ *
+ * The organiser's builder (RegionBuilderMap) draws the same map with its own
+ * words and cards:
+ *   describe   (region) => { sub, words }: the line under a name, and the
+ *              tooltip, in place of a team's progress
+ *   renderZoom (region) => what to lay over a region stepped into, in place
+ *              of a team's task cards (ZoomHead gives it the same heading)
  */
 export default function RegionMap({
-  view, pickable, presence, selected, onSelect, finished,
-  focus = null, activeTile = null, onTile, onBack,
+  view, pickable = NONE, presence = NOBODY, selected, onSelect, finished,
+  focus = null, activeTile = null, onTile, onBack, describe = null, renderZoom = null,
 }) {
   const wrapRef = useRef(null);
   const areas = useAreas();
@@ -144,7 +153,9 @@ export default function RegionMap({
           {areas && regions.map((r) => {
             const d = areas.regions[r.key];
             if (!d) return null;
-            const label = `${r.name}: ${statusWords(r, finished)}${pickable.has(r.key) ? ' — you can open it' : ''}`;
+            const label = describe
+              ? `${r.name}: ${describe(r).words}`
+              : `${r.name}: ${statusWords(r, finished)}${pickable.has(r.key) ? ' — you can open it' : ''}`;
             return (
               <path
                 key={r.key}
@@ -212,7 +223,7 @@ export default function RegionMap({
               if (!at) return null;
               const [x, y] = at;
               const teams = presence.get(r.key) ?? [];
-              const sub = subLine(r, pickable.has(r.key), finished);
+              const sub = describe ? describe(r).sub : subLine(r, pickable.has(r.key), finished);
               const dotsY = y + (showNames ? (sub ? 2.2 : 1.1) * NAME * k : 0);
               return (
                 <g key={`l-${r.key}`} className={`territory-region-label regions-label ${r.status}`}>
@@ -244,9 +255,9 @@ export default function RegionMap({
           </g>
         </svg>
 
-        {inFocus && (
-          <RegionTiles key={focus} region={inFocus} activeTile={activeTile} onTile={onTile} onBack={onBack} />
-        )}
+        {inFocus && (renderZoom
+          ? <div key={focus} className="regions-zoom">{renderZoom(inFocus)}</div>
+          : <RegionTiles key={focus} region={inFocus} activeTile={activeTile} onTile={onTile} onBack={onBack} />)}
       </div>
       <p className="territory-credit muted">{MAP.credit}</p>
     </div>
@@ -260,18 +271,14 @@ export default function RegionMap({
 function RegionTiles({ region, activeTile, onTile, onBack }) {
   return (
     <div className="regions-zoom">
-      <div className="regions-zoom-head">
-        <button type="button" className="regions-zoom-back" onClick={onBack}>‹ World map</button>
-        <div className="regions-zoom-title">
-          <h3>{region.name}</h3>
-          {region.total != null && (
-            <>
-              <p><strong>{region.points ?? 0}</strong> / {region.total} pts</p>
-              <RegionBar region={region} className="regions-zoom-bar" />
-            </>
-          )}
-        </div>
-      </div>
+      <ZoomHead title={region.name} onBack={onBack}>
+        {region.total != null && (
+          <>
+            <p><strong>{region.points ?? 0}</strong> / {region.total} pts</p>
+            <RegionBar region={region} className="regions-zoom-bar" />
+          </>
+        )}
+      </ZoomHead>
       {region.tiles.length === 0 ? (
         <p className="regions-zoom-empty">No tasks in this region.</p>
       ) : (
@@ -300,6 +307,19 @@ function RegionTiles({ region, activeTile, onTile, onBack }) {
           })}
         </ul>
       )}
+    </div>
+  );
+}
+
+/** The heading over a region stepped into: the way out, its name, and a line or two. */
+export function ZoomHead({ title, onBack, children }) {
+  return (
+    <div className="regions-zoom-head">
+      <button type="button" className="regions-zoom-back" onClick={onBack}>‹ World map</button>
+      <div className="regions-zoom-title">
+        <h3>{title}</h3>
+        {children}
+      </div>
     </div>
   );
 }

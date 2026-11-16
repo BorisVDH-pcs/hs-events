@@ -3,33 +3,57 @@
 // server (20261116120100_regions_mode.sql) decides everything, and this file
 // only words and draws what it is handed.
 //
-// THE BOARD is the usual 10x10 card cut into the eleven Leagues regions, nine
-// squares each, in REGIONS order: Misthalin owns squares 1-9, Asgarnia 10-18,
-// ... Varlamore 91-99. Square 100 belongs to no region and stays empty. The
-// server keys a tile's region on its square the same way (regions_region_at),
-// so the two must never disagree; the self-test pins it.
+// THE BOARD gives each of the eleven Leagues regions a block of a hundred
+// squares, in REGIONS order: Misthalin owns squares 1-100, Asgarnia 101-200,
+// ... Varlamore 1001-1100. A square is still (row - 1) * 10 + col, ten to a
+// row, so a region game runs to row 110. The organiser never sees squares:
+// the builder adds a task to a region and takes the next free one. The server
+// keys a tile's region on its square the same way (regions_region_at, see
+// 20261116150000), so the two must never disagree; the self-test pins it.
 
 import { REGIONS } from './territoryWorld.js';
 
 export { REGIONS };
 
-/** Squares per region, and the last square that belongs to one. */
-export const PER_REGION = 9;
-export const LAST_SQUARE = REGIONS.length * PER_REGION; // 99
+/** Squares (so tasks) per region, the last square, and the rows they take. */
+export const PER_REGION = 100;
+export const LAST_SQUARE = REGIONS.length * PER_REGION; // 1100
+export const LAST_ROW = LAST_SQUARE / 10; // 110
 
 export const regionByKey = new Map(REGIONS.map((r, i) => [r.key, { ...r, sort: i + 1 }]));
 
-/** The region a square belongs to, or null (square 100, or off the card). */
+/** The region a square belongs to, or null (off the board). */
 export function regionAt(position) {
   if (!Number.isInteger(position) || position < 1 || position > LAST_SQUARE) return null;
   return REGIONS[Math.floor((position - 1) / PER_REGION)].key;
 }
 
-/** The nine squares of a region, in order. */
+/** A region's squares, in order. */
 export function squaresOf(key) {
   const sort = regionByKey.get(key)?.sort;
   if (!sort) return [];
   return Array.from({ length: PER_REGION }, (_, i) => (sort - 1) * PER_REGION + i + 1);
+}
+
+/**
+ * The square a new task in region `key` goes on: the one after its last task,
+ * so tasks keep the order they were added in, or the first gap once the
+ * region's last square is taken. Null when the region is full.
+ */
+export function nextSquareIn(tiles, key) {
+  const squares = squaresOf(key);
+  if (!squares.length) return null;
+  const taken = new Set((tiles ?? []).map((t) => t.position));
+  const used = squares.filter((p) => taken.has(p));
+  const after = used.length ? used[used.length - 1] + 1 : squares[0];
+  if (after <= squares[squares.length - 1] && !taken.has(after)) return after;
+  return squares.find((p) => !taken.has(p)) ?? null;
+}
+
+/** The tiles in region `key`, in square order. */
+export function tilesIn(tiles, key) {
+  return (tiles ?? []).filter((t) => regionAt(t.position) === key)
+    .sort((a, b) => a.position - b.position);
 }
 
 /** What a team needs in a region: x% of its points, rounded up. 50% of 15 is 8. */
@@ -242,7 +266,7 @@ export function regionsEventText(e, who, tileName = () => null) {
 // ---- The organiser's side ----
 
 /**
- * The board as the organiser builds it: every region with its nine squares,
+ * The board as the organiser builds it: every region with its squares,
  * the tile on each (or null), and its points. `tiles` are admin_list_tiles
  * rows; `worths` is admin_tile_worths as a Map position -> worth.
  */
@@ -267,7 +291,7 @@ export function builderRegions(tiles, worths = new Map(), threshold = 50) {
 export function boardProblems(tiles) {
   const out = [];
   if ((tiles ?? []).some((t) => t.position > LAST_SQUARE)) {
-    out.push('Square 100 belongs to no region — clear it.');
+    out.push('A tile sits past Varlamore’s last square, in no region — clear it.');
   }
   const filled = new Set((tiles ?? []).map((t) => regionAt(t.position)).filter(Boolean));
   const empty = REGIONS.filter((r) => !filled.has(r.key)).map((r) => r.name);

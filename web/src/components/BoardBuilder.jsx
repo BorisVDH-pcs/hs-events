@@ -12,7 +12,8 @@ import TileForm from './TileForm.jsx';
 import SnakesBoard from './snakes/SnakesBoard.jsx';
 import { placeAtPosition, placePosition } from '../lib/territory.js';
 import { REGIONS } from '../lib/territoryWorld.js';
-import { LAST_SQUARE, PER_REGION, regionAt } from '../lib/regions.js';
+import { PER_REGION, nextSquareIn, regionAt, tilesIn } from '../lib/regions.js';
+import RegionBuilderMap from './regions/RegionBuilderMap.jsx';
 import { statusLabel } from '../lib/status.js';
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion.js';
 import {
@@ -41,6 +42,7 @@ import { millionsLabel, millionsToTenths } from '../lib/millions.js';
  * board it lands on this time belongs to the square, not to the task.
  */
 const NO_JUMPS = [];
+const NO_SQUARES = new Map();
 
 const jumpWords = (j) => (isLadder(j)
   ? `🪜 Ladder from tile ${j.from} up to ${j.to}`
@@ -103,8 +105,10 @@ export default function BoardBuilder({
   // 10 for battleships; a bingo card can be anything from 3 to 10.
   const size = game.grid_size ?? GRID;
   // Only the saved boards this game can load: admin_apply_board_preset refuses
-  // a board of another size, so offering one is offering an error.
-  const fitting = presets.filter((p) => p.grid_size === size);
+  // a board of another size, or a region board on a card (and the other way
+  // round), so offering one is offering an error.
+  const fitting = presets.filter((p) => p.grid_size === size
+    && Boolean(p.regions) === (game.mode === 'regions'));
   const otherSizes = presets.length - fitting.length;
 
   // Snakes and Ladders: the same hundred squares, numbered along the snake
@@ -124,17 +128,12 @@ export default function BoardBuilder({
     () => new Map(territory && homes ? [...homes].map(([key, team]) => [placePosition(key), team]) : []),
     [territory, homes]
   );
-  // Region Bingo: the 10x10 card cut into the eleven regions, nine squares
-  // each (lib/regions.js), so a square is called by its region. The last
-  // square belongs to none and must stay empty -- start_game refuses a tile
-  // there -- so it is a square that needs no task, like a snake's head.
+  // Region Bingo: no card at all. Each region owns a block of squares
+  // (lib/regions.js) and is built on the map (RegionBuilderMap), so a square
+  // is called by its region, "Misthalin 3", and none of them needs no task.
   const regions = game.mode === 'regions';
-  const unusedSquares = useMemo(
-    () => new Map(regions ? [[LAST_SQUARE + 1, true]] : []),
-    [regions]
-  );
   // The squares that need no task, whichever mode makes them so.
-  const noTask = snakes ? jumpStarts : regions ? unusedSquares : homeSquares;
+  const noTask = snakes ? jumpStarts : regions ? NO_SQUARES : homeSquares;
   const need = size * size - noTask.size;
   // Tiles left on a jump start (or a home) by an older layout or a loaded
   // board: never played, and worth clearing so the board says what is really
@@ -144,7 +143,7 @@ export default function BoardBuilder({
   const regionsFilled = regions ? new Set(tiles.map((t) => regionAt(t.position)).filter(Boolean)).size : 0;
   const squareLabel = (row, col) => (snakes ? `Tile ${toPosition(row, col)}`
     : territory ? placeAtPosition(toPosition(row, col))?.name ?? coordLabel(row, col)
-      : regions ? regionSquareLabel(toPosition(row, col))
+      : regions ? regionSquareLabel(toPosition(row, col), tiles)
         : coordLabel(row, col));
 
   const byPosition = useMemo(
@@ -259,7 +258,7 @@ export default function BoardBuilder({
       const { row, col } = fromPosition(t.position);
       map.set(key, snakes ? `Tile ${t.position}`
         : territory ? placeAtPosition(t.position)?.name ?? coordLabel(row, col)
-          : regions ? regionSquareLabel(t.position)
+          : regions ? regionSquareLabel(t.position, tiles)
             : coordLabel(row, col));
     }
     return map;
@@ -412,6 +411,13 @@ export default function BoardBuilder({
   // run 1-5, 11-15, ... and "position + 1" is not always a square on the card.
   // A snakes board walks the path, 1 to 100, past the squares that need no task.
   function nextEmptyAfter(position) {
+    // Region Bingo: the next task of the same region, so the panel stays
+    // ready for another one there. `tiles` is still the list from before this
+    // write landed, so the square just filled is counted as taken by hand.
+    if (regions) {
+      const next = nextSquareIn([...(tiles ?? []), { position }], regionAt(position));
+      return next == null ? null : fromPosition(next);
+    }
     const order = snakes
       ? Array.from({ length: LAST_TILE }, (_, i) => i + 1).filter((n) => !jumpStarts.has(n))
       : cardCells(size).map((c) => c.position).filter((n) => !noTask.has(n));
@@ -584,9 +590,14 @@ export default function BoardBuilder({
     const other = byPosition.get(toPos) ?? null;
     const ok = await onSwapTiles(from, to);
     if (ok) {
+      // Region Bingo across regions: the regions are what moved, and a task
+      // number read before the move would be stale after it.
+      const across = regions && regionAt(fromPos) !== regionAt(toPos);
+      const name = (p, row, col) => (across ? REGION_NAME.get(regionAt(p)) : squareLabel(row, col));
       setUndo({
         swap: true, from, to,
-        label: `${squareLabel(from.row, from.col)} ${other ? '↔' : '→'} ${squareLabel(to.row, to.col)}`,
+        label: `${name(fromPos, from.row, from.col)} ${other ? '↔' : '→'} ${name(toPos, to.row, to.col)}`,
+        backTo: across ? REGION_NAME.get(regionAt(fromPos)) : null,
         moved: tile.name, swapped: other?.name ?? null,
       });
       setMoving(null);
@@ -699,13 +710,20 @@ export default function BoardBuilder({
           Tiles are locked once the game is {statusLabel(game.status)}. Below is
           the board that is running.
         </p>
-        <BuilderGrid size={size} tiles={byPosition} at={null} onPick={() => {}}
-                     snakes={snakes} jumpStarts={jumpStarts}
-                     territory={territory} homeSquares={homeSquares}
-                     regions={regions} />
+        {regions ? (
+          <RegionBuilderMap tiles={tiles} at={null} onPick={() => {}} onClose={() => {}} live />
+        ) : (
+          <BuilderGrid size={size} tiles={byPosition} at={null} onPick={() => {}}
+                       snakes={snakes} jumpStarts={jumpStarts}
+                       territory={territory} homeSquares={homeSquares}
+                       regions={regions} />
+        )}
       </section>
     );
   }
+
+  // Not a hook: this sits below the locked view's early return.
+  const closeSquare = () => { setAt(null); setEditing(null); };
 
   function pick(row, col, source) {
     // Holding a tile makes a square something you fill, not something
@@ -742,25 +760,26 @@ export default function BoardBuilder({
         ) : (
           <>
             {regions
-              ? <>{filled} task{filled === 1 ? '' : 's'} placed, in {regionsFilled} of {REGIONS.length} regions.</>
+              ? <>{filled} task{filled === 1 ? '' : 's'} placed, in {regionsFilled} of {REGIONS.length} regions.
+                {' '}Press a region on the map to see its tasks and add more — as many as you like, up
+                to {PER_REGION} in a region. Every region needs at least one; the ones still under the
+                fog have none yet. Points are set on the Points tab.</>
               : territory ? <>{filled} of {need} places have a task.</> : <>{filled} of {need} squares filled.</>}
             {territory && filled === 0 && ' The map starts with no tasks. Deal them at random from the catalogue, load a saved board, or give each place its own.'}
-            {filled < need && (territory
+            {!regions && filled < need && (territory
               ? ' Click a place, then a tile to make it that place’s task.'
               : ' Click an empty square, then a tile to put in it.')}
-            {filled > 0 && ' Drag a tile to move it; dropped on another tile, the two swap places.'}
+            {!regions && filled > 0 && ' Drag a tile to move it; dropped on another tile, the two swap places.'}
             {snakes && jumpStarts.size > 0 && ` The ${jumpStarts.size} snake heads and ladder bottoms need no task.`}
             {snakes && jumpStarts.size === 0 && ' Place the snakes and ladders first: their squares need no task.'}
             {territory && homeSquares.size > 0 && ` The ${homeSquares.size} homes need no task: nobody can take them.`}
             {territory && ' Each square is a place on the map, region by region.'}
-            {regions && ` Each region owns ${PER_REGION} squares, shaded in turn, and needs at least one task —`
-              + ` it need not fill all ${PER_REGION}. ${coordLabel(size, size)} belongs to no region and stays`
-              + ' empty. Points are set on the Points tab.'}
-            {' Arrow keys move around the board; Enter opens the square.'}
+            {!regions && ' Arrow keys move around the board; Enter opens the square.'}
           </>
         )}
       </p>
-      {(tiles.length > 0 || (snakes && jumpEdit?.editable)) && (
+      {/* A region board is already the players' map: nothing to toggle. */}
+      {!regions && (tiles.length > 0 || (snakes && jumpEdit?.editable)) && (
         <p className="builder-view-toggle">
           <button className="ghost" onClick={() => setPlayerView((v) => !v)}>
             {playerView ? 'Back to names' : 'See it as a player does'}
@@ -905,7 +924,7 @@ export default function BoardBuilder({
                       }
                     }}
                   >
-                    Save these {tiles.length} square{tiles.length === 1 ? '' : 's'}
+                    Save these {tiles.length} {regions ? 'task' : 'square'}{tiles.length === 1 ? '' : 's'}
                   </button>
                 </>
               )}
@@ -913,13 +932,15 @@ export default function BoardBuilder({
 
             {fitting.length === 0 && tiles.length === 0 && (
               <p className="muted">
-                No saved boards {otherSizes > 0 ? `for a ${size}×${size} board ` : ''}yet.
+                No saved {regions ? 'region boards' : 'boards'}
+                {!regions && otherSizes > 0 ? ` for a ${size}×${size} board` : ''} yet.
                 {' '}Build one and it can be kept here.
               </p>
             )}
             {otherSizes > 0 && (fitting.length > 0 || tiles.length > 0) && (
               <p className="muted">
-                {otherSizes} saved board{otherSizes === 1 ? ' is' : 's are'} for another size and not listed.
+                {otherSizes} saved board{otherSizes === 1 ? ' is' : 's are'}
+                {regions ? ' not a region board' : ' for another kind of board'}, so not listed.
               </p>
             )}
           </div>
@@ -930,7 +951,9 @@ export default function BoardBuilder({
            * it drifted next to "Save these 100 squares", where it reads as
            * being about the save. A control that changes what a button does has
            * to be beside that button. */}
-          <div className="builder-deals">
+          {/* Not on a region board: tasks go in region by region, and the
+              deal (20261116150000) deals nothing there. */}
+          {!regions && <div className="builder-deals">
             {/* Deals into the empty squares only, which is what makes it safe
                 to press on a board somebody has already worked on -- and why
                 it needs no confirmation. It is the first draft of a board,
@@ -999,7 +1022,7 @@ export default function BoardBuilder({
                 </button>
               </div>
             )}
-          </div>
+          </div>}
 
 
         </div>
@@ -1016,16 +1039,11 @@ export default function BoardBuilder({
       {!live && stranded.length > 0 && (
         <p className="builder-undo">
           <span>
-            <b>{stranded.length}</b> task{stranded.length === 1 ? ' sits' : 's sit'} on
-            {regions
-              // Only the last square can be one, so it is named outright, and
-              // so are the spaces: JSX drops the ones at a line break. Its own
-              // ending too: what it costs here is the start, which refuses it.
-              ? <>{' '}{coordLabel(size, size)}, which belongs to no region — the game cannot start until it is cleared.</>
-              : territory
+            <b>{stranded.length}</b> task{stranded.length === 1 ? ' sits' : 's sit'} on{' '}
+            {territory
               ? <>a team&rsquo;s home ({stranded.map((t) => placeAtPosition(t.position)?.name).join(', ')}) —</>
               : <>a snake head or ladder bottom ({stranded.map((t) => t.position).join(', ')}) —</>}
-            {!regions && <>nobody lands there, so {stranded.length === 1 ? 'it is' : 'they are'} never played.</>}
+            {' '}nobody lands there, so {stranded.length === 1 ? 'it is' : 'they are'} never played.
           </span>
           <button
             className="ghost"
@@ -1047,7 +1065,9 @@ export default function BoardBuilder({
         <p className="builder-holding">
           <TileIcon slug={held.icon} fallback={null} />
           <span>
-            Holding <b>{held.name}</b> — every square you click gets it.
+            Holding <b>{held.name}</b> — {regions
+              ? 'open a region and press its “Put … here” card.'
+              : 'every square you click gets it.'}
           </span>
           <button className="ghost" onClick={() => setHeld(null)}>
             Put it down
@@ -1063,8 +1083,9 @@ export default function BoardBuilder({
           <TileIcon slug={byPosition.get(toPosition(moving.row, moving.col)).icon} fallback={null} />
           <span>
             Moving <b>{byPosition.get(toPosition(moving.row, moving.col)).name}</b> from{' '}
-            {squareLabel(moving.row, moving.col)} — click the square it goes to. A tile
-            already there swaps places with it.
+            {squareLabel(moving.row, moving.col)} — {regions
+              ? 'open the region it goes to and press its “Move … here” card, or press another task to swap the two.'
+              : 'click the square it goes to. A tile already there swaps places with it.'}
           </span>
           <button className="ghost" onClick={() => setMoving(null)}>
             Cancel
@@ -1086,7 +1107,7 @@ export default function BoardBuilder({
             {undo.swap
               ? undo.swapped
                 ? <>Puts <b>{undo.moved}</b> and <b>{undo.swapped}</b> back where they were.</>
-                : <>Moves <b>{undo.moved}</b> back to {squareLabel(undo.from.row, undo.from.col)}.</>
+                : <>Moves <b>{undo.moved}</b> back to {undo.backTo ?? squareLabel(undo.from.row, undo.from.col)}.</>
               : undo.prev
                 ? <>Puts <b>{undo.prev.name}</b> back on {undo.label}.</>
                 : <>Empties {undo.label} again.</>}
@@ -1219,6 +1240,17 @@ export default function BoardBuilder({
             showStart={false}
             edit={jumpGrips}
           />
+        ) : regions ? (
+          <RegionBuilderMap
+            tiles={tiles}
+            at={at}
+            onPick={(row, col) => pick(row, col, 'pointer')}
+            onClose={closeSquare}
+            hand={held ? { kind: 'held', name: held.name }
+              : moving ? { kind: 'moving', name: byPosition.get(toPosition(moving.row, moving.col))?.name ?? 'the task' }
+                : null}
+            live={live}
+          />
         ) : (
           <BuilderGrid
             size={size}
@@ -1272,8 +1304,9 @@ export default function BoardBuilder({
                   </div>
                 </div>
                 <p className="muted">
-                  Click squares on the board to fill them. A square a team has
-                  locked in is left alone.
+                  {regions
+                    ? 'Open a region on the map and press its “Put … here” card.'
+                    : 'Click squares on the board to fill them. A square a team has locked in is left alone.'}
                 </p>
               </div>
 
@@ -1289,14 +1322,6 @@ export default function BoardBuilder({
                 onHold={(entry) => setHeld(entry)}
               />
             </>
-          ) : at && unusedSquares.has(toPosition(at.row, at.col)) ? (
-            <UnusedSquarePanel
-              label={squareLabel(at.row, at.col)}
-              tile={live ? null : current}
-              busy={busy}
-              onClose={() => setAt(null)}
-              onClear={() => { remember(at.row, at.col); onClearTile(at.row, at.col); }}
-            />
           ) : at && homeSquares.has(toPosition(at.row, at.col)) ? (
             <HomeSquarePanel
               label={squareLabel(at.row, at.col)}
@@ -1322,7 +1347,7 @@ export default function BoardBuilder({
             <>
               <h3>
                 {editing.what === 'square'
-                  ? `${squareLabel(at.row, at.col)} — ${current ? 'edit this square' : 'a one-off tile'}`
+                  ? `${squareLabel(at.row, at.col)} — ${current ? `edit this ${regions ? 'task' : 'square'}` : 'a one-off tile'}`
                   : editing.from ? `New tile, based on ${editing.from.name}` : 'New catalogue tile'}
               </h3>
               {/* Two situations now, and only one of them is a decision the
@@ -1333,9 +1358,9 @@ export default function BoardBuilder({
               {editing.what === 'square' && !clash && (
                 <p className="muted">
                   {catalogued
-                    ? <>Goes on this square. The catalogue already has <b>{catalogued.name}</b>,
+                    ? <>Goes on this {regions ? 'task' : 'square'}. The catalogue already has <b>{catalogued.name}</b>,
                         so that entry is left exactly as it is.</>
-                    : <>Goes on this square, and into the catalogue as a new entry
+                    : <>Goes on this {regions ? 'task' : 'square'}, and into the catalogue as a new entry
                         so a later board can deal it.</>}
                 </p>
               )}
@@ -1354,7 +1379,7 @@ export default function BoardBuilder({
                 at={editing.what === 'square' ? squareLabel(at.row, at.col) : 'This tile'}
                 busy={busy}
                 saveLabel={
-                  editing.what === 'square' ? 'Save square'
+                  editing.what === 'square' ? (regions ? 'Save task' : 'Save square')
                     : at ? `Save and place on ${squareLabel(at.row, at.col)}`
                       : 'Save to catalogue'
                 }
@@ -1466,7 +1491,7 @@ export default function BoardBuilder({
                         disabled={busy}
                         onClick={() => { remember(at.row, at.col); onClearTile(at.row, at.col); }}
                       >
-                        Clear square
+                        {regions ? 'Remove task' : 'Clear square'}
                       </button>
                     )}
                     {/* Dragging's other half, for a keyboard or a phone. */}
@@ -1476,11 +1501,11 @@ export default function BoardBuilder({
                         disabled={busy}
                         onClick={() => { setHeld(null); setMoving({ row: at.row, col: at.col }); }}
                       >
-                        Move to another square
+                        {regions ? 'Move to another region' : 'Move to another square'}
                       </button>
                     )}
                   </div>
-                  {canMove && (
+                  {canMove && !regions && (
                     <p className="muted">
                       Or drag it on the board: dropped on another tile, the two
                       swap places.
@@ -1491,7 +1516,9 @@ export default function BoardBuilder({
                   )}
                 </div>
               ) : (
-                <p className="muted">Empty. Pick a tile for it.</p>
+                <p className="muted">
+                  {regions ? 'A new task. Pick it from the catalogue below.' : 'Empty. Pick a tile for it.'}
+                </p>
               )}
 
               {!(live && current?.claimed) && (
@@ -1529,8 +1556,11 @@ export default function BoardBuilder({
               <h3>The catalogue</h3>
               <p className="muted">
                 {live
-                  ? 'Pick a square to fix it. Dealing, clearing and loading a '
-                    + 'whole board are for before the game starts.'
+                  ? (regions
+                    ? 'Open a task on the map to fix it. Adding, removing and loading a '
+                      + 'whole board are for before the game starts.'
+                    : 'Pick a square to fix it. Dealing, clearing and loading a '
+                      + 'whole board are for before the game starts.')
                   : library.length === 0
                     ? 'Empty so far. Load a saved board above, or add tiles one at a time.'
                     : `${library.length} task${library.length === 1 ? '' : 's'}, most-used first.`}
@@ -1580,7 +1610,7 @@ export default function BoardBuilder({
             disabled={busy}
             onClick={() => { setUndo(null); onClearBoard(); }}
           >
-            Remove all {tiles.length} tile{tiles.length === 1 ? '' : 's'}
+            Remove all {tiles.length} {regions ? 'task' : 'tile'}{tiles.length === 1 ? '' : 's'}
           </button>
         </div>
       )}
@@ -2130,33 +2160,6 @@ function HomeSquarePanel({ label, team, tile, busy, onClose, onClear }) {
   );
 }
 
-/** Region Bingo's last square, which belongs to no region. */
-function UnusedSquarePanel({ label, tile, busy, onClose, onClear }) {
-  return (
-    <>
-      <div className="row builder-head">
-        <h3>{label}</h3>
-        <button className="ghost" onClick={onClose}>Done</button>
-      </div>
-      <p className="muted">
-        The eleven regions take nine squares each, which leaves this one over. It
-        belongs to no region, so it holds no task and the game cannot start with
-        one on it.
-      </p>
-      {tile && (
-        <div className="builder-current">
-          <p className="muted">
-            <b>{tile.name}</b> is on this square and would never be played.
-          </p>
-          <button className="ghost danger" disabled={busy} onClick={onClear}>
-            Clear square
-          </button>
-        </div>
-      )}
-    </>
-  );
-}
-
 // Alternate shading per region on a territory card, so where one region ends
 // and the next begins reads at a glance.
 const REGION_SHADE = new Map(REGIONS.map((r, i) => [r.key, i % 2 ? 'b' : 'a']));
@@ -2169,18 +2172,22 @@ const REGION_SHORT = new Map(REGIONS.map((r) => [r.key, {
 }[r.key] ?? r.name]));
 
 /**
- * A Region Bingo square by its region and its place among that region's nine:
- * "Misthalin 3". The coordinate means nothing to anyone here -- players see
- * the regions on a map, never the grid -- so it is only the last resort, for
- * the square that belongs to no region.
+ * A Region Bingo square by its region and its place among that region's
+ * tasks, as the map's cards count them: "Misthalin, task 3", or "Misthalin,
+ * new task" for the square the next one goes on. The coordinate means nothing
+ * to anyone here -- players see the regions on a map, never squares -- so it
+ * is only the last resort, for a square in no region. Without `tiles`, the
+ * place in the region's block.
  */
-function regionSquareLabel(position) {
+function regionSquareLabel(position, tiles = null) {
   const key = regionAt(position);
   if (!key) {
     const { row, col } = fromPosition(position);
     return `${coordLabel(row, col)} (no region)`;
   }
-  return `${REGION_NAME.get(key)} ${((position - 1) % PER_REGION) + 1}`;
+  if (!tiles) return `${REGION_NAME.get(key)} ${((position - 1) % PER_REGION) + 1}`;
+  const i = tilesIn(tiles, key).findIndex((t) => t.position === position);
+  return i < 0 ? `${REGION_NAME.get(key)}, new task` : `${REGION_NAME.get(key)}, task ${i + 1}`;
 }
 
 function BuilderGrid({

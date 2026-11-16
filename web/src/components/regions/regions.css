@@ -307,6 +307,52 @@ button.regions-chip:hover { border-color: var(--gold-deep); filter: none; }
 .regions-zoom-tile-state { font-size: .72rem; color: var(--gold-lit); white-space: nowrap; }
 .regions-zoom-tile.done .regions-tile-worth { background: rgba(48, 209, 88, .18); color: var(--strike-lit); }
 
+/* ---- The organiser's builder (RegionBuilderMap) ---- */
+.regions-builder { display: grid; gap: .75rem; min-width: 0; }
+.regions-builder .regions-map { margin: 0; }
+.regions-builder-task .regions-zoom-tile-state { color: rgba(235, 235, 245, .62); }
+.regions-zoom-tile.claimed { opacity: .7; }
+.regions-zoom-tile.claimed .regions-zoom-tile-state { color: var(--gold-lit); }
+/* The card that adds a task: an outline waiting to be filled, not a task. */
+.regions-zoom-add {
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--tint) 62%, transparent);
+  background: rgba(13, 15, 22, .46);
+}
+.regions-zoom-add .regions-tile-art {
+  font-size: 1.5rem; font-weight: 300; line-height: 1;
+  background: color-mix(in srgb, var(--tint) 26%, transparent);
+  color: #fff;
+}
+.regions-zoom-add .regions-zoom-tile-name { color: #fff; }
+.regions-zoom-add .regions-zoom-tile-state { color: rgba(235, 235, 245, .62); }
+.regions-zoom-add.hand { border-style: solid; box-shadow: 0 0 0 1px var(--tint), 0 8px 24px rgba(0, 0, 0, .4); }
+.regions-zoom-add:disabled { cursor: default; opacity: .55; transform: none; }
+
+/* Every region by name under the world map: the same eleven targets, for a
+   phone (where the map hides its names) and for a keyboard. */
+.regions-builder-list {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; gap: .4rem;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 10.5rem), 1fr));
+}
+.regions-builder-list button {
+  width: 100%;
+  display: flex; justify-content: space-between; align-items: baseline; gap: .5rem;
+  padding: .5rem .7rem;
+  border-radius: var(--r-md, 10px);
+  border: 1px solid rgba(255, 255, 255, .1);
+  background: rgba(255, 255, 255, .04);
+  color: var(--text);
+  font: inherit; font-size: .82rem; text-align: left; text-transform: none; letter-spacing: 0;
+  cursor: pointer;
+}
+.regions-builder-list button:hover { border-color: rgba(255, 223, 149, .45); background: rgba(255, 255, 255, .07); filter: none; }
+.regions-builder-list button.empty { border-color: rgba(255, 159, 10, .35); }
+.regions-builder-list button.empty .muted { color: #ffb340; }
+.regions-builder-list button span:first-child { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.regions-builder-list button span:last-child { flex: none; white-space: nowrap; }
+
 @keyframes regions-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes regions-card-in {
   from { opacity: 0; transform: translateY(8px) scale(.98); }
