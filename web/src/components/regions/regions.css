@@ -296,6 +296,15 @@ button.regions-chip:hover { border-color: var(--gold-deep); filter: none; }
   background: color-mix(in srgb, var(--tint) 20%, rgba(255, 255, 255, .04));
   color: var(--tint);
 }
+/* A task's own icon stands on the card by itself, the way an item does in
+   game, not in a box. Only a task with no icon keeps the tinted square,
+   behind its initial. */
+.regions-zoom-tile .regions-tile-art:has(> img) {
+  background: transparent;
+  border-radius: 0;
+  overflow: visible;
+}
+.regions-zoom-tile .regions-tile-art > img { filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .75)); }
 .regions-zoom-tile-name {
   grid-area: name;
   min-width: 0;
@@ -311,6 +320,10 @@ button.regions-chip:hover { border-color: var(--gold-deep); filter: none; }
 .regions-builder { display: grid; gap: .75rem; min-width: 0; }
 .regions-builder .regions-map { margin: 0; }
 .regions-builder-task .regions-zoom-tile-state { color: rgba(235, 235, 245, .62); }
+/* The builder's foot lines are sentences, not a points badge: they wrap
+   inside a narrow card rather than run out past its edge. */
+.regions-builder-task .regions-zoom-tile-state,
+.regions-zoom-add .regions-zoom-tile-state { white-space: normal; line-height: 1.3; }
 .regions-zoom-tile.claimed { opacity: .7; }
 .regions-zoom-tile.claimed .regions-zoom-tile-state { color: var(--gold-lit); }
 /* The card that adds a task: an outline waiting to be filled, not a task. */

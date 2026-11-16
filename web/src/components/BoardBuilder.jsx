@@ -541,10 +541,16 @@ export default function BoardBuilder({
   }, [held, moving, editing]);
 
   function remember(row, col) {
+    const position = toPosition(row, col);
+    const prev = byPosition.get(position) ?? null;
+    // Region Bingo: a task just added has no square name worth repeating
+    // ("Kandarin, new task"); what it undoes is the region gaining one.
+    const added = regions && !prev;
     setUndo({
       row, col,
-      label: squareLabel(row, col),
-      prev: byPosition.get(toPosition(row, col)) ?? null,
+      label: added ? REGION_NAME.get(regionAt(position)) ?? squareLabel(row, col) : squareLabel(row, col),
+      prev,
+      added,
     });
   }
 
@@ -1101,7 +1107,7 @@ export default function BoardBuilder({
       {undo && (
         <p className="builder-undo">
           <button className="ghost" disabled={busy} onClick={undoLast}>
-            Undo {undo.label}
+            Undo {undo.added ? `the new task in ${undo.label}` : undo.label}
           </button>
           <span className="muted">
             {undo.swap
@@ -1110,7 +1116,9 @@ export default function BoardBuilder({
                 : <>Moves <b>{undo.moved}</b> back to {undo.backTo ?? squareLabel(undo.from.row, undo.from.col)}.</>
               : undo.prev
                 ? <>Puts <b>{undo.prev.name}</b> back on {undo.label}.</>
-                : <>Empties {undo.label} again.</>}
+                : undo.added
+                  ? <>Takes it out of {undo.label} again.</>
+                  : <>Empties {undo.label} again.</>}
           </span>
           {/* The way into holding a tile, offered where it becomes obvious:
               you have just placed one, and the next thing you do is often
