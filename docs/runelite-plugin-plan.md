@@ -6,6 +6,10 @@ Nothing here is built, and nothing is decided.** Proposals are marked
 **(proposed)**; the choices that are Boris's to make are collected in
 section 10.
 
+First drafts of the server side, with their tests, are in `runelite-plugin/`;
+its README says what is tested and what is not. The drafts are ahead of the
+SQL sketches below where the two differ.
+
 **In one line:** a drop a player gets in game is matched to their team's open
 tiles and handed in as evidence with its screenshot, without the player
 opening the site; and what happens in the game (a tile done, a region

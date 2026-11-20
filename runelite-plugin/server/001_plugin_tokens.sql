@@ -199,11 +199,14 @@ $$;
 -- 6. Grants
 -- ============================================================
 
-revoke execute on function plugin_as(text)               from public, anon, authenticated;
+-- Supabase grants every new function in public to the three API roles by
+-- default, so "to nobody" has to name the service role as well.
+revoke execute on function plugin_as(text)               from public, anon, authenticated, service_role;
 revoke execute on function plugin_whoami(text)           from public, anon, authenticated;
-revoke execute on function plugin_token_create(text)     from public, anon;
-revoke execute on function plugin_token_list()           from public, anon;
-revoke execute on function plugin_token_revoke(uuid)     from public, anon;
+-- These three need a signed-in player (auth.uid()), which the service role is not.
+revoke execute on function plugin_token_create(text)     from public, anon, service_role;
+revoke execute on function plugin_token_list()           from public, anon, service_role;
+revoke execute on function plugin_token_revoke(uuid)     from public, anon, service_role;
 
 grant execute on function plugin_token_create(text)      to authenticated;
 grant execute on function plugin_token_list()            to authenticated;
