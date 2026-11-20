@@ -1,0 +1,11 @@
+{
+  "name": "hs-events-plugin-server-test",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node tokens.test.mjs"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "^0.5.17"
+  }
+}
