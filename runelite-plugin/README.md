@@ -65,7 +65,7 @@ applies them on merge.
 | `web/src/lib/waitingDrops.js` | The box's helpers: a tile's name with its region, the time left. Where the copy goes is now the database's answer | Tested by `web/scripts/waiting-drops-selftest.mjs` |
 | `web/src/components/Admin.jsx` | "Drops from Dink" on each Region Bingo game that has not finished: the site's own switch, as for Discord | Tried in the admin harness (`/preview-admin.html`) at desktop and phone width; its call tested through PostgREST on the local stack. On the live site since 2026-11-21 (pull request #83): switched on there by Boris for the hidden test game (see "On the live site") |
 | `web/src/components/TileForm.jsx` | The tile editor: "Not in the item list" under a drop, with names to click, and "Add a list…" | Tried in the admin harness (`/preview-admin.html`), at desktop and phone width. On the live site since 2026-11-21 (pull request #83); not used by Boris yet |
-| `web/src/components/TileForm.jsx`, `BoardBuilder.jsx`, `web/src/lib/tileDraft.js`, `supabase.js` | "Only from" in the organiser's tile form, for board squares and catalogue entries; not in a player's suggestion | Tested by `web/scripts/tile-draft-selftest.mjs`; tried in the admin harness. On the live site since 2026-11-21 (pull request #86); not used there yet |
+| `web/src/components/TileForm.jsx`, `BoardBuilder.jsx`, `web/src/lib/tileDraft.js`, `supabase.js` | "Only from" in the organiser's tile form, for board squares and catalogue entries; not in a player's suggestion | Tested by `web/scripts/tile-draft-selftest.mjs`; tried in the admin harness. On the live site since 2026-11-21 (pull request #86); tried there by Boris with a real Dink the same evening |
 | `web/src/lib/itemNames.js`, `itemNames.data.js` | `dropKey` (the server's `drop_key` in JS), the check, and 4,820 item names | Tested by `web/scripts/item-names-selftest.mjs`; `tokens.test.mjs` checks `dropKey` against `drop_key` on every name |
 | `web/scripts/build-item-names.mjs` | Makes `itemNames.data.js` from the OSRS Wiki's price list and a typed list of untradeables | Run once, 2026-11-21 |
 | `web/src/lib/dropLists.js` | The ready-made lists: 65 of them, for raids, groups of bosses, every boss in the collection log and pets | Every name is checked against the item list by the selftest, spelled exactly as the item is |
@@ -857,7 +857,8 @@ the console and login harnesses, and with the login page's query through
 the site's own client against the local stack. Live since 2026-11-21: pull
 request #84, merge `383b25e`, its database change and the site deployed
 green. The first hidden game on the live site, "Dink test (hidden)", was set
-up the same day (see Next, item 11).
+up the same day, and deleted the same evening once its tests were done (see
+Next, item 11).
 
 ## The tile editor's name check
 
@@ -945,8 +946,9 @@ tile must not be completed by a Dragon pickaxe from Callisto. Decided the
 same evening: a list per tile, on catalogue entries too, and an empty list
 means a drop from any monster counts, as before. Built the same evening, and
 live the same evening (pull request #86): the migration, the intake and the
-site went out at once, and the live site's code has the new calls. Not yet
-used there. The rules sheet says it in one line, under "Drops from Dink"
+site went out at once, and the live site's code has the new calls. Boris
+tried it there the same evening, with a real Dink. The rules sheet says it
+in one line, under "Drops from Dink"
 (`docs/region-bingo-rules.md`).
 
 - **What it is.** "Only from" in the organiser's tile form, under the drops:
@@ -996,8 +998,8 @@ stack, an organiser setting a list through PostgREST mid-game, then a
 Granite maul from Callisto (nothing) and one from the Kalphite Queen (handed
 in, through the real intake function). The form was tried in the admin
 harness: an entry's list shown, changed and saved, placed on a square, and
-changed on the square alone. Not tried: a real Dink with a list, or the
-form on the local site.
+changed on the square alone. A real Dink with a list was tried by Boris on
+the live site (2026-11-21). Not tried: the form on the local site.
 
 ## Many drops at once
 
@@ -1222,8 +1224,9 @@ a square, Edit, and type a drop.
    A Kalphite Queen "Dragon pickaxe" tile should not be completed by a
    Dragon pickaxe from Callisto. **Decided** the same evening: a list per
    tile and on catalogue tiles, empty for any monster. **Live** the
-   same evening (pull request #86; see "Only from"). Boris to try it in the
-   console. **Decided** the same evening: the rules sheet says it, under
+   same evening (pull request #86; see "Only from"). Boris tried it on the
+   live site the same evening, with a real Dink. **Decided** the same
+   evening: the rules sheet says it, under
    "Drops from Dink".
 5. **Done 2026-11-21:** Bingo (see "Bingo"). Its trial card is ended for
    now: Region Bingo first.
@@ -1264,8 +1267,10 @@ a square, Edit, and type a drop.
     (pull request #84; see "A hidden test game"). Set up on the live site as
     the organiser account, with no SQL: "Dink test (hidden)", Region Bingo,
     hidden, Dink off, one team. Bones and Cowhide in each of the 11 regions,
-    22 tasks, from two catalogue entries made for it; delete them and the
-    game after. Boris played it the same evening: five drops, all as the
-    rules say (see "On the live site"). Boris set Misthalin's "Cowhide" to
-    need three, to see how it acts. The board now has 25 tasks: Kandarin 5,
-    Karamja 3.
+    22 tasks, from two catalogue entries made for it. Boris played it the
+    same evening: five drops, all as the rules say (see "On the live
+    site"). Boris set Misthalin's "Cowhide" to need three, to see how it
+    acts. The board grew to 25 tasks: Kandarin 5, Karamja 3. **Deleted**
+    the same evening through the console, as Boris asked: the two catalogue
+    entries first, then the game. Its screenshots stay in Storage, because
+    deleting a game does not remove its files.
