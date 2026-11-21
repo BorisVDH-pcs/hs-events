@@ -388,6 +388,20 @@ export async function evidenceSources(gameId) {
 }
 
 /**
+ * The same, for the pieces of evidence one tile's panel shows, by id. Any
+ * signed-in player may ask; the database answers only for their own team's
+ * evidence, or a game they run, and says nothing of any other row. Null when
+ * the database has no such function yet: then the panel shows what it always
+ * did, the picture, the name and the time.
+ */
+export async function evidenceSourcesFor(ids) {
+  const { data, error } = await supabase.rpc('evidence_sources', { p_ids: ids });
+  if (isMissingFunction(error)) return null;
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+/**
  * Sign up, or correct the name on an entry.
  *
  * Open for as long as the event runs: a latecomer is added to the live WOM

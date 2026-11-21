@@ -513,6 +513,9 @@ export default function EvidenceReview({ gameId, mode }) {
               {sent && <span className="evidence-sent" title={sent.title}>{sent.label}</span>}
             </div>
           )}
+          {/* What the plugin said dropped: the one line that says what a
+              picture is for when the drop is not in it. */}
+          {sent?.drop && <span className="evidence-sent-drop">{sent.drop}</span>}
           <span className="muted">
             {r.uploaded_by_name} · {new Date(r.created_at).toLocaleString()}
           </span>

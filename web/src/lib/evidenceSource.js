@@ -1,11 +1,20 @@
 /**
- * Where a piece of evidence came from, for the organiser's review screen.
+ * Where a piece of evidence came from, for the organiser's review screen and
+ * for a tile's panel (EvidencePanel), which a team opens on its own board.
  *
  * Most evidence is uploaded on the site, and that stays the normal way in. A
  * player who runs Dink (a RuneLite plugin) can also have a drop handed in for
- * them. The database marks those rows 'dink' or 'plugin', and
- * admin_evidence_sources() tells the review screen which rows they are and
- * what the plugin reported (runelite-plugin/server/002_plugin_drops.sql).
+ * them. The database marks those rows 'dink' or 'plugin', and tells the
+ * screens which rows they are and what the plugin reported: the review screen
+ * through admin_evidence_sources(), the panel through evidence_sources()
+ * (runelite-plugin/server/002_plugin_drops.sql).
+ *
+ * WHY THE PANEL SHOWS IT TOO (Boris, 2026-11-21). Dink's screenshot does not
+ * always show the drop: the chat box may be closed, and a small item on the
+ * ground is a few pixels, or hidden. So the drop line ("Bones ×1 from Woman")
+ * goes beside every Dink picture, for the team as well as the organiser. The
+ * time is the row's own, shown beside it: our server's clock when the drop
+ * arrived, seconds after the kill, not the player's.
  *
  * "SENT BY PLUGIN", NEVER "VERIFIED". The plugin runs on the player's own
  * computer, and everything in `detail` is what that computer said. It saves
@@ -39,11 +48,16 @@ function clientInt(value) {
 }
 
 /**
- * The label and the lines under it for one evidence row, or null for an
- * upload from the site (or a row the database said nothing about).
+ * The label, the drop, and the lines under it for one evidence row, or null
+ * for an upload from the site (or a row the database said nothing about).
+ *
+ * `drop` is what the plugin said dropped, how many, and from what: "Bones ×1
+ * from Woman". It is the line that says what the picture is for, so the
+ * screens show it first and plainest. Null when the plugin named no item.
+ * `lines` is the rest: which account and world, and a resize.
  *
  * @param {{source?: string, detail?: object}} row
- * @returns {{label: string, title: string, lines: string[]} | null}
+ * @returns {{label: string, title: string, drop: string|null, lines: string[]} | null}
  */
 export function evidenceSource(row) {
   const source = row?.source;
@@ -57,18 +71,18 @@ export function evidenceSource(row) {
   const world = clientInt(d.world);
   const pet = d.dink_type === 'PET';
 
+  // What the plugin said dropped, how many (a single one too, so the line
+  // always says), and from what.
+  let drop = item;
+  if (drop && pet) drop = `Pet: ${drop}`;
+  else if (drop && qty) drop += ` ×${qty.toLocaleString('en-GB')}`;
+  if (drop && from && !pet) drop += ` from ${from}`;
+
   const lines = [];
 
-  // What the plugin said dropped, and from what.
-  let what = item ?? '';
-  if (what && qty && qty > 1) what += ` ×${qty.toLocaleString('en-GB')}`;
-  if (what && pet) what = `Pet: ${what}`;
-  if (what && from && !pet) what += ` from ${from}`;
-  if (what) lines.push(what);
-
-  // Which of the player's accounts, and where. The name is the one in game,
-  // which is not always the name they use on the site.
-  const where = [rsn && `as ${rsn}`, world && `world ${world}`].filter(Boolean).join(' · ');
+  // Which world, and which of the player's accounts. The name is the one in
+  // game, which is not always the name they use on the site.
+  const where = [world && `World ${world}`, rsn && `as ${rsn}`].filter(Boolean).join(' · ');
   if (where) lines.push(where);
 
   const resizedFrom = clientText(d.resized_from);
@@ -76,7 +90,7 @@ export function evidenceSource(row) {
     lines.push(`Picture made smaller from ${resizedFrom.replace('x', '×')}`);
   }
 
-  return { label: PLUGIN_LABEL, title: PLUGIN_TITLE, lines };
+  return { label: PLUGIN_LABEL, title: PLUGIN_TITLE, drop: drop ?? null, lines };
 }
 
 /**

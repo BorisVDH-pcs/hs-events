@@ -239,6 +239,38 @@ export const evidenceSources = () => new Promise((resolve, reject) => setTimeout
   else resolve(DEMO_SOURCES);
 }, 80));
 
+/**
+ * A tile's panel, for the evidence harness (main.jsx): one drop Dink handed in,
+ * like the Woman's Bones of 2026-11-21, whose screenshot did not show them, and
+ * one upload from the site.
+ */
+export const PANEL_DEMO = [
+  { id: 'pv-1', storage_path: 'pv/1', uploaded_by_name: 'Soft Papi', created_at: ago(3) },
+  { id: 'pv-2', storage_path: 'pv/2', uploaded_by_name: 'Duradel', created_at: ago(42) },
+];
+const PANEL_SOURCES = [
+  {
+    id: 'pv-1',
+    source: 'dink',
+    detail: {
+      source: 'dink', rsn: 'Soft Papi', item: 'Bones', item_id: 526, quantity: 1,
+      price_each: 75, from: 'Woman', category: 'NPC', world: 308,
+      region_id: 12850, dink_type: 'LOOT',
+    },
+  },
+];
+
+/**
+ * evidence_sources, for a tile's panel: the same rows, asked by id, with the
+ * same `mode` switch. Every other harness's rows are uploads from the site, so
+ * nothing comes back for them, as on a real board.
+ */
+export const evidenceSourcesFor = (ids) => new Promise((resolve, reject) => setTimeout(() => {
+  if (evidenceSourceFixtures.mode === 'missing') resolve(null);
+  else if (evidenceSourceFixtures.mode === 'failed') reject(new Error('stub: the database did not answer'));
+  else resolve([...DEMO_SOURCES, ...PANEL_SOURCES].filter((s) => ids.includes(s.id)));
+}, 80));
+
 /** Rows the harness has not revoked yet. Mutated so the list really shrinks. */
 let live = [...DEMO];
 
@@ -318,9 +350,11 @@ export function adminRevokeEvidence(evidenceId, dryRun = false) {
   );
 }
 
-export const DEMO_URLS = Object.fromEntries(
-  DEMO.map((r) => [r.storage_path, shot(r.option_label ?? `${r.points / 10}m`)])
-);
+export const DEMO_URLS = Object.fromEntries([
+  ...DEMO.map((r) => [r.storage_path, shot(r.option_label ?? `${r.points / 10}m`)]),
+  ['pv/1', shot('no bones in sight')],
+  ['pv/2', shot('upload')],
+]);
 
 /**
  * The My Accounts list, for the Home harness (home-main.jsx), which fills

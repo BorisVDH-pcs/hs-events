@@ -420,8 +420,8 @@ const chainRow = onScreen.find((x) => x.storage_path === chain[0]?.storage_path)
 const chainSent = evidenceSource(chainRow);
 ok('the review screen labels the chainbody "Sent by plugin", with what Dink reported',
    chainSent?.label === 'Sent by plugin'
-   && chainSent.lines.includes('Dragon chainbody from Chaos Elemental')
-   && chainSent.lines.includes('as Mate Iron · world 302')
+   && chainSent.drop === 'Dragon chainbody ×1 from Chaos Elemental'
+   && chainSent.lines.includes('World 302 · as Mate Iron')
    && chainSent.lines.includes('Picture made smaller from 3840×2400'), J(chainSent));
 ok("and the site's own upload has no label",
    evidenceSource(onScreen.find((x) => x.storage_path === sitePath)) === null
@@ -436,6 +436,33 @@ ok("a player is refused, in the evidence list's own words, and learns nothing",
 for (const [who, as] of [['anon', ANON], ['the service role', SERVICE]]) {
   r = await rpc('admin_evidence_sources', { p_game_id: g }, as);
   ok(`${who} cannot call it at all`, r.status >= 400 && !/Chaos Elemental|chainbody/.test(J(r)), J(r));
+}
+
+// ------------------------------------- the same lines in a tile's panel
+// evidence_sources, as a team's own board asks it: by evidence id, with the
+// player's sign-in. Asked here for every row in the game, so the answer shows
+// exactly what the gate lets through.
+const everyEv = sqlJson(`select e.id from tile_evidence e join tile_claims c on c.id = e.claim_id
+  join tiles t on t.id = c.tile_id where t.game_id = '${g}'`).map((x) => x.id);
+const sentBy = (teamId) => sqlJson(`select e.id from tile_evidence e join tile_claims c on c.id = e.claim_id
+  join tiles t on t.id = c.tile_id where t.game_id = '${g}' and e.source <> 'web' and e.team_id = '${teamId}'`)
+  .map((x) => x.id).sort();
+r = await rpc('evidence_sources', { p_ids: everyEv }, people.mate.jwt);
+ok("a player's board is told what Dink reported for their own team's drops, and only those",
+   r.status === 200 && sentBy(team.Red).length >= 2 && J(r.body.map((x) => x.id).sort()) === J(sentBy(team.Red)),
+   J([r.status, r.body?.length, sentBy(team.Red).length]));
+const mine = await must('my_evidence', { p_game_id: g }, people.mate.jwt);
+const panelChain = evidenceSource(withSources(mine, r.body).find((x) => x.storage_path === chain[0]?.storage_path));
+ok('the panel draws the chainbody as the review screen does: the drop, the world, the account',
+   panelChain?.drop === 'Dragon chainbody ×1 from Chaos Elemental' && panelChain.lines.includes('World 302 · as Mate Iron'),
+   J(panelChain));
+r = await rpc('evidence_sources', { p_ids: everyEv }, people.blue.jwt);
+ok("Blue asking for every row of the game is told about Blue's own, and nothing of Red's",
+   r.status === 200 && J(r.body.map((x) => x.id).sort()) === J(sentBy(team.Blue)) && !/chainbody/.test(J(r.body)),
+   J([r.status, r.body?.length]));
+for (const [who, as] of [['anon', ANON], ['the service role', SERVICE]]) {
+  r = await rpc('evidence_sources', { p_ids: everyEv }, as);
+  ok(`${who} cannot ask for the panel's lines`, r.status >= 400 && !/Chaos Elemental|chainbody/.test(J(r)), J(r));
 }
 
 await new Promise((res) => setTimeout(res, 800));

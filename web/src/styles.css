@@ -1498,6 +1498,12 @@ button.cell.pet-target:active { transform: scale(.93); transition-duration: .09s
   white-space: nowrap; cursor: help;
 }
 .evidence-review .evidence-sent-detail { overflow-wrap: anywhere; }
+/* What the plugin said dropped ("Bones ×1 from Woman"). Plain text at the
+   body's colour, not gold: it is what the picture is for when the drop is not
+   in it, and it is still only what the player's client reported. */
+.evidence-review .evidence-sent-drop {
+  font-weight: 600; letter-spacing: -.008em; overflow-wrap: anywhere;
+}
 .evidence-review .evidence-revoke { flex: 0 0 auto; align-self: center; }
 
 /* Grouped per team per tile: a head row with a strip of thumbnails that opens

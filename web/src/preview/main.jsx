@@ -9,7 +9,8 @@
 import { StrictMode, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import EvidenceReview from '../components/EvidenceReview.jsx';
-import { resetDemo, evidenceSourceFixtures } from './stub-supabase.js';
+import EvidencePanel from '../components/EvidencePanel.jsx';
+import { resetDemo, evidenceSourceFixtures, PANEL_DEMO } from './stub-supabase.js';
 import '../styles.css';
 import '../seasons.css';
 import '../lib/season.js';
@@ -52,6 +53,20 @@ function Harness() {
         </label>
       </p>
       <EvidenceReview key={run} gameId="demo-game" />
+
+      <h2 style={{ marginTop: '2rem' }}>A tile&apos;s panel</h2>
+      <p className="muted" style={{ marginTop: 0 }}>
+        What a team sees when it opens a tile on its own board (and an
+        organiser on theirs). The first picture came in through Dink; the
+        second was uploaded on the site. The same switch above applies.
+      </p>
+      <EvidencePanel
+        key={`panel-${run}`}
+        title="Bones"
+        coord="Asgarnia"
+        items={PANEL_DEMO}
+        onClose={() => {}}
+      />
     </div>
   );
 }

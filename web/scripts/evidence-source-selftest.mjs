@@ -28,29 +28,41 @@ const dink = evidenceSource({
   },
 });
 assert.equal(dink.label, 'Sent by plugin');
-assert.deepEqual(dink.lines, ["Karil's coif from Barrows", 'as Mate Iron · world 302']);
+assert.equal(dink.drop, "Karil's coif ×1 from Barrows");
+assert.deepEqual(dink.lines, ['World 302 · as Mate Iron']);
 assert.equal(evidenceSource({ source: 'plugin', detail: { item: 'Abyssal whip' } }).label, 'Sent by plugin',
   'our own plugin, later, gets the same label');
 
 // ---- What the plugin reported, as reported ----
 
-assert.deepEqual(
-  evidenceSource({ source: 'dink', detail: { item: 'Rune arrow', quantity: 1500, from: 'Vorkath' } }).lines,
-  ['Rune arrow ×1,500 from Vorkath'],
-  'a stack says how many',
-);
-assert.deepEqual(
-  evidenceSource({ source: 'dink', detail: { item: 'Baby mole', quantity: 1, from: 'Giant Mole', dink_type: 'PET' } }).lines,
-  ['Pet: Baby mole'],
-  'a pet says so, and nothing dropped it',
-);
-assert.deepEqual(
-  evidenceSource({ source: 'dink', detail: { item: 'Bandos hilt', resized_from: '3840x2400' } }).lines,
-  ['Bandos hilt', 'Picture made smaller from 3840×2400'],
-  'the reviewer is told the picture was made smaller here, and from what',
-);
-assert.deepEqual(evidenceSource({ source: 'dink', detail: null }).lines, [], 'no detail: the label alone');
-assert.deepEqual(evidenceSource({ source: 'dink' }).lines, []);
+// Boris, 2026-11-21: a Woman's Bones, handed in by Dink, on a screenshot that
+// shows neither the Bones nor a chat line. The drop line is how anyone looking
+// knows what the picture is for: the item, how many, from what, and the world.
+const bones = evidenceSource({
+  source: 'dink',
+  detail: { source: 'dink', rsn: 'Soft Papi', item: 'Bones', item_id: 526, quantity: 1, from: 'Woman',
+            category: 'NPC', world: 308, dink_type: 'LOOT' },
+});
+assert.equal(bones.drop, 'Bones ×1 from Woman', 'a single drop says ×1 too');
+assert.deepEqual(bones.lines, ['World 308 · as Soft Papi']);
+
+const arrows = evidenceSource({ source: 'dink', detail: { item: 'Rune arrow', quantity: 1500, from: 'Vorkath' } });
+assert.equal(arrows.drop, 'Rune arrow ×1,500 from Vorkath', 'a stack says how many');
+assert.deepEqual(arrows.lines, []);
+assert.equal(evidenceSource({ source: 'dink', detail: { item: 'Abyssal whip', from: 'Abyssal demon' } }).drop,
+  'Abyssal whip from Abyssal demon', 'no amount reported: none made up');
+const pet = evidenceSource({ source: 'dink', detail: { item: 'Baby mole', quantity: 1, from: 'Giant Mole', dink_type: 'PET' } });
+assert.equal(pet.drop, 'Pet: Baby mole', 'a pet says so, and nothing dropped it');
+assert.deepEqual(pet.lines, []);
+const hilt = evidenceSource({ source: 'dink', detail: { item: 'Bandos hilt', resized_from: '3840x2400' } });
+assert.equal(hilt.drop, 'Bandos hilt');
+assert.deepEqual(hilt.lines, ['Picture made smaller from 3840×2400'],
+  'the reviewer is told the picture was made smaller here, and from what');
+assert.deepEqual(evidenceSource({ source: 'dink', detail: null }), { label: PLUGIN_LABEL, title: PLUGIN_TITLE, drop: null, lines: [] },
+  'no detail: the label alone');
+assert.equal(evidenceSource({ source: 'dink' }).drop, null);
+assert.deepEqual(evidenceSource({ source: 'dink', detail: { world: 330 } }),
+  { label: PLUGIN_LABEL, title: PLUGIN_TITLE, drop: null, lines: ['World 330'] }, 'no item: no drop line');
 
 // Everything in detail came from the player's computer. Only what has the
 // right shape is shown, and nothing is long enough to push the row apart.
@@ -61,11 +73,12 @@ const odd = evidenceSource({
     world: 302.5, resized_from: '3840x2400; anything else',
   },
 });
-assert.equal(odd.lines.length, 1, 'only the item survives');
-assert.equal(odd.lines[0].length, 60, 'cut to 60 characters');
-assert.match(odd.lines[0], /…$/, 'with an ellipsis');
-assert.deepEqual(evidenceSource({ source: 'dink', detail: { item: '  Dragon\n  pickaxe ', world: 0 } }).lines,
-  ['Dragon pickaxe'], 'spacing tidied; world 0 is not a world');
+assert.deepEqual(odd.lines, [], 'only the item survives');
+assert.equal(odd.drop.length, 60, 'cut to 60 characters');
+assert.match(odd.drop, /…$/, 'with an ellipsis');
+const tidied = evidenceSource({ source: 'dink', detail: { item: '  Dragon\n  pickaxe ', world: 0 } });
+assert.equal(tidied.drop, 'Dragon pickaxe', 'spacing tidied');
+assert.deepEqual(tidied.lines, [], 'world 0 is not a world');
 
 // ---- Laid on by id, and nothing else changes ----
 
@@ -86,14 +99,32 @@ const review = readFileSync(new URL('../src/components/EvidenceReview.jsx', impo
 assert.match(review, /evidenceSources\(gameId\)\.catch\(/, 'the review screen asks, and a failure costs the labels only');
 assert.match(review, /withSources\(/, 'and lays them on by id');
 assert.match(review, /\{sent\.label\}/, 'the label shown is the one from lib/evidenceSource.js');
+assert.match(review, /\{sent\.drop\}/, 'and the drop line under it');
 // Comments may name the word in order to forbid it; what is shown may not.
-const shown = review.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
-assert.doesNotMatch(shown, /verified/i, 'the screen never says verified');
+const uncommented = (src) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+assert.doesNotMatch(uncommented(review), /verified/i, 'the screen never says verified');
+
+// A tile's panel, which a team opens on its own board: the same label and
+// lines beside every picture a plugin sent (Boris, 2026-11-21).
+const panel = readFileSync(new URL('../src/components/EvidencePanel.jsx', import.meta.url), 'utf8');
+assert.match(panel, /import \{ evidenceSourcesFor \} from '\.\.\/lib\/supabase\.js';/, 'the panel asks the database');
+assert.match(panel, /evidenceSourcesFor\(list\)[\s\S]{0,200}\.catch\(/, 'and a failure costs the lines, not the pictures');
+assert.match(panel, /withSources\(items, sources\)/, 'laid on by id');
+assert.match(panel, /\{sent\.label\}/, 'the label from lib/evidenceSource.js');
+assert.match(panel, /\{sent\.drop\}/, 'the drop line');
+assert.match(panel, /sent\?\.lines\.map\(/, 'and the world and account');
+assert.match(panel, /new Date\(e\.created_at\)\.toLocaleString\(\)/, 'beside the time it arrived');
+assert.doesNotMatch(uncommented(panel), /verified/i, 'the panel never says verified');
+const stub = readFileSync(new URL('../src/preview/stub-supabase.js', import.meta.url), 'utf8');
+assert.match(stub, /export const evidenceSourcesFor = /, 'every harness that renders the panel has the call to stand in for it');
 
 const lib = readFileSync(new URL('../src/lib/supabase.js', import.meta.url), 'utf8');
 assert.match(lib,
   /export async function evidenceSources\(gameId\) \{\s*const \{ data, error \} = await supabase\.rpc\('admin_evidence_sources', \{ p_game_id: gameId \}\);\s*if \(isMissingFunction\(error\)\) return null;/,
   'evidenceSources() answers null while the database has no such function');
+assert.match(lib,
+  /export async function evidenceSourcesFor\(ids\) \{\s*const \{ data, error \} = await supabase\.rpc\('evidence_sources', \{ p_ids: ids \}\);\s*if \(isMissingFunction\(error\)\) return null;/,
+  'and so does evidenceSourcesFor(), so the panel is what it was on a database without the plugin');
 
 // The draft's function, read from the draft, so the two cannot drift apart.
 const sql = readFileSync(new URL('../../runelite-plugin/server/002_plugin_drops.sql', import.meta.url), 'utf8');
@@ -102,6 +133,16 @@ assert.match(sql, /create or replace function admin_evidence_sources\(p_game_id 
 assert.match(sql, /if not may_manage_game\(p_game_id\) then\s*raise exception 'Not your game';/,
   "the draft asks admin_list_evidence's own question");
 assert.match(sql, /and e\.source <> 'web'/, 'and lists only what did not come from the site');
+// The panel's: by id, for the caller's own team's evidence or a game they run.
+// runelite-plugin/server/test/regions.test.mjs proves what it answers.
+const fn = sql.slice(sql.indexOf('create or replace function evidence_sources('));
+assert.match(fn, /^create or replace function evidence_sources\(p_ids uuid\[\]\)\s*returns table \(id uuid, source text, detail jsonb\)/,
+  'the panel is answered id, source and detail too');
+assert.match(fn.slice(0, fn.indexOf('$$;')),
+  /and e\.source <> 'web'\s*and \(may_manage_game\(t\.game_id\)\s*or e\.id in \(select m\.id from my_evidence\(t\.game_id\) m\)\);/,
+  "by the questions the review screen and the team's own list already ask");
+assert.match(sql, /revoke execute on function evidence_sources\(uuid\[\]\)\s+from public, anon, service_role;/,
+  'and never to anyone not signed in');
 
 // ---- The site's own upload is untouched ----
 //
