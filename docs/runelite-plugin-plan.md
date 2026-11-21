@@ -550,8 +550,9 @@ modes, one at a time.
    nothing.
 5. **The same drop on two open tiles.** Proposed: the player chooses; the
    plugin never does. Since Bingo was added, this includes two tiles in two
-   running games (a Bingo card and a Region Bingo board): an "ask" today,
-   handed in nowhere by Dink. Open: should it count in both games instead?
+   running games (a Bingo card and a Region Bingo board): an "ask", handed
+   in nowhere by Dink. **Decided, 2026-11-21:** the clan runs one game at a
+   time, so this does not happen, and nothing is built for it.
 6. **Which modes, and the default of the per-game switch** (section 7).
 7. **Organiser announcements as in-game pop-ups.** Wanted, or noise?
 8. **May an organiser require plugin evidence for a tile?** Proposed: no.

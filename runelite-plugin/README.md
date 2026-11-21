@@ -313,8 +313,10 @@ and no rule was written twice:
 **Two games at once.** A player in a Bingo game and a Region Bingo game at
 the same time has every drop matched against both. A drop wanted by tiles in
 both games is an "ask", as with two tiles in one game, so Dink hands it in
-nowhere and the player uploads it on the site where they want it. Whether it
-should count in both games instead is Boris's call (see "Next").
+nowhere and the player uploads it on the site where they want it.
+**Decided 2026-11-21:** the clan runs one game at a time, so a drop is never
+wanted by two games and nothing more is built for it. The tests still run two
+games at once, only to prove the second secret holds if it ever happens.
 
 **The second secret across games.** A drop wanted by the card and by a tile
 in a region the team has not opened is a "one", for the card. The tests check
@@ -620,8 +622,8 @@ a square, Edit, and type a drop.
 5. **Done 2026-11-21:** Bingo (see "Bingo"). Boris to play the card
    `trial.mjs bingo` built, with Dink as it is: cows and chickens at
    Lumbridge.
-6. Boris to say whether a drop wanted in two running games should stay an
-   "ask" (now) or count in both, and whether to build the switch per game
-   (plan, section 10, item 6).
+6. **Decided 2026-11-21:** one game at a time, so a drop is never wanted by
+   two games; nothing is built for it. Still open: whether to build the switch
+   per game (plan, section 10, item 6).
 7. Snakes & Ladders next. And whether to go through the tile catalogue so its
    drop tiles list real items (see "The tile editor's name check").
