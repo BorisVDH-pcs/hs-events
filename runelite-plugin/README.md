@@ -1,8 +1,15 @@
-# hs-events RuneLite plugin: work so far
+# hs-events and Dink: work so far
 
 Started 2026-11-20 from `docs/runelite-plugin-plan.md`. Everything in this
 folder is new and stands apart from the website, and nothing was applied to
 the live Supabase project.
+
+**Dink only.** On 2026-11-21 Boris decided against a plugin of our own: drops
+come in through Dink, the RuneLite plugin many players already run, and this
+folder holds what receives them. The Java plugin that was started here was
+removed the same day; it is in the branch's history at commit `dcceb68` if it
+is ever wanted again. The folder keeps its name until the drafts and the
+function move into `supabase/` on merge.
 
 Three changes to the website itself were made with Boris's go-ahead on
 2026-11-21: the **Plugin tokens** section of My Account (see "The token
@@ -14,8 +21,8 @@ a database without the drafts, so the live site would show nothing new even
 if they were merged before the drafts are applied. The name check needs no
 database and would show at once; it only warns.
 
-Uploading evidence on the site is unchanged and stays the normal way in. A
-plugin is an extra way to hand in a drop, for players who run Dink.
+Uploading evidence on the site is unchanged and stays the normal way in. Dink
+is an extra way to hand in a drop, for players who run it.
 
 The two `.sql` files in `server/` are drafts. They are kept out of
 `supabase/migrations` so that `db-push.yml` cannot apply them. They only
@@ -25,19 +32,17 @@ become migrations when they are moved there on purpose.
 
 | Path | What | State |
 |---|---|---|
-| `server/001_plugin_tokens.sql` | Plugin tokens, `drop_key`, `plugin_as`, `plugin_whoami` | Tested offline, and on a local Supabase stack |
-| `server/002_plugin_drops.sql` | Evidence `source` and `detail`, the intake log, `plugin_watchlist`, `plugin_match`, `plugin_open`, `plugin_submit`, and `admin_evidence_sources` for the review screen | Tested offline against the real rules, and on a local Supabase stack |
+| `server/001_plugin_tokens.sql` | Plugin tokens, `drop_key`, `plugin_as` | Tested offline, and on a local Supabase stack |
+| `server/002_plugin_drops.sql` | Evidence `source` and `detail`, the intake log, `plugin_wanted`, `plugin_match`, `plugin_open`, `plugin_submit`, and `admin_evidence_sources` for the review screen | Tested offline against the real rules, and on a local Supabase stack |
 | `server/intake/dink.mjs` | Reads a Dink notification; makes the dedupe key | Tested; checked against Dink's source, and read real loot from a real Dink client on 2026-11-21. Pets not yet from a client |
 | `server/intake/handle.mjs` | What happens to one notification: match, open, store, submit | Tested end to end, offline |
 | `server/intake/shrink.mjs` | Makes a screenshot over 3 MB smaller: halves a PNG until it fits. No library, only what the runtime has | Tested offline and in the edge runtime |
 | `server/intake/index.ts` | The Edge Function shell around `handle.mjs` | Tested on the local stack; not deployed anywhere |
 | `server/test/replay.mjs` | Replays all 129 migrations into an in-memory Postgres, with stand-ins for what Supabase provides | Works; the repo's own Region Bingo smoke test passes on it, 76 of 76 |
-| `server/test/*.test.mjs` | Three test files, 168 checks, run by `npm test` | All pass |
+| `server/test/*.test.mjs` | Three test files, 163 checks, run by `npm test` | All pass |
 | `server/test/png.mjs`, `fixtures/` | A PNG writer and reader for the tests only, and one small PNG written by Java's ImageIO | |
 | `server/local/` | A local Supabase stack: `config.toml`, and `prepare.mjs`, which copies the migrations, the two drafts and the intake function into it | Works with Supabase CLI 2.122.0 and Docker |
-| `server/test/stack.test.mjs` | 65 checks against that stack, the Edge Function included, run by `npm run test:stack` | All pass |
-| `plugin/.../core/` | `DropKey` and `WatchList`: the matching rule in plain Java | Tested, 16 checks, also run by `gradle test` |
-| `plugin/.../HsEvents*.java`, build files | The RuneLite plugin skeleton, built the template's way | Builds against RuneLite 1.13.7; **never loaded in a client** |
+| `server/test/stack.test.mjs` | 64 checks against that stack, the Edge Function included, run by `npm run test:stack` | All pass |
 | `web/src/components/PluginTokens.jsx` | The Plugin tokens section of My Account: make a token, see its Dink link once, revoke | Tried in the preview harness, and used by Boris on the local stack to set up a real Dink (2026-11-21). Not on the live project |
 | `web/src/lib/pluginTokens.js` | The Dink link, the name check, "last used" in words | Tested by `web/scripts/plugin-tokens-selftest.mjs`, and used by `stack.test.mjs` |
 | `web/preview-account.html` | A harness for My Account with fixture tokens | |
@@ -56,8 +61,9 @@ and `add_evidence` are the real ones:
 - **A token is the player, for one request.** `plugin_as` makes `auth.uid()`
   the token's owner for one transaction, so the existing functions apply their
   own rules. None of them was rewritten.
-- **The second secret holds.** A team's watch list has the drops of the
-  regions it has opened and nothing else: no tile name, no drop. A drop for a
+- **The second secret holds.** What a team's drops are matched against
+  (`plugin_wanted`) holds the drops of the regions it has opened and nothing
+  else: no tile name, no drop. A drop for a
   locked tile gets the same answer, word for word, as a drop for a tile that
   does not exist.
 - **A drop counts as an upload does.** One evidence row, by that player, for
@@ -71,7 +77,8 @@ and `add_evidence` are the real ones:
 - **Time up is still time up**: `add_evidence` refuses, and the plugin has no
   way round it.
 - **Grants.** A signed-in player can call no token function; the service role
-  can call exactly five; nobody can call `plugin_as`.
+  can call exactly the three the intake uses (`plugin_match`, `plugin_open`,
+  `plugin_submit`); nobody can call `plugin_as`.
 - **Dink's route, end to end**: a loot notification in the documented shape
   goes in, an evidence row and one stored screenshot come out. Storage being
   down becomes a retry; a rule saying no does not.
@@ -141,7 +148,7 @@ keeps it under 3 MB.
 `stack.test.mjs` runs against the Supabase CLI's own local stack, which is the
 same software a hosted project runs: Postgres 17.11, PostgREST 16.5, Storage
 1.84.19, Auth 2.197.0, edge runtime 1.77.8 (Deno 2). It is not the live
-project and never touches it. Tested 2026-11-21, 65 of 65.
+project and never touches it. Tested 2026-11-21, 64 of 64.
 
 - **The migrations apply on real Supabase.** All 129, then the two drafts, by
   the CLI itself, with no errors.
@@ -159,13 +166,13 @@ project and never touches it. Tested 2026-11-21, 65 of 65.
   tried once by hand: it leaked into 24 of 24 later requests. `plugin_as`
   leaks into none.
 - **The act-as-team header does not reach a token.** The same header that
-  makes an organiser's own sign-in act as Red gives an organiser's token an
-  empty watch list.
+  makes an organiser's own sign-in act as Red leaves an organiser's token
+  matching nothing of Red's.
 - **Only the service role gets in.** Anyone signed in, and anyone not signed
-  in, is refused by `plugin_whoami` and `plugin_watchlist`. Nobody can call
-  `plugin_as`, not even the service role.
-- **The second secret holds through PostgREST.** Each team's watch list has
-  its opened region and nothing of the other's. A drop for a locked tile and
+  in, is refused by `plugin_match`. Nobody can call `plugin_as`, not even the
+  service role.
+- **The second secret holds through PostgREST.** Each team's drops match its
+  opened region and nothing of the other's. A drop for a locked tile and
   a drop for a tile that does not exist get the same HTTP status, error code,
   message, details and hint.
 - **A drop goes all the way in.** `plugin_open` gives the folder, a real PNG is
@@ -240,8 +247,6 @@ with no sign-in. Every request goes to a link made by the site's own
   case uses about a sixth of the 2 seconds. The log line's `ms` will show it.
 - **A JPEG over 3 MB** is still ignored. Dink only makes a JPEG for a
   screenshot over 8 MB, so this needs a screen bigger than 4K.
-- **The plugin in a client.** It builds, but it has never been loaded in
-  RuneLite, and it does nothing visible yet: its watch list is still empty.
 - **The live project.** The token screen and the review screen's label have
   run against the local stack only.
 - **Raid loot from a real Dink.** Dink sends a raid chest as loot with the
@@ -410,6 +415,13 @@ tile suggestions all use.
   Kings, Wintertodt) and the Draconic visage (King Black Dragon, Vorkath).
   Dink does send the monster's name, so a rule that looks at it is possible.
   That would be a new game rule, and it is Boris's call. Nothing has changed.
+- **A tile that lists drops takes only those.** Once a tile has a drop list,
+  every hand-in must be one of its drops, uploads on the site included
+  (`add_evidence`: "Say which drop this screenshot shows"). So a list made
+  for Dink has to hold every item that should count, or the missing ones
+  cannot be handed in at all. A tile with no drops listed takes any
+  screenshot, and Dink can never match it. Going through the existing tile
+  catalogue with this in mind is open (see "Next").
 - **The names**: 4,820, from the OSRS Wiki. Its price list gives every item
   the Grand Exchange trades; pets, the raids' untradeable drops, the boss
   jars and the untradeable drops in the lists were typed from the wiki's own
@@ -423,38 +435,6 @@ tile suggestions all use.
   `web/src/lib/itemNames.js` is `drop_key` written again in JS, so the editor
   can answer what the server would. `tokens.test.mjs` runs both over every
   name in the list and every ready-made drop: they agree on all 5,317.
-
-## The RuneLite build
-
-`plugin/` now has the shape of RuneLite's plugin template
-(`runelite/example-plugin` at commit `46e14f2`, 2026-10-01), which the Plugin
-Hub asks for: the same `build.gradle` with only the names changed, a
-`settings.gradle`, the Gradle 8.10 wrapper with the template's checksum, the
-`run` and `shadowJar` tasks, and a test class that starts RuneLite with the
-plugin loaded. `runelite-plugin.properties` gained the template's `build` and
-`version` lines.
-
-Built 2026-11-21 with JDK 17 and Gradle 8.10: `latest.release` is RuneLite
-1.13.7. Everything compiles. With every compiler warning turned on there is
-one, the same one the template's own test class gives. Nothing needed fixing.
-`gradle test` runs the 16 core checks through JUnit.
-
-The template's notes list the Plugin Hub's rules. Four touch this plugin and
-are not decided here:
-
-- **The warning text.** A setting that talks to a third-party server must be
-  off by default, which "Hand in matching drops" is, and carry one exact
-  warning: "This feature submits your IP address to a 3rd-party server not
-  controlled or verified by RuneLite developers". Ours is longer and says
-  more.
-- **Event pop-ups are on by default.** If they come from the site, they talk
-  to a third-party server too, and must be off by default.
-- **"No plugins that use player-provided IDs for their entire
-  functionality."** The plugin does nothing without a token from the site.
-  Whether the reviewers read a token as such an ID is worth asking them.
-- **Where it lives.** The Hub builds a plugin from a repository and a commit,
-  with `build.gradle` at the top, under a permissive licence such as BSD-2.
-  This one sits in `runelite-plugin/plugin/` of the site's repository.
 
 ## Found along the way
 
@@ -542,15 +522,6 @@ handed in for you. Tried on 2026-11-21 with requests shaped like Dink's
 before anyone played it: it answered exactly that. `supabase db reset`
 starts over.
 
-    cd runelite-plugin/plugin
-    gradle build            (JDK 11 or later; or ./gradlew build)
-    gradle run              (starts RuneLite with the plugin, to try in game)
-
-or, with nothing but a JDK:
-
-    javac -d out src/main/java/com/hsevents/core/*.java src/test/java/com/hsevents/core/CoreSelfTest.java
-    java -cp out com.hsevents.core.CoreSelfTest
-
 The token screen, with fixture data and no database:
 
     cd web && npm run preview:evidence      then open /preview-account.html
@@ -573,15 +544,16 @@ a square, Edit, and type a drop.
 
 1. **Done 2026-11-21:** a real Dink client against the local stack. See "A
    real Dink client".
-2. Boris to decide whether our own plugin is needed at all, or Dink is enough
-   (plan, section 10, item 1). Dink handles the evidence; ours would add the
-   in-game overview, pop-ups and the "which tile?" question.
-3. If it is: load the plugin in RuneLite once (`gradle run`) to see it start
-   and show its settings; then the four Plugin Hub points above.
-4. Boris to try the tile editor's name check and "Add a list…" on the local
+2. **Decided 2026-11-21:** Dink only, no plugin of our own (plan, section 10,
+   item 1). The Java plugin and the two functions only it needed
+   (`plugin_watchlist`, `plugin_whoami`) were removed.
+3. Boris to try the tile editor's name check and "Add a list…" on the local
    site (`site.mjs`), and say whether the raid weapons list is the one he
    means. The boss lists were added on 2026-11-21; he may want lists changed,
    added or split.
-5. Boris to say whether a drop should count only from the boss its tile
+4. Boris to say whether a drop should count only from the boss its tile
    names, or from anywhere, as now (see "A drop counts wherever it came
    from").
+5. The other modes, one at a time (plan, section 7): Bingo, then Snakes &
+   Ladders. And whether to go through the tile catalogue so its drop tiles
+   list real items (see "The tile editor's name check").

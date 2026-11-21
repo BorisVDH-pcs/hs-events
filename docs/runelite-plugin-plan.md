@@ -1,10 +1,15 @@
 # RuneLite plugin — plan
 
 Written 2026-11-20, from Boris's question whether High Society Events could
-work with a RuneLite plugin, starting with Region Bingo. **Status: a plan.
-Nothing here is built, and nothing is decided.** Proposals are marked
+work with a RuneLite plugin, starting with Region Bingo. **Status: a plan, written before anything was
+built; decisions since are marked where they were made.** Proposals are marked
 **(proposed)**; the choices that are Boris's to make are collected in
 section 10.
+
+**Decided 2026-11-21: Dink only.** No plugin of our own: section 5 and
+phase 2 are shelved, and the Java started for them was removed (it is in the
+branch's history at `dcceb68`). What is left of this plan is phase 1, Dink's
+route, and the other modes (section 7).
 
 First drafts of the server side, with their tests, are in `runelite-plugin/`;
 its README says what is tested and what is not. The drafts are ahead of the
@@ -246,6 +251,10 @@ Blue's, and a revoked token must do nothing.
 
 ### 4.4 The watch list, and matching a drop
 
+*As built, the watch list below was kept only for our own plugin and was
+removed with it. Dink's route matches against `plugin_wanted`, the same rows
+from `tiles_for_team`, through `plugin_match`.*
+
 ```sql
 -- Sketch. Granted to service_role only.
 create function plugin_watchlist(p_token text) returns jsonb
@@ -407,6 +416,9 @@ reviewer will look at hardest.
 
 ## 5. How it would be built: our own plugin
 
+*Shelved 2026-11-21: Boris chose Dink only. Kept as the record of what it
+would have added: the side panel, pop-ups and the "which tile?" question.*
+
 Its own public repository **(proposed: `hs-events-plugin`)**, made from
 RuneLite's plugin template. Java, no extra libraries.
 
@@ -503,7 +515,7 @@ the per-game switch; a rules line in `region-bingo-rules.md`; a setup page for
 players (install Dink, paste this URL). This is the whole of "evidence
 submission is not needed any more" for drop tiles, with no Hub review.
 
-**Phase 2: our own plugin.** `plugin_watchlist` and `plugin_poll`; the plugin
+**Phase 2: our own plugin.** *Shelved 2026-11-21.* `plugin_watchlist` and `plugin_poll`; the plugin
 with side panel, pop-ups and its own drop submission; Hub submission. Dink
 keeps working beside it.
 
@@ -517,6 +529,10 @@ modes, one at a time.
 ## 10. Decisions for Boris
 
 1. **Dink first, or straight to our own plugin?** Proposed: Dink first.
+   **Decided, 2026-11-21:** Dink only. Dink hands drops in by itself, needs no
+   Plugin Hub review and no Java to keep up, and many players run it already.
+   Given up: an in-game overview, pop-ups, and asking "which tile?" in game (a
+   drop two tiles want stays a question answered on the site).
 2. **An Edge Function in the project.** It is the first, and a new thing to
    deploy and watch. Proposed: yes; there is no way to receive Dink without
    one.
