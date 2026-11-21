@@ -10,6 +10,9 @@ import { modeLabel } from '../lib/site.js';
  * a visitor could not fetch themselves. Tile contents, rosters' progress and
  * evidence are all behind their own policies and are not touched here.
  *
+ * A hidden game (20261121140000_hidden_games.sql) is left out: an organiser's
+ * test game is for the people in it, not the front page.
+ *
  * Silent on failure and when nothing is on: the sign-in form is the point of
  * the page, and a red error above it about a game list would only alarm.
  */
@@ -31,6 +34,7 @@ export default function NowRunning() {
       .select('id, name, mode, status, starts_at, ends_at')
       // `placement` is what the players call preparation: set up, not started.
       .in('status', ['active', 'placement'])
+      .eq('hidden', false)
       .order('created_at', { ascending: false })
       .limit(SHOW)
       .then(({ data, error }) => {

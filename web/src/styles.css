@@ -7357,10 +7357,13 @@ button.builder-cell.regions-unused.on { opacity: 1; }
 }
 
 /* Drops from Dink, per game, in the admin console's game card (plugin_drops.sql,
-   6e). The site's own switch, as for Discord: it is a state that is on or
-   off right now, and the line beside it says what that state means. */
-.plugin-drops-switch {
+   6e), and Hidden, per game (20261121140000_hidden_games.sql), there and in the
+   new-event form. The site's own switch, as for Discord: it is a state that is
+   on or off right now, and the line beside it says what that state means. */
+.plugin-drops-switch,
+.game-hidden-switch {
   margin-top: .9rem;
   max-width: 46rem;
 }
-.plugin-drops-switch .muted { line-height: 1.45; }
+.plugin-drops-switch .muted,
+.game-hidden-switch .muted { line-height: 1.45; }

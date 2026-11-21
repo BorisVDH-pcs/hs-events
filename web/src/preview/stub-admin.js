@@ -106,6 +106,8 @@ function addGame({ name, mode, grid, status, teamNames, startsAt = null, endsAt 
     region_threshold: 50,
     // Dink on or off (plugin_drops.sql, 6e): off until an organiser turns it on.
     plugin_drops: false,
+    // Hidden or not (20261121140000_hidden_games.sql): not, until an organiser says so.
+    hidden: false,
     created_at: now(),
   });
   teamNames.forEach((n, i) => teams.push({ id: uid(), game_id: id, name: n, slot: i + 1 }));
@@ -449,8 +451,9 @@ export const tableFixtures = {};
 
 /**
  * `supabase.from(t).select(...).order(...)`, resolved straight from memory.
- * `in` and `limit` are honoured because the login page's list depends on
- * them; `eq` and `order` stay no-ops, as the console never needed more.
+ * `in`, `eq` and `limit` are honoured because the login page's list depends
+ * on them; `order` stays a no-op, as the console never needed more. `eq`
+ * passes a row that has no such column, as the database's default would.
  */
 export function adminFrom(table) {
   const filters = [];
@@ -460,7 +463,8 @@ export function adminFrom(table) {
     return structuredClone(rows.filter((r) => filters.every((f) => f(r))).slice(0, max));
   };
   const q = {
-    select: () => q, order: () => q, eq: () => q,
+    select: () => q, order: () => q,
+    eq: (col, value) => { filters.push((r) => !(col in r) || r[col] === value); return q; },
     in: (col, values) => { filters.push((r) => values.includes(r[col])); return q; },
     limit: (n) => { max = n; return q; },
     // PostgREST's one-row forms. Added for the App harness (app-main.jsx),
@@ -926,6 +930,13 @@ export function adminSetPluginDrops(gameId, on) {
   if (on && !isRegions(g)) return fail('Drops from Dink are for Region Bingo only, for now');
   g.plugin_drops = Boolean(on);
   return wait(on);
+}
+
+export function adminSetGameHidden(gameId, hidden) {
+  const g = game(gameId);
+  if (hidden && g.mode === 'challenge') return fail('A challenge cannot be hidden: its list is the only way in');
+  g.hidden = Boolean(hidden);
+  return wait(hidden);
 }
 
 export function adminSetTileWorth(gameId, position, worth) {
