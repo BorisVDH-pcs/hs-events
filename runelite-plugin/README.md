@@ -48,11 +48,11 @@ applies them on merge.
 | `supabase/functions/intake/shrink.mjs` | Makes a screenshot over 3 MB smaller: halves a PNG until it fits. No library, only what the runtime has | Tested offline and in the edge runtime |
 | `supabase/functions/intake/index.ts` | The Edge Function shell around `handle.mjs`; cleans up after each request whose token the database accepted | Tested on the local stack; not deployed anywhere yet |
 | `.github/workflows/functions-deploy.yml` | Deploys `intake` when `supabase/functions` changes on `main`, with the secrets `db-push.yml` has | Not run yet: it first runs on merge |
-| `server/test/replay.mjs` | Replays all 131 migrations into an in-memory Postgres, with stand-ins for what Supabase provides | Works; the repo's own Region Bingo smoke test passes on it, 76 of 76 |
-| `server/test/*.test.mjs` | Seven test files, 358 checks, run by `npm test` | All pass |
+| `server/test/replay.mjs` | Replays all 132 migrations into an in-memory Postgres, with stand-ins for what Supabase provides | Works; the repo's own Region Bingo smoke test passes on it, 76 of 76 |
+| `server/test/*.test.mjs` | Eight test files, 383 checks, run by `npm test` | All pass |
 | `server/test/png.mjs`, `fixtures/` | A PNG writer and reader for the tests only, and one small PNG written by Java's ImageIO | |
 | `server/local/` | A local Supabase stack: `config.toml`, and `prepare.mjs`, which copies the migrations and the intake function into it | Works with Supabase CLI 2.122.0 and Docker |
-| `server/test/stack.test.mjs` | 128 checks against that stack, the Edge Function included, run by `npm run test:stack` | All pass |
+| `server/test/stack.test.mjs` | 134 checks against that stack, the Edge Function included, run by `npm run test:stack` | All pass |
 | `web/src/components/PluginTokens.jsx` | The Plugin tokens section of My Account: make a token, see its Dink link once, revoke | Tried in the preview harness, and used by Boris on the local stack to set up a real Dink (2026-11-21). Not on the live project |
 | `web/src/lib/pluginTokens.js` | The Dink link, the name check, "last used" in words | Tested by `web/scripts/plugin-tokens-selftest.mjs`, and used by `stack.test.mjs` |
 | `web/preview-account.html` | A harness for My Account with fixture tokens | |
@@ -214,6 +214,12 @@ Against a replay of every migration, so `tiles_for_team`, `regions_open_tile`,
   switch it; a moderator of Region Bingo can. Switched off mid-game and on
   again, the drop that waited is back. Bingo cannot be switched on from the
   console. `add_evidence` does not read the switch at all.
+- **A hidden game is seen only by the people in it** (`hidden.test.mjs`, 25
+  checks; see "A hidden test game"). Hidden, it is off the sign-up list for
+  everyone but its organisers, its roster and its sign-ups, and a player
+  trying to sign up for it gets the answer a game that does not exist gets.
+  A hidden Region Bingo still takes Drops from Dink. Taking either rule out
+  of the migration makes checks fail.
 
 ## Screenshots over 3 MB
 
@@ -260,10 +266,11 @@ keeps it under 3 MB.
 `stack.test.mjs` runs against the Supabase CLI's own local stack, which is the
 same software a hosted project runs: Postgres 17.11, PostgREST 16.5, Storage
 1.84.19, Auth 2.197.0, edge runtime 1.77.8 (Deno 2). It is not the live
-project and never touches it. Tested 2026-11-21, 128 of 128.
+project and never touches it. Tested 2026-11-21, 134 of 134.
 
-- **The migrations apply on real Supabase.** All 131, the plugin's two the
-  last, by the CLI itself, with no errors. And all 131 again from nothing, on
+- **The migrations apply on real Supabase.** Every one in
+  `supabase/migrations` (132 now), the plugin's two among them, by the CLI
+  itself, with no errors. And the first 131 again from nothing, on
   a second, throwaway stack with CLI 2.122.0, the version `db-push.yml` pins
   (2026-11-21, removed after): every plugin function there, Dink off by
   default.
@@ -777,6 +784,29 @@ it on, Region Bingo only for now.
 Tested offline (`switch.test.mjs`), on the local stack through PostgREST
 (`stack.test.mjs`), and in the admin harness at desktop and phone width.
 
+## A hidden test game
+
+Asked for by Boris on 2026-11-21, to try Dink on the live site without the
+clan coming across the test game. A **Hidden** switch on every board game,
+in the console's Configure pane and in the new-event form
+(`supabase/migrations/20261121140000_hidden_games.sql`, and
+`docs/architecture.md`, "Hidden games").
+
+- **Hidden**, a game is not on the login page's "Now running" and not in the
+  sign-up list, except for its organisers, the players on its roster and
+  anyone who signed up. Only an organiser can sign up for it; an organiser
+  puts players on its teams by hand, as always.
+- **Not a secret.** Anyone who reads the database's API by hand can still
+  see its name, mode and times, as for every game.
+- **Playing it is the same**, Drops from Dink included.
+- Not for a challenge: its list is the only way in.
+
+Tested offline (`hidden.test.mjs`), on the local stack through PostgREST
+(`stack.test.mjs`: the login page's own query as a signed-out visitor), in
+the console and login harnesses, and with the login page's query through
+the site's own client against the local stack. Not yet on the live site: it
+goes live when Boris merges its pull request.
+
 ## The tile editor's name check
 
 Dink is matched to a tile by name: `drop_key` forgives capitals, apostrophes
@@ -1034,12 +1064,15 @@ a square, Edit, and type a drop.
    Boris played it the same day with two cows and a real Dink. **Done** the
    same evening: removing the screenshots nobody needs (see "Screenshots
    nobody needs").
-10. **Going live for Region Bingo** (Boris, 2026-11-21): **ready to
-    merge.** The two drafts are migrations, the function is in
-    `supabase/functions`, and a workflow deploys it (see "Going live").
-    Decided with it: a matched drop counts at once (plan, item 3), only
-    tiles open when it dropped (item 4), and an organiser cannot require
-    Dink evidence for a tile (item 8). Boris merges the pull request on
-    GitHub; after it, the checks in "Going live". The rules sheet has a
-    "Drops from Dink" part, in Boris's words (`docs/region-bingo-rules.md`,
-    under Playing).
+10. **Going live for Region Bingo** (Boris, 2026-11-21): **live.** Merged
+    the same evening (pull request #83). The migrations and the site went
+    out at once; the function's first deploy was refused because the deploy
+    token could only read, and went out once Boris gave a new token Edge
+    Functions read-write. Decided with it: a matched drop counts at once
+    (plan, item 3), only tiles open when it dropped (item 4), and an
+    organiser cannot require Dink evidence for a tile (item 8). The rules
+    sheet has a "Drops from Dink" part, in Boris's words
+    (`docs/region-bingo-rules.md`, under Playing). Still to do with Boris:
+    checks 2 to 4 in "Going live", on a hidden test game (item 11).
+11. **A hidden test game** (Boris, 2026-11-21): built (see "A hidden test
+    game"); goes live when Boris merges its pull request.

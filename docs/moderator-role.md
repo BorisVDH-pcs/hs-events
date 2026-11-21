@@ -72,6 +72,7 @@ mechanics. Decided 2026-10-25:
 | `admin_delete_library_tile`, `admin_delete_board_preset` | admin only — deleting hits other organisers' work |
 | `admin_list_tile_submissions`, accept/refuse | admin only — a site-wide queue that writes to the shared library |
 | `admin_set_featured_game` | `may_manage_game` — a moderator may feature a game of their own mode |
+| `admin_set_game_hidden` | `may_manage_game` — a moderator may hide a game of their own mode (20261121140000) |
 | `admin_delete_game` | `may_manage_game` — they clean up their own games |
 | `admin_reset_game` | **admin only** — wiping progress is a deliberate admin act |
 | `admin_adjust_score`, `admin_delete_score_event`, `admin_revoke_evidence`, `admin_revoke_pet_jar` | `may_manage_*` — correcting the night is the job |

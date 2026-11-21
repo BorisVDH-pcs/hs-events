@@ -153,6 +153,34 @@ and rolled back by [scripts/rollback-game-signups.sql](../scripts/rollback-game-
 — or, for the organiser's remove alone,
 [scripts/rollback-admin-signup-remove.sql](../scripts/rollback-admin-signup-remove.sql).
 
+### Hidden games
+Asked for by Boris on 2026-11-21, to play-test on the live site without the
+clan coming across a test game. `games.hidden` (20261121140000), set by
+`admin_set_game_hidden` on `may_manage_game`, from a switch in the console's
+Configure pane or in the new-event form.
+
+- **Off two lists, nothing more.** A hidden game is left off "Now running"
+  on the login page, which reads `games` and asks for `hidden = false`, and
+  off `game_signup_list` for everyone but its organisers, its roster and the
+  people who signed up. Every other screen already shows a game only to the
+  people in it: Home's own games come from `team_members`, and the console is
+  for organisers.
+- **Only an organiser signs up for one.** `game_signup_join` answers a
+  hidden game the way it answers one that does not exist, unless the caller
+  may manage it. An organiser still puts anybody on a team by hand.
+- **Hidden, not secret.** `games` stays `for select using (true)`, so its
+  name, mode and times can be read by anyone who asks the API directly, as
+  for every game. Narrowing that would mean narrowing `teams` and
+  `team_members` with it, which much of the site reads directly.
+- **Playing is unchanged.** Nothing but the switch and the two sign-up
+  functions reads the column; a hidden Region Bingo still takes Drops from
+  Dink.
+- **Board modes only.** A challenge's list is the only way into it, so
+  `admin_set_game_hidden` refuses to hide one.
+
+Checked by `runelite-plugin/server/test/hidden.test.mjs` on a replay of every
+migration, and on the local Supabase stack by `stack.test.mjs`.
+
 ### The names a player plays under
 
 `profile_accounts` (20261026130000) is the one table here with real policies
