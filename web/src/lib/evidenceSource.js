@@ -90,6 +90,23 @@ export function evidenceSource(row) {
     lines.push(`Picture made smaller from ${resizedFrom.replace('x', '×')}`);
   }
 
+  // A drop two tiles wanted, which waited for the team to choose (Boris,
+  // 2026-11-21; lib/waitingDrops.js). The row's own time is when it was
+  // handed in, so the time it arrived is said here, and who chose the tile.
+  const waited = d.waited !== null && typeof d.waited === 'object' ? d.waited : null;
+  if (waited) {
+    const at = typeof waited.arrived_at === 'string' ? Date.parse(waited.arrived_at) : NaN;
+    const by = clientText(waited.chosen_by);
+    const parts = [
+      Number.isFinite(at) && `Arrived ${new Date(at).toLocaleTimeString('en-GB')}`,
+      by && `tile chosen by ${by}`,
+    ].filter(Boolean);
+    if (parts.length) {
+      const line = parts.join(' · ');
+      lines.push(line[0].toUpperCase() + line.slice(1));
+    }
+  }
+
   return { label: PLUGIN_LABEL, title: PLUGIN_TITLE, drop: drop ?? null, lines };
 }
 

@@ -401,6 +401,38 @@ export async function evidenceSourcesFor(ids) {
   return data ?? [];
 }
 
+// ---- A drop two tiles want (runelite-plugin/server/002_plugin_drops.sql, 6c)
+//
+// Dink sent a drop more than one of the team's open tiles wants; it waits an
+// hour for anyone on the team to choose. components/WaitingDrops.jsx; the
+// hand-in itself is handInWaitingDrop in lib/evidence.js.
+
+/**
+ * The caller's team's drops waiting in this game, each with the tiles it can
+ * still go to. Empty for anyone not on a team in it. Null when the database
+ * has no such function yet: then the box never shows.
+ */
+export async function waitingDrops(gameId) {
+  const { data, error } = await supabase.rpc('waiting_drops', { p_game_id: gameId });
+  if (isMissingFunction(error)) return null;
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+/** Opens the chosen tile, and says where the copy of the screenshot goes. */
+export const waitingDropOpen = (waitingId, tileId, optionId) => {
+  assertWritable();
+  return rpc('waiting_drop_open', { p_waiting_id: waitingId, p_tile_id: tileId, p_option_id: optionId });
+};
+
+/** Hands it in, once the copy is there. The database checks it is Dink's file. */
+export const waitingDropChoose = (waitingId, tileId, optionId, storagePath) => {
+  assertWritable();
+  return rpc('waiting_drop_choose', {
+    p_waiting_id: waitingId, p_tile_id: tileId, p_option_id: optionId, p_storage_path: storagePath,
+  });
+};
+
 /**
  * Sign up, or correct the name on an entry.
  *

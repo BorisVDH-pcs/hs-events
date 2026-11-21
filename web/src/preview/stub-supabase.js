@@ -271,6 +271,50 @@ export const evidenceSourcesFor = (ids) => new Promise((resolve, reject) => setT
   else resolve([...DEMO_SOURCES, ...PANEL_SOURCES].filter((s) => ids.includes(s.id)));
 }, 80));
 
+/**
+ * waiting_drops, for the box above a team's board (WaitingDrops.jsx): drops
+ * Dink sent that two tiles want. The harness switches `mode`:
+ *   'some'    two drops, one in two regions and one with three tiles;
+ *   'none'    nothing waiting (the box hides);
+ *   'missing' the live project before the plugin's draft (null: it hides);
+ *   'failed'  the call fails.
+ * stub-evidence.js's handInWaitingDrop takes a drop off `waitingLive`.
+ */
+export const waitingFixtures = { mode: 'some', refuse: false };
+const minutesFrom = (m) => new Date(Date.now() + m * 60000).toISOString();
+export const WAITING_DEMO = [
+  {
+    id: 'wd-1', item: 'Abyssal whip', storage_path: 'wd/1', dropped_by: 'Soft Papi',
+    received_at: minutesFrom(-14), expires_at: minutesFrom(46),
+    detail: { source: 'dink', rsn: 'Soft Papi', item: 'Abyssal whip', quantity: 1, from: 'Abyssal demon', world: 308, dink_type: 'LOOT' },
+    choices: [
+      { tile_id: 't-whips', option_id: 'o-whip', tile: 'Whips', position: 1, region: 'misthalin', label: 'Abyssal whip' },
+      { tile_id: 't-slayer', option_id: 'o-whip-2', tile: 'Slayer drops', position: 101, region: 'asgarnia', label: 'Abyssal whip' },
+    ],
+  },
+  {
+    id: 'wd-2', item: 'Dragon bones', storage_path: 'wd/2', dropped_by: 'Duradel',
+    received_at: minutesFrom(-52), expires_at: minutesFrom(8),
+    detail: { source: 'dink', rsn: 'Duradel Iron', item: 'Dragon bones', quantity: 1, from: 'Vorkath', world: 416, dink_type: 'LOOT', resized_from: '3840x2400' },
+    choices: [
+      { tile_id: 't-bones', option_id: 'o-bones', tile: 'Dragon bones', position: 5, region: 'misthalin', label: 'Dragon bones' },
+      { tile_id: 't-prayer', option_id: 'o-bones-2', tile: 'Anything for Prayer', position: 402, region: 'fremennik', label: 'Dragon bones' },
+      { tile_id: 't-vork', option_id: 'o-bones-3', tile: 'Vorkath kill', position: 1002, region: 'varlamore', label: 'Dragon bones' },
+    ],
+  },
+];
+export let waitingLive = [...WAITING_DEMO];
+export const resetWaiting = () => { waitingLive = [...WAITING_DEMO]; };
+export const takeWaiting = (id) => { waitingLive = waitingLive.filter((d) => d.id !== id); };
+export const waitingDrops = () => new Promise((resolve, reject) => setTimeout(() => {
+  if (waitingFixtures.mode === 'missing') resolve(null);
+  else if (waitingFixtures.mode === 'failed') reject(new Error('stub: the database did not answer'));
+  else if (waitingFixtures.mode === 'none') resolve([]);
+  else resolve(waitingLive);
+}, 80));
+export const waitingDropOpen = () => Promise.reject(new Error('Not available in the harness.'));
+export const waitingDropChoose = () => Promise.reject(new Error('Not available in the harness.'));
+
 /** Rows the harness has not revoked yet. Mutated so the list really shrinks. */
 let live = [...DEMO];
 
@@ -354,6 +398,8 @@ export const DEMO_URLS = Object.fromEntries([
   ...DEMO.map((r) => [r.storage_path, shot(r.option_label ?? `${r.points / 10}m`)]),
   ['pv/1', shot('no bones in sight')],
   ['pv/2', shot('upload')],
+  ['wd/1', shot('whip')],
+  ['wd/2', shot('bones')],
 ]);
 
 /**

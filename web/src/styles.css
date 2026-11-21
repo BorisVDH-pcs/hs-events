@@ -1506,6 +1506,52 @@ button.cell.pet-target:active { transform: scale(.93); transition-duration: .09s
 }
 .evidence-review .evidence-revoke { flex: 0 0 auto; align-self: center; }
 
+/* A drop two tiles want, waiting for the team to choose (WaitingDrops.jsx).
+   Edged in gold because someone has to act on it within the hour. Solid, not
+   glass: no backdrop-filter under the confirm dialog it raises. */
+.waiting-drops {
+  margin: 0 0 1.25rem;
+  padding: 1rem 1.1rem;
+  background: var(--panel-solid);
+  border: 1px solid var(--gold-deep);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-sm);
+}
+.waiting-drops > h2 { color: var(--gold); margin-bottom: .3rem; }
+.waiting-drops-intro { margin: 0 0 .8rem; }
+.waiting-drops > .error { margin: 0 0 .8rem; }
+.waiting-drops-done { margin: 0 0 .8rem; color: var(--gold-lit); font-weight: 600; }
+.waiting-drops-done:last-child,
+.waiting-drops > .error:last-child { margin-bottom: 0; }
+.waiting-drops-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .6rem; }
+.waiting-drop {
+  display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: .55rem .8rem; align-items: start;
+  padding: .6rem; border: 1px solid var(--hairline); border-radius: var(--r-lg);
+  background: var(--fill-3);
+}
+.waiting-drop-shot { grid-row: span 2; display: block; }
+.waiting-drop-shot img,
+.waiting-drop-pending {
+  width: 84px; height: 84px; object-fit: cover; display: block;
+  border-radius: var(--r-md); border: 1px solid var(--hairline);
+}
+.waiting-drop-pending { background: var(--fill-2); }
+.waiting-drop-meta { display: grid; gap: .15rem; min-width: 0; }
+/* The drop, as on a tile's panel: what the picture is for. */
+.waiting-drop-what { font-weight: 600; letter-spacing: -.008em; overflow-wrap: anywhere; }
+.waiting-drop-meta .muted { font-size: .78rem; overflow-wrap: anywhere; }
+.waiting-drop-clock { font-size: .78rem; color: var(--gold-dim); font-variant-numeric: tabular-nums; }
+.waiting-drop-choices { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; min-width: 0; }
+.waiting-drop-choices > span { font-size: .78rem; color: var(--label-2); margin-right: .15rem; }
+.waiting-drop-choices button { padding: .4rem .8rem; max-width: 100%; overflow-wrap: anywhere; text-align: left; }
+@media (max-width: 520px) {
+  /* The buttons get the whole width under the picture: a region's name is
+     long ("Fremennik Provinces"), and a thumb needs room to hit one. */
+  .waiting-drop-shot { grid-row: auto; }
+  .waiting-drop-choices { grid-column: 1 / -1; }
+  .waiting-drop-choices button { flex: 1 1 100%; }
+}
+
 /* Grouped per team per tile: a head row with a strip of thumbnails that opens
    into the list above, one row per screenshot. */
 .evidence-groups { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }

@@ -578,6 +578,13 @@ ok("the evidence is Red Mate's, who got the drop, 'dink', and says Red Cap chose
 const copied = await download(copyPath);
 ok('and its file is Dink\'s screenshot, byte for byte',
    copied.status === 200 && Buffer.compare(Buffer.from(copied.bytes), Buffer.from(helmShot)) === 0, copied.status);
+const helmEv = sqlJson(`select id from tile_evidence where storage_path = '${copyPath}'`).map((x) => x.id);
+r = await rpc('evidence_sources', { p_ids: helmEv }, people.mate.jwt);
+const helmSent = r.status === 200 ? evidenceSource(r.body[0]) : null;
+ok("the team's panel draws it with the drop, when it arrived and who chose",
+   helmSent?.drop === "Dharok's helm ×1 from Chaos Elemental"
+   && helmSent.lines.some((l) => new RegExp(`^Arrived \\d\\d:\\d\\d:\\d\\d · tile chosen by Red Cap ${run}$`).test(l)),
+   J([r.status, helmSent]));
 r = await chooseW(people.mate.jwt, copyPath);
 ok('choosing it again: already handed in', r.status === 400 && r.body?.message === 'That drop has already been handed in', J(r));
 r = await rpc('waiting_drops', { p_game_id: g }, people.mate.jwt);

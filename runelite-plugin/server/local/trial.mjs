@@ -12,8 +12,9 @@
 //
 // The board, for drops near Lumbridge. Misthalin (you pick it on the site):
 //   Two cowhides       Cowhide, twice   one tile wants it: handed in, then done
-//   Raw beef, one      Raw beef         two tiles want it: not handed in ("ask")
-//   Raw beef, two      Raw beef
+//   Raw beef, one      Raw beef         two tiles want it: it waits an hour, and
+//   Raw beef, two      Raw beef         you choose the tile on the site (a box
+//                                       above the board)
 //   Feathers           Feather          from chickens
 // Asgarnia, which the other team opens and you do not:
 //   Bones              Bones            every cow and chicken drops it, and it
@@ -23,8 +24,11 @@
 //   Three bones        Bones, 3 times   locked in Region Bingo, open here: it
 //                                       counts for the card, never the region
 //   Raw chicken        Raw chicken      from chickens
-//   Raw beef           Raw beef         two Region Bingo tiles want it as well:
-//                                       an "ask", never handed in by Dink
+//   Raw beef           Raw beef         two Region Bingo tiles want it as well,
+//                                       so it is wanted in two games: not kept
+//                                       (one game at a time). Once the card is
+//                                       ended (bingo-end), a Raw beef waits for
+//                                       you to choose, as above
 //   Cowhide            Cowhide          done in Region Bingo already, if you
 //   Feathers           Feather          played it, so only the card wants them
 //   four tiles with no drop list, for uploads on the site
@@ -204,6 +208,19 @@ if (mode === 'build') {
       console.log(`  ${e.created_at.slice(11, 19)}  ${e.team} / ${e.tile}  ${e.source}`
         + (e.source === 'web' ? '' : `  ${d.item} x${d.quantity} from ${d.from} (${d.category}), ${d.rsn}, world ${d.world}, region ${d.region_id}, ${d.dink_type}`
           + (d.resized_from ? `, made smaller from ${d.resized_from}` : '')));
+    }
+    // A drop two tiles wanted, kept for the team to choose (draft 002, 6c).
+    const waits = sqlJson(`select w.item, w.received_at, w.expires_at, w.chosen_at, jsonb_array_length(w.choices) n,
+        p.display_name chosen_by, t.name tile
+        from plugin_waiting w left join profiles p on p.id = w.chosen_by
+        left join tile_evidence e on e.id = w.evidence_id left join tile_claims c on c.id = e.claim_id
+        left join tiles t on t.id = c.tile_id
+       where w.game_id = ${lit(x.id)} order by w.received_at`);
+    console.log(`Drops that waited for a tile: ${waits.length}`);
+    for (const w of waits) {
+      const state = w.chosen_at ? `handed in for ${w.tile} by ${w.chosen_by}`
+        : new Date(w.expires_at) > new Date() ? `waiting until ${w.expires_at.slice(11, 16)} (UTC)` : 'not chosen in time';
+      console.log(`  ${w.received_at.slice(11, 19)}  ${w.item}, ${w.n} tiles to choose from: ${state}`);
     }
     const claims = sqlJson(`select t.name tile, c.status from tile_claims c join tiles t on t.id = c.tile_id
         join teams tm on tm.id = c.team_id where t.game_id = ${lit(x.id)} and tm.name = 'Your team' order by t.position`);

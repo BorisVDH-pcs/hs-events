@@ -10,7 +10,10 @@ import { StrictMode, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import EvidenceReview from '../components/EvidenceReview.jsx';
 import EvidencePanel from '../components/EvidencePanel.jsx';
-import { resetDemo, evidenceSourceFixtures, PANEL_DEMO } from './stub-supabase.js';
+import WaitingDrops from '../components/WaitingDrops.jsx';
+import {
+  resetDemo, evidenceSourceFixtures, PANEL_DEMO, resetWaiting, waitingFixtures,
+} from './stub-supabase.js';
 import '../styles.css';
 import '../seasons.css';
 import '../lib/season.js';
@@ -18,6 +21,14 @@ import '../lib/season.js';
 function Harness() {
   const [run, setRun] = useState(0);
   const [sources, setSources] = useState(evidenceSourceFixtures.mode);
+  const [waitRun, setWaitRun] = useState(0);
+  const [waiting, setWaiting] = useState(waitingFixtures.mode);
+  const [refuse, setRefuse] = useState(waitingFixtures.refuse);
+  const pickWaiting = (mode) => {
+    waitingFixtures.mode = mode;
+    setWaiting(mode);
+    setWaitRun((n) => n + 1);
+  };
   const pickSources = (mode) => {
     evidenceSourceFixtures.mode = mode;
     setSources(mode);
@@ -67,6 +78,34 @@ function Harness() {
         items={PANEL_DEMO}
         onClose={() => {}}
       />
+
+      <h2 style={{ marginTop: '2rem' }}>A drop two tiles want</h2>
+      <p className="muted" style={{ marginTop: 0 }}>
+        The box above a team&apos;s board in Region Bingo and Bingo. Dink sent a
+        drop more than one open tile wants; anyone on the team chooses. A
+        choice here only takes the drop off the list.{' '}
+        <label>
+          Waiting drops:{' '}
+          <select value={waiting} onChange={(e) => pickWaiting(e.target.value)} aria-label="Waiting drops">
+            <option value="some">two waiting</option>
+            <option value="none">nothing waiting (hidden)</option>
+            <option value="missing">database without the plugin (live today)</option>
+            <option value="failed">the call fails</option>
+          </select>
+        </label>{' '}
+        <label>
+          <input
+            type="checkbox"
+            checked={refuse}
+            onChange={(e) => { waitingFixtures.refuse = e.target.checked; setRefuse(e.target.checked); }}
+          />{' '}
+          a teammate chose first
+        </label>{' '}
+        <button className="ghost" onClick={() => { resetWaiting(); setWaitRun((n) => n + 1); }}>
+          Put them back
+        </button>
+      </p>
+      <WaitingDrops key={`wait-${waitRun}`} gameId="demo-game" events={[]} onHandedIn={() => {}} />
     </div>
   );
 }
