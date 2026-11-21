@@ -87,6 +87,9 @@ Dink can have drops handed in for them: a drop one open tile wants counts at
 once, with Dink's screenshot; a drop two tiles want waits an hour for anyone
 on the team to choose. Uploading on the site works as always.
 
+A tile can name the monsters its drop must come from; a drop from any other
+monster then doesn't count for it.
+
 ### Unlocking a region
 
 8. A region is **complete** for a team when that team has at least **x% of the
