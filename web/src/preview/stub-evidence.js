@@ -3,7 +3,7 @@
  * against a private Supabase bucket; here the thumbnails are inline SVG, so the
  * layout is real and nothing leaves the machine.
  */
-import { DEMO_URLS } from './stub-supabase.js';
+import { DEMO_URLS, takeWaiting, waitingFixtures } from './stub-supabase.js';
 
 export const BUCKET = 'evidence';
 
@@ -56,6 +56,23 @@ export async function uploadChallengeShot({ gameId, entryId, phase, file, note =
   const add = evidenceHandlers.addChallengeShot;
   if (add) add({ phase, storage_path: path, note });
   return path;
+}
+
+/**
+ * A drop waiting for the team to choose (WaitingDrops.jsx). Taken off the
+ * harness's list, as the real hand-in takes it off the database's; or refused
+ * the way the database refuses a drop a teammate handed in first.
+ */
+export function handInWaitingDrop({ waitingId }) {
+  return new Promise((resolve, reject) => setTimeout(() => {
+    if (waitingFixtures.refuse) {
+      takeWaiting(waitingId);
+      reject(new Error('That drop has already been handed in'));
+      return;
+    }
+    takeWaiting(waitingId);
+    resolve({ completed: false });
+  }, 400));
 }
 
 export function extFor() {

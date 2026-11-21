@@ -7,6 +7,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { actingTeam, assertWritable } from './viewOnly.js';
+import { dinkUrl, isMissingFunction } from './pluginTokens.js';
 
 const URL = import.meta.env.VITE_SUPABASE_URL;
 const ANON = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -343,6 +344,95 @@ export async function removeAccount(id) {
   if (error) throw new Error(error.message);
 }
 
+// ---- Plugin tokens (supabase/migrations/20261121120000_plugin_tokens.sql) ----------
+//
+// A DRAFT on the database side: until it is applied, these functions do not
+// exist and pluginTokens() answers null, which hides the section. No
+// assertWritable, for the reason given above My Account: every one of these
+// acts on the signed-in player's own tokens and nobody else's.
+
+/**
+ * This player's live tokens: name, made, last used. Never the token itself,
+ * which exists only in makePluginToken's answer. Null when the database has
+ * no plugin tokens yet.
+ */
+export async function pluginTokens() {
+  const { data, error } = await supabase.rpc('plugin_token_list');
+  if (isMissingFunction(error)) return null;
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+/** A new token. This answer is the only time it is ever seen. */
+export const makePluginToken = (label) =>
+  rpc('plugin_token_create', { p_label: label });
+
+/** From now on, Dink holding this one hands nothing in. */
+export const revokePluginToken = (id) =>
+  rpc('plugin_token_revoke', { p_id: id });
+
+/** What the player pastes into Dink for this token. */
+export const pluginDinkUrl = (token) => dinkUrl(URL, token);
+
+/**
+ * Which evidence in a game a plugin sent, and what it reported, for the
+ * review screen's "Sent by plugin". Organisers and the game's moderators only,
+ * like admin_list_evidence. Null when the database has no such function yet,
+ * and then every row reads as what it was before: an upload.
+ */
+export async function evidenceSources(gameId) {
+  const { data, error } = await supabase.rpc('admin_evidence_sources', { p_game_id: gameId });
+  if (isMissingFunction(error)) return null;
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+/**
+ * The same, for the pieces of evidence one tile's panel shows, by id. Any
+ * signed-in player may ask; the database answers only for their own team's
+ * evidence, or a game they run, and says nothing of any other row. Null when
+ * the database has no such function yet: then the panel shows what it always
+ * did, the picture, the name and the time.
+ */
+export async function evidenceSourcesFor(ids) {
+  const { data, error } = await supabase.rpc('evidence_sources', { p_ids: ids });
+  if (isMissingFunction(error)) return null;
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+// ---- A drop two tiles want (supabase/migrations/20261121120100_plugin_drops.sql, 6c)
+//
+// Dink sent a drop more than one of the team's open tiles wants; it waits an
+// hour for anyone on the team to choose. components/WaitingDrops.jsx; the
+// hand-in itself is handInWaitingDrop in lib/evidence.js.
+
+/**
+ * The caller's team's drops waiting in this game, each with the tiles it can
+ * still go to. Empty for anyone not on a team in it. Null when the database
+ * has no such function yet: then the box never shows.
+ */
+export async function waitingDrops(gameId) {
+  const { data, error } = await supabase.rpc('waiting_drops', { p_game_id: gameId });
+  if (isMissingFunction(error)) return null;
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+/** Opens the chosen tile, and says where the copy of the screenshot goes. */
+export const waitingDropOpen = (waitingId, tileId, optionId) => {
+  assertWritable();
+  return rpc('waiting_drop_open', { p_waiting_id: waitingId, p_tile_id: tileId, p_option_id: optionId });
+};
+
+/** Hands it in, once the copy is there. The database checks it is Dink's file. */
+export const waitingDropChoose = (waitingId, tileId, optionId, storagePath) => {
+  assertWritable();
+  return rpc('waiting_drop_choose', {
+    p_waiting_id: waitingId, p_tile_id: tileId, p_option_id: optionId, p_storage_path: storagePath,
+  });
+};
+
 /**
  * Sign up, or correct the name on an entry.
  *
@@ -588,6 +678,14 @@ export const regionsStandings = (gameId) =>
 /** Region Bingo: the % of a region's points that completes it (1-100). Before the start only. */
 export const adminSetRegionThreshold = (gameId, threshold) =>
   rpc('admin_set_region_threshold', { p_game_id: gameId, p_threshold: threshold });
+
+/**
+ * Drops from Dink on or off for this game (plugin_drops.sql, 6e; Boris, 2026-11-21).
+ * Region Bingo only for now; turning it off works in any mode. Uploading on
+ * the site is not affected either way.
+ */
+export const adminSetPluginDrops = (gameId, on) =>
+  rpc('admin_set_plugin_drops', { p_game_id: gameId, p_on: on });
 
 /** Region Bingo: what the tile on a square scores (1-100). Before the start only. */
 export const adminSetTileWorth = (gameId, position, worth) =>

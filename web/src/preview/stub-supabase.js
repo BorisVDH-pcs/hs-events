@@ -20,6 +20,7 @@
  * here, since this is the one module the alias points at.
  */
 import { adminFrom, adminRpc } from './stub-admin.js';
+import { dinkUrl } from '../lib/pluginTokens.js';
 
 export * from './stub-admin.js';
 
@@ -203,6 +204,117 @@ export const DEMO = [
   },
 ];
 
+/**
+ * admin_evidence_sources, for the "Sent by plugin" label: which DEMO rows Dink
+ * handed in, and what it reported. The harness switches `mode`:
+ *   'some'    two rows from Dink, one with a picture made smaller;
+ *   'missing' a database without the plugin's migrations (null: no labels);
+ *   'failed'  the call fails, and the screen says it cannot tell.
+ * The other four rows are uploads from the site, as most evidence is.
+ */
+export const evidenceSourceFixtures = { mode: 'some' };
+const DEMO_SOURCES = [
+  {
+    id: 'ev-4',
+    source: 'dink',
+    detail: {
+      source: 'dink', rsn: 'Duradel Iron', item: 'Bandos hilt', item_id: 11812, quantity: 1,
+      price_each: 13200000, from: 'General Graardor', category: 'NPC', world: 416,
+      region_id: 11347, dink_type: 'LOOT',
+    },
+  },
+  {
+    id: 'ev-5',
+    source: 'dink',
+    detail: {
+      source: 'dink', rsn: 'Vannaka', item: "Inquisitor's mace", item_id: 24417, quantity: 1,
+      price_each: 1010000000, from: 'The Nightmare', category: 'NPC', world: 302,
+      region_id: 15515, dink_type: 'LOOT', resized_from: '3840x2400',
+    },
+  },
+];
+export const evidenceSources = () => new Promise((resolve, reject) => setTimeout(() => {
+  if (evidenceSourceFixtures.mode === 'missing') resolve(null);
+  else if (evidenceSourceFixtures.mode === 'failed') reject(new Error('stub: the database did not answer'));
+  else resolve(DEMO_SOURCES);
+}, 80));
+
+/**
+ * A tile's panel, for the evidence harness (main.jsx): one drop Dink handed in,
+ * like the Woman's Bones of 2026-11-21, whose screenshot did not show them, and
+ * one upload from the site.
+ */
+export const PANEL_DEMO = [
+  { id: 'pv-1', storage_path: 'pv/1', uploaded_by_name: 'Soft Papi', created_at: ago(3) },
+  { id: 'pv-2', storage_path: 'pv/2', uploaded_by_name: 'Duradel', created_at: ago(42) },
+];
+const PANEL_SOURCES = [
+  {
+    id: 'pv-1',
+    source: 'dink',
+    detail: {
+      source: 'dink', rsn: 'Soft Papi', item: 'Bones', item_id: 526, quantity: 1,
+      price_each: 75, from: 'Woman', category: 'NPC', world: 308,
+      region_id: 12850, dink_type: 'LOOT',
+    },
+  },
+];
+
+/**
+ * evidence_sources, for a tile's panel: the same rows, asked by id, with the
+ * same `mode` switch. Every other harness's rows are uploads from the site, so
+ * nothing comes back for them, as on a real board.
+ */
+export const evidenceSourcesFor = (ids) => new Promise((resolve, reject) => setTimeout(() => {
+  if (evidenceSourceFixtures.mode === 'missing') resolve(null);
+  else if (evidenceSourceFixtures.mode === 'failed') reject(new Error('stub: the database did not answer'));
+  else resolve([...DEMO_SOURCES, ...PANEL_SOURCES].filter((s) => ids.includes(s.id)));
+}, 80));
+
+/**
+ * waiting_drops, for the box above a team's board (WaitingDrops.jsx): drops
+ * Dink sent that two tiles want. The harness switches `mode`:
+ *   'some'    two drops, one in two regions and one with three tiles;
+ *   'none'    nothing waiting (the box hides);
+ *   'missing' a database without the plugin's migrations (null: it hides);
+ *   'failed'  the call fails.
+ * stub-evidence.js's handInWaitingDrop takes a drop off `waitingLive`.
+ */
+export const waitingFixtures = { mode: 'some', refuse: false };
+const minutesFrom = (m) => new Date(Date.now() + m * 60000).toISOString();
+export const WAITING_DEMO = [
+  {
+    id: 'wd-1', item: 'Abyssal whip', storage_path: 'wd/1', dropped_by: 'Soft Papi',
+    received_at: minutesFrom(-14), expires_at: minutesFrom(46),
+    detail: { source: 'dink', rsn: 'Soft Papi', item: 'Abyssal whip', quantity: 1, from: 'Abyssal demon', world: 308, dink_type: 'LOOT' },
+    choices: [
+      { tile_id: 't-whips', option_id: 'o-whip', tile: 'Whips', position: 1, region: 'misthalin', label: 'Abyssal whip' },
+      { tile_id: 't-slayer', option_id: 'o-whip-2', tile: 'Slayer drops', position: 101, region: 'asgarnia', label: 'Abyssal whip' },
+    ],
+  },
+  {
+    id: 'wd-2', item: 'Dragon bones', storage_path: 'wd/2', dropped_by: 'Duradel',
+    received_at: minutesFrom(-52), expires_at: minutesFrom(8),
+    detail: { source: 'dink', rsn: 'Duradel Iron', item: 'Dragon bones', quantity: 1, from: 'Vorkath', world: 416, dink_type: 'LOOT', resized_from: '3840x2400' },
+    choices: [
+      { tile_id: 't-bones', option_id: 'o-bones', tile: 'Dragon bones', position: 5, region: 'misthalin', label: 'Dragon bones' },
+      { tile_id: 't-prayer', option_id: 'o-bones-2', tile: 'Anything for Prayer', position: 402, region: 'fremennik', label: 'Dragon bones' },
+      { tile_id: 't-vork', option_id: 'o-bones-3', tile: 'Vorkath kill', position: 1002, region: 'varlamore', label: 'Dragon bones' },
+    ],
+  },
+];
+export let waitingLive = [...WAITING_DEMO];
+export const resetWaiting = () => { waitingLive = [...WAITING_DEMO]; };
+export const takeWaiting = (id) => { waitingLive = waitingLive.filter((d) => d.id !== id); };
+export const waitingDrops = () => new Promise((resolve, reject) => setTimeout(() => {
+  if (waitingFixtures.mode === 'missing') resolve(null);
+  else if (waitingFixtures.mode === 'failed') reject(new Error('stub: the database did not answer'));
+  else if (waitingFixtures.mode === 'none') resolve([]);
+  else resolve(waitingLive);
+}, 80));
+export const waitingDropOpen = () => Promise.reject(new Error('Not available in the harness.'));
+export const waitingDropChoose = () => Promise.reject(new Error('Not available in the harness.'));
+
 /** Rows the harness has not revoked yet. Mutated so the list really shrinks. */
 let live = [...DEMO];
 
@@ -282,9 +394,13 @@ export function adminRevokeEvidence(evidenceId, dryRun = false) {
   );
 }
 
-export const DEMO_URLS = Object.fromEntries(
-  DEMO.map((r) => [r.storage_path, shot(r.option_label ?? `${r.points / 10}m`)])
-);
+export const DEMO_URLS = Object.fromEntries([
+  ...DEMO.map((r) => [r.storage_path, shot(r.option_label ?? `${r.points / 10}m`)]),
+  ['pv/1', shot('no bones in sight')],
+  ['pv/2', shot('upload')],
+  ['wd/1', shot('whip')],
+  ['wd/2', shot('bones')],
+]);
 
 /**
  * The My Accounts list, for the Home harness (home-main.jsx), which fills
@@ -293,6 +409,31 @@ export const DEMO_URLS = Object.fromEntries(
  */
 export const accountFixtures = [];
 export const myAccounts = () => Promise.resolve(accountFixtures);
+
+/**
+ * Plugin tokens, for the My Account harness (account-main.jsx). `list` null is
+ * the live project before the plugin's migrations: the section hides. Made
+ * tokens are random and the link points at no project; nothing is sent.
+ */
+export const pluginTokenFixtures = { list: [] };
+export const pluginTokens = () =>
+  new Promise((resolve) => setTimeout(() => resolve(
+    pluginTokenFixtures.list && pluginTokenFixtures.list.map((t) => ({ ...t }))), 120));
+export function makePluginToken(label) {
+  if (pluginTokenFixtures.list.length >= 5) {
+    return Promise.reject(new Error('You already have 5 plugin tokens. Revoke one first.'));
+  }
+  const hex = Array.from(crypto.getRandomValues(new Uint8Array(32)), (b) => b.toString(16).padStart(2, '0')).join('');
+  pluginTokenFixtures.list.push({
+    id: `pt-${hex.slice(0, 8)}`, label, created_at: new Date().toISOString(), last_used_at: null,
+  });
+  return Promise.resolve(`hse_${hex}`);
+}
+export function revokePluginToken(id) {
+  pluginTokenFixtures.list = pluginTokenFixtures.list.filter((t) => t.id !== id);
+  return Promise.resolve(null);
+}
+export const pluginDinkUrl = (token) => dinkUrl('https://your-project.supabase.co', token);
 
 /**
  * Enough of an auth surface to boot the real App (app-main.jsx).

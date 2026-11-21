@@ -1,6 +1,23 @@
+import { useEffect, useState } from 'react';
 import { PER_MILLION, millionsToTenths } from '../lib/millions.js';
 import { RULES, validateDraft, ruleSummary } from '../lib/tileDraft.js';
+import { loadItemNames } from '../lib/itemNames.js';
+import { DROP_LISTS, LIST_GROUPS, addDropList } from '../lib/dropLists.js';
 import IconPicker from './IconPicker.jsx';
+
+/**
+ * The item names, once loaded; null until then, and for good if they cannot
+ * be loaded. Until they arrive the form simply has no warnings to show.
+ */
+function useItemNames() {
+  const [items, setItems] = useState(null);
+  useEffect(() => {
+    let live = true;
+    loadItemNames().then((index) => { if (live) setItems(index); }, () => {});
+    return () => { live = false; };
+  }, []);
+  return items;
+}
 
 /**
  * The one editor for a tile, wherever the tile lives.
@@ -60,6 +77,30 @@ export default function TileForm({
 
   const blankDrop = () => ({ label: '', points: '1', grp: '', maxTimes: '' });
   const addDrop = () => set({ options: [...draft.options, blankDrop()] });
+
+  /**
+   * Drops that are not the name of an item, by row.
+   *
+   * A warning, never an error: "Any Barrows piece" is a fine drop for a tile
+   * uploaded by hand. What it catches is the drop meant as one item and
+   * spelled otherwise ("Thamarons sceptre", or "Tumeken's shadow" for what
+   * drops as "Tumeken's shadow (uncharged)"), which Dink can never match.
+   *
+   * Not for the drop being typed: every half-typed name is "not an item", and
+   * a warning that blinks on each keystroke is one people learn to ignore. It
+   * appears when the box is left.
+   */
+  const items = useItemNames();
+  const [typing, setTyping] = useState(null);
+  const nameChecks = items && rule !== 'value'
+    ? draft.options.map((o, i) => (i === typing ? null : items.check(o.label)))
+    : [];
+  const anyUnknown = nameChecks.some(Boolean);
+
+  const addList = (id) => {
+    const list = DROP_LISTS.find((l) => l.id === id);
+    if (list) set({ options: addDropList(draft.options, list, rule) });
+  };
 
   /**
    * Enter starts the next drop.
@@ -181,12 +222,32 @@ export default function TileForm({
             {rule === 'points_per_set' && <em className="muted"> — grouped into sets, priced</em>}
           </h4>
           {rule !== 'value' && (
-            <button
-              type="button" className="ghost"
-              onClick={addDrop}
-            >
-              Add drop
-            </button>
+            <div className="tile-form-drop-actions">
+              {/* A select rather than a menu of its own: it is a list of
+                  names to pick one from, and the first option says what it
+                  does. It resets to that option after every pick. */}
+              <select
+                className="drop-list-pick"
+                value=""
+                onChange={(e) => addList(e.target.value)}
+                aria-label="Add a ready-made list of drops"
+              >
+                <option value="">Add a list…</option>
+                {LIST_GROUPS.map((g) => (
+                  <optgroup key={g} label={g}>
+                    {DROP_LISTS.filter((l) => l.group === g).map((l) => (
+                      <option key={l.id} value={l.id}>{l.name} ({l.drops.length})</option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+              <button
+                type="button" className="ghost"
+                onClick={addDrop}
+              >
+                Add drop
+              </button>
+            </div>
           )}
         </div>
 
@@ -227,6 +288,7 @@ export default function TileForm({
             <ul className="drop-rows">
             {draft.options.map((option, index) => (
               <li key={index}>
+                <div className="drop-line">
                 {rule !== 'points' && (
                   <input
                     className="drop-grp"
@@ -242,6 +304,8 @@ export default function TileForm({
                   value={option.label}
                   onChange={(e) => setOption(index, { label: e.target.value })}
                   onKeyDown={(e) => onDropKeyDown(e, index)}
+                  onFocus={() => setTyping(index)}
+                  onBlur={() => setTyping(null)}
                   placeholder="Drop"
                   maxLength={80}
                 />
@@ -279,9 +343,45 @@ export default function TileForm({
                 >
                   &times;
                 </button>
+                </div>
+                {nameChecks[index] && (
+                  <p className="drop-warn" role="note">
+                    <span className="drop-warn-mark" aria-hidden="true">⚠</span>{' '}
+                    Not in the item list.
+                    {nameChecks[index].suggestions.length > 0 && (
+                      <>
+                        {' '}Did you mean{' '}
+                        {nameChecks[index].suggestions.map((name, i) => (
+                          <span key={name}>
+                            {i > 0 && ' or '}
+                            <button
+                              type="button" className="link"
+                              onClick={() => setOption(index, { label: name })}
+                              title={`Use “${name}”`}
+                            >
+                              {name}
+                            </button>
+                          </span>
+                        ))}
+                        ?
+                      </>
+                    )}
+                  </p>
+                )}
               </li>
             ))}
             </ul>
+            {/* Below the list, not above it: above, its arrival would push
+                down the very box being typed in. */}
+            {anyUnknown && (
+              <p className="muted tile-form-hint drop-warn-hint">
+                <span className="drop-warn-mark" aria-hidden="true">⚠</span> marks a drop that
+                is not in the item list (everything the Grand Exchange trades, plus
+                pets and untradeable raid drops). That is fine for a drop like “Any
+                Barrows piece”, which players upload by hand. A single item needs the
+                game’s own name, or Dink cannot hand it in.
+              </p>
+            )}
           </>
         )}
       </div>

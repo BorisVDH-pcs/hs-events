@@ -34,6 +34,7 @@ import BingoGame from './components/bingo/BingoGame.jsx';
 import SnakesGame from './components/snakes/SnakesGame.jsx';
 import TerritoryLive from './components/territory/TerritoryLive.jsx';
 import RegionsLive from './components/regions/RegionsLive.jsx';
+import WaitingDrops from './components/WaitingDrops.jsx';
 import ChallengeGame from './components/challenge/ChallengeGame.jsx';
 import { listMyGames } from './lib/games.js';
 import { readMuted, writeMuted } from './lib/sound.js';
@@ -834,6 +835,13 @@ export default function App() {
           onSignUp={() => onSignUp(true)}
           onLeave={() => onSignUp(false)}
         />
+      )}
+
+      {/* A drop Dink sent that two of the team's tiles want, waiting for the
+          team to choose (supabase/migrations/20261121120100_plugin_drops.sql, 6c).
+          Hidden while nothing waits, and on a database without the plugin. */}
+      {game.game && !waitingScreen && (isBingo || isRegions) && isActive && myTeamId && (
+        <WaitingDrops gameId={game.game.id} events={events} onHandedIn={game.refresh} />
       )}
 
       {game.game && !waitingScreen && isBingo && (

@@ -104,6 +104,8 @@ function addGame({ name, mode, grid, status, teamNames, startsAt = null, endsAt 
     max_active_tiles: mode === 'battleships' ? 3 : 1,
     // Every game row has it (default 50); only Region Bingo reads it.
     region_threshold: 50,
+    // Dink on or off (plugin_drops.sql, 6e): off until an organiser turns it on.
+    plugin_drops: false,
     created_at: now(),
   });
   teamNames.forEach((n, i) => teams.push({ id: uid(), game_id: id, name: n, slot: i + 1 }));
@@ -917,6 +919,13 @@ export function adminSetRegionThreshold(gameId, threshold) {
   }
   game(gameId).region_threshold = threshold;
   return wait(null);
+}
+
+export function adminSetPluginDrops(gameId, on) {
+  const g = game(gameId);
+  if (on && !isRegions(g)) return fail('Drops from Dink are for Region Bingo only, for now');
+  g.plugin_drops = Boolean(on);
+  return wait(on);
 }
 
 export function adminSetTileWorth(gameId, position, worth) {

@@ -1,0 +1,13 @@
+{
+  "name": "hs-events-plugin-server-test",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node tokens.test.mjs && node regions.test.mjs && node regions-game.test.mjs && node bingo.test.mjs && node intake.test.mjs && node waiting.test.mjs && node switch.test.mjs",
+    "replay": "node replay.mjs",
+    "test:stack": "node stack.test.mjs"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "^0.5.17"
+  }
+}

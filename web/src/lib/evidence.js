@@ -9,7 +9,7 @@
 //
 // See supabase/migrations/0021_evidence.sql.
 
-import { supabase } from './supabase.js';
+import { supabase, waitingDropChoose, waitingDropOpen } from './supabase.js';
 import { uploadToImgbb } from './imgbb.js';
 import { assertWritable } from './viewOnly.js';
 
@@ -151,6 +151,32 @@ export async function uploadEvidence({ gameId, teamId, claimId, file, optionId =
   });
   if (error) throw new Error(error.message);
   return data;
+}
+
+/**
+ * A drop Dink sent that two of the team's tiles want, handed in for the tile
+ * the player chose (components/WaitingDrops.jsx; Boris, 2026-11-21).
+ *
+ * Three steps, the same order as an upload: the tile is opened, the file is
+ * put in its claim's folder, then the row. The file is not uploaded from this
+ * browser: Dink's own screenshot, kept in the team's folder while it waited,
+ * is copied there by Storage, under the player's own sign-in, so the bucket's
+ * rules are the ones every upload meets. The database then checks the copy
+ * has the eTag and size of Dink's file, so a picture of the player's own
+ * cannot be handed in in its place, and hands it in as the player who got
+ * the drop, as Dink would have.
+ *
+ * No imgbb mirror: a plugin's drop has none either.
+ */
+export async function handInWaitingDrop({ waitingId, tileId, optionId }) {
+  assertWritable();
+  const opened = await waitingDropOpen(waitingId, tileId, optionId);
+  // Where to copy it is the database's choice, written down there, so a copy
+  // that is never handed in is found and removed later (plugin_drops.sql, 6d).
+  const to = opened.copy_path;
+  const { error } = await supabase.storage.from(BUCKET).copy(opened.from_path, to);
+  if (error) throw new Error(error.message);
+  return waitingDropChoose(waitingId, tileId, optionId, to);
 }
 
 /**

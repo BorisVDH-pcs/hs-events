@@ -6,6 +6,7 @@ import {
 import {
   MAX_ACCOUNTS, MAX_RSN, accountStatus, hasRsn, rsnClean, rsnError,
 } from '../lib/accounts.js';
+import PluginTokens from './PluginTokens.jsx';
 
 /**
  * My Account: the RuneScape names this player plays under.
@@ -204,6 +205,9 @@ export default function MyAccount({ profileId, onClose }) {
             {MAX_ACCOUNTS} accounts is the limit — remove one to add another.
           </p>
         )}
+
+        {/* Renders nothing until the database has plugin tokens. */}
+        <PluginTokens />
 
         <div className="confirm-actions">
           <button className="ghost" onClick={onClose} disabled={busy}>Done</button>

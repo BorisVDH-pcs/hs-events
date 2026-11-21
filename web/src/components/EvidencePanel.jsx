@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { signedUrls } from '../lib/evidence.js';
+import { evidenceSourcesFor } from '../lib/supabase.js';
+import { evidenceSource, withSources } from '../lib/evidenceSource.js';
 
 /**
  * What has been submitted for one tile.
@@ -13,12 +15,22 @@ import { signedUrls } from '../lib/evidence.js';
  * Signed URLs are minted for the open tile only, rather than for every piece of
  * evidence in the game up front. They expire, so a panel left open all evening
  * would otherwise quietly stop showing images.
+ *
+ * A picture a plugin (Dink) sent gets what the plugin reported beside it: the
+ * drop, how many, from what, the world. Its screenshot does not always show the
+ * drop, so this line is how anyone looking knows what the picture is for. Asked
+ * for the open tile only, like the URLs, through evidence_sources(), which
+ * answers for the caller's own team's evidence or a game they run and nothing
+ * else. "Sent by plugin", never "verified": see lib/evidenceSource.js.
  */
 export default function EvidencePanel({ title, coord, meta, items, onClose }) {
   const [urls, setUrls] = useState({});
   const [error, setError] = useState(null);
+  const [sources, setSources] = useState(null);
+  const [sourceNote, setSourceNote] = useState(null);
 
   const paths = items.map((e) => e.storage_path).join('\n');
+  const ids = items.map((e) => e.id).join('\n');
 
   useEffect(() => {
     let cancelled = false;
@@ -29,6 +41,26 @@ export default function EvidencePanel({ title, coord, meta, items, onClose }) {
       .catch((e) => { if (!cancelled) setError(e.message); });
     return () => { cancelled = true; };
   }, [paths]);
+
+  // Which of these a plugin sent, and what it reported. Null (no lines, the
+  // panel as it always was) while the database has no such function; a failure
+  // costs the lines, not the pictures.
+  useEffect(() => {
+    let cancelled = false;
+    const list = ids ? ids.split('\n') : [];
+    if (!list.length) { setSources(null); setSourceNote(null); return undefined; }
+    evidenceSourcesFor(list)
+      .then((rows) => { if (!cancelled) { setSources(rows); setSourceNote(null); } })
+      .catch((e) => {
+        if (!cancelled) {
+          setSources(null);
+          setSourceNote(`Could not tell which screenshots a plugin sent: ${e.message}`);
+        }
+      });
+    return () => { cancelled = true; };
+  }, [ids]);
+
+  const shown = withSources(items, sources);
 
   return (
     <div className="tile-evidence-panel">
@@ -41,37 +73,50 @@ export default function EvidencePanel({ title, coord, meta, items, onClose }) {
       </div>
       {meta && <p className="muted">{meta}</p>}
       {error && <p className="error">{error}</p>}
+      {sourceNote && <p className="muted">{sourceNote}</p>}
 
-      {items.length === 0 ? (
+      {shown.length === 0 ? (
         <p className="muted">Nothing submitted for this tile yet.</p>
       ) : (
         <ul className="evidence-review">
-          {items.map((e, i) => (
-            <li key={e.id}>
-              {/* The screenshot is the whole of the row and the whole of the
-                  link, so an empty alt left the link with no name at all —
-                  announced as "link", full stop, four times over.
-                  Numbered rather than named after its uploader: one tile's
-                  evidence is usually four shots from the same person minutes
-                  apart, so the uploader does not tell them apart, and it is
-                  read out anyway from the meta line beside the picture. */}
-              <a href={urls[e.storage_path]} target="_blank" rel="noreferrer">
-                {urls[e.storage_path]
-                  ? (
-                    <img
-                      src={urls[e.storage_path]}
-                      alt={`Screenshot ${i + 1} of ${items.length} for ${title}`}
-                      loading="lazy"
-                    />
-                  )
-                  : <span className="evidence-pending" />}
-              </a>
-              <div className="meta">
-                <strong>{e.uploaded_by_name}</strong>
-                <span className="muted">{new Date(e.created_at).toLocaleString()}</span>
-              </div>
-            </li>
-          ))}
+          {shown.map((e, i) => {
+            const sent = evidenceSource(e);
+            return (
+              <li key={e.id}>
+                {/* The screenshot is the whole of the row and the whole of the
+                    link, so an empty alt left the link with no name at all —
+                    announced as "link", full stop, four times over.
+                    Numbered rather than named after its uploader: one tile's
+                    evidence is usually four shots from the same person minutes
+                    apart, so the uploader does not tell them apart, and it is
+                    read out anyway from the meta line beside the picture. */}
+                <a href={urls[e.storage_path]} target="_blank" rel="noreferrer">
+                  {urls[e.storage_path]
+                    ? (
+                      <img
+                        src={urls[e.storage_path]}
+                        alt={`Screenshot ${i + 1} of ${shown.length} for ${title}`}
+                        loading="lazy"
+                      />
+                    )
+                    : <span className="evidence-pending" />}
+                </a>
+                <div className="meta">
+                  {sent && (
+                    <div className="evidence-tags">
+                      <span className="evidence-sent" title={sent.title}>{sent.label}</span>
+                    </div>
+                  )}
+                  {sent?.drop && <span className="evidence-sent-drop">{sent.drop}</span>}
+                  <strong>{e.uploaded_by_name}</strong>
+                  <span className="muted">{new Date(e.created_at).toLocaleString()}</span>
+                  {sent?.lines.map((line) => (
+                    <span key={line} className="muted evidence-sent-detail">{line}</span>
+                  ))}
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>
