@@ -13,13 +13,15 @@ become migrations when they are moved there on purpose.
 
 | Path | What | State |
 |---|---|---|
-| `server/001_plugin_tokens.sql` | Plugin tokens, `drop_key`, `plugin_as`, `plugin_whoami` | Tested offline |
-| `server/002_plugin_drops.sql` | Evidence `source` and `detail`, the intake log, `plugin_watchlist`, `plugin_match`, `plugin_open`, `plugin_submit` | Tested offline against the real rules |
+| `server/001_plugin_tokens.sql` | Plugin tokens, `drop_key`, `plugin_as`, `plugin_whoami` | Tested offline, and on a local Supabase stack |
+| `server/002_plugin_drops.sql` | Evidence `source` and `detail`, the intake log, `plugin_watchlist`, `plugin_match`, `plugin_open`, `plugin_submit` | Tested offline against the real rules, and on a local Supabase stack |
 | `server/intake/dink.mjs` | Reads a Dink notification; makes the dedupe key | Tested; checked against Dink's source, not yet against a real client |
 | `server/intake/handle.mjs` | What happens to one notification: match, open, store, submit | Tested end to end, offline |
 | `server/intake/index.ts` | The Edge Function shell around `handle.mjs` | **Never run** (no Deno here) |
 | `server/test/replay.mjs` | Replays all 129 migrations into an in-memory Postgres, with stand-ins for what Supabase provides | Works; the repo's own Region Bingo smoke test passes on it, 76 of 76 |
-| `server/test/*.test.mjs` | Three test files, 136 checks | All pass |
+| `server/test/*.test.mjs` | Three test files, 136 checks, run by `npm test` | All pass |
+| `server/local/` | A local Supabase stack: `config.toml`, and `prepare.mjs`, which copies the migrations, the two drafts and the intake function into it | Works with Supabase CLI 2.122.0 and Docker |
+| `server/test/stack.test.mjs` | 39 checks against that stack, run by `npm run test:stack` | All pass |
 | `plugin/.../core/` | `DropKey` and `WatchList`: the matching rule in plain Java | Tested, 16 checks |
 | `plugin/.../HsEvents*.java`, build files | The RuneLite plugin skeleton | **Never compiled** |
 
@@ -59,11 +61,57 @@ and `add_evidence` are the real ones:
 - **Nobody else's name is kept.** The raid party Dink lists with a raid's
   loot never reaches the evidence row.
 
+## What the local stack proves
+
+`stack.test.mjs` runs against the Supabase CLI's own local stack, which is the
+same software a hosted project runs: Postgres 17.11, PostgREST 16.5, Storage
+1.84.19, Auth 2.197.0. It is not the live project and never touches it. Tested
+2026-11-21, 39 of 39.
+
+- **The migrations apply on real Supabase.** All 129, then the two drafts, by
+  the CLI itself, with no errors.
+- **The game is built the site's way.** Users are made through Auth, sign in
+  with a password, add their in-game names and pick regions through PostgREST
+  with their own sign-in. Only making the organiser an admin is done in SQL,
+  as on the live project.
+- **A token is the player for one request, and only that one.** The question
+  the offline tests could not answer was whether `plugin_as` behaves under
+  PostgREST, which sets the caller for every request itself. It does. Inside
+  the request `auth.uid()` is the token's owner. On the next request it is the
+  service role again. That was tried 24 times in a row, and PostgREST served
+  all 24 on one connection, so a leak would have shown. To be sure the check
+  can see a leak, a probe that set the caller for the whole connection was
+  tried once by hand: it leaked into 24 of 24 later requests. `plugin_as`
+  leaks into none.
+- **The act-as-team header does not reach a token.** The same header that
+  makes an organiser's own sign-in act as Red gives an organiser's token an
+  empty watch list.
+- **Only the service role gets in.** Anyone signed in, and anyone not signed
+  in, is refused by `plugin_whoami` and `plugin_watchlist`. Nobody can call
+  `plugin_as`, not even the service role.
+- **The second secret holds through PostgREST.** Each team's watch list has
+  its opened region and nothing of the other's. A drop for a locked tile and
+  a drop for a tile that does not exist get the same HTTP status, error code,
+  message, details and hint.
+- **A drop goes all the way in.** `plugin_open` gives the folder, a real PNG is
+  uploaded into the `evidence` bucket with the service role, and
+  `plugin_submit` makes one evidence row: by that player, for their team,
+  source `dink`, with what was reported. The tile completes by its own rule,
+  and the file is in Storage where the row says. Sent twice, counted once.
+- **The bucket's limits are what item 4 has to live with.** Storage refuses
+  3,145,728 + 1 bytes (`EntityTooLarge`) and a GIF (`InvalidMimeType`), even
+  from the service role, and takes exactly 3,145,728 bytes.
+- **The site is unchanged.** A player still uploads into their own team's
+  folder and not into another's (refused by row-level security). Evidence
+  added from the site is still source `web`, with no detail.
+- **Revoking works.** A revoked token, and a token nobody was given, get the
+  same refusal and can hand nothing in.
+
 ## What they do not prove
 
-- **A real Supabase project.** The replay is real Postgres, but the roles,
-  `auth`, `storage` and `pg_net` are stand-ins. PostgREST with the service
-  role, real Storage and a deployed Edge Function are still untried.
+- **A hosted Supabase project.** The local stack runs the same software, but
+  the live project's settings, its Postgres version and its limits were not
+  compared, by design. The Edge Function has not yet run, locally or hosted.
 - **A real Dink message.** `dink.mjs` was checked field by field against
   Dink's `docs/json-examples.md` and against the Java classes that write the
   JSON (commit `ae769ad`, 2026-11-19). It has still never read a notification
@@ -117,15 +165,24 @@ says. Each point is either handled here or a setup instruction for players.
 
     cd runelite-plugin/server/test && npm install && npm test
 
+The local stack needs Docker and the Supabase CLI:
+
+    cd runelite-plugin/server/local && node prepare.mjs && supabase start
+    cd ../test && npm run test:stack
+    cd ../local && supabase stop
+
+After changing a draft, run `node prepare.mjs` and `supabase db reset` before
+the test. The test reads the stack's own development keys from
+`supabase status` while it runs; they are never printed or saved.
+
     cd runelite-plugin/plugin
     javac -d out src/main/java/com/hsevents/core/*.java src/test/java/com/hsevents/core/*.java
     java -cp out com.hsevents.core.CoreSelfTest
 
 ## Next
 
-1. A spare Supabase project: apply the migrations and the two drafts, deploy
-   `intake`, point one Dink client at it. This settles the three things the
-   offline tests cannot.
+1. The intake Edge Function on the local stack, with a Dink-shaped request.
+   After that, one real Dink client pointed at it.
 2. Shrinking a screenshot that is over 3 MB.
 3. The My Account screen for tokens, and `source` in the review screen. These
    are the first changes to the website itself.
