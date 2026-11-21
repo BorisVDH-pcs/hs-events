@@ -207,6 +207,45 @@ const fromOutside = await db.query(`
 ok('only a signed-in caller may ask at all: not anon, not the service role',
    J(fromOutside.rows.map((x) => x.rolname)) === J(['authenticated']), J(fromOutside.rows));
 
+// ------------------------------------- under the picture, in a tile's panel
+// evidence_sources: the same lines for the panel a team opens on its own
+// board, asked by evidence id. Blue hands in a Dink drop on the tile in
+// Asgarnia, which Blue opened and Red has not.
+const oBlue = (await open('blue', 'Blue Main', T.locked, opt['Dragon pickaxe'], 'Dragon pickaxe')).j;
+await submit('blue', 'Blue Main', T.locked, opt['Dragon pickaxe'], 'Dragon pickaxe', oBlue.path_prefix + 'p.jpg',
+  { source: 'dink', dedupe: 'drop-blue-1', item: 'Dragon pickaxe', quantity: 1, from: 'Chaos Elemental', world: 330 });
+const allIds = (await db.query(
+  'select e.id from tile_evidence e join tile_claims c on c.id = e.claim_id join tiles t on t.id = c.tile_id where t.game_id = $1',
+  [g])).rows.map((x) => x.id);
+const blueDrop = (await db.query('select id from tile_evidence where claim_id = $1', [oBlue.claim_id])).rows[0].id;
+const NOBODY = '00000000-0000-0000-0000-000000000002';
+const panel = (who, list) => site(who, 'select * from evidence_sources($1::uuid[]) order by source', [list]);
+
+src = await panel(ids.mate, allIds);
+ok("a player is told what Dink reported for their own team's drops, and only those",
+   J(src.map((x) => x.source)) === J(['dink', 'plugin']) && src[0].detail.item === "Karil's coif"
+   && !src.some((x) => x.id === blueDrop), J(src));
+ok('the same for everyone on that team', J(await panel(ids.red, allIds)) === J(src));
+ok('the upload from the site has no lines: nothing comes back for it',
+   (await panel(ids.mate, [siteUpload])).length === 0);
+ok("Red asking for Blue's drop, on a tile in a region Red has not opened, gets nothing",
+   J(await panel(ids.mate, [blueDrop])) === '[]');
+ok('the same answer as for evidence that does not exist: no error, no difference',
+   J(await panel(ids.mate, [blueDrop])) === J(await panel(ids.mate, [NOBODY]))
+   && (await trying(site.bind(null, ids.mate), 'select * from evidence_sources($1::uuid[])', [[blueDrop]])) === null);
+ok("Blue is told about Blue's drop, and nothing of Red's",
+   J((await panel(ids.blue, allIds)).map((x) => x.detail.item)) === J(['Dragon pickaxe']));
+ok('someone on no team gets nothing', (await panel(ids.out, allIds)).length === 0);
+ok("the organiser running the game is told about both teams' drops",
+   (await panel(ids.org, allIds)).length === 3);
+ok('nothing comes back for no ids at all', (await panel(ids.mate, [])).length === 0);
+const panelFromOutside = await db.query(`
+  select r.rolname from pg_roles r
+   where r.rolname in ('anon', 'service_role', 'authenticated')
+     and has_function_privilege(r.rolname, 'evidence_sources(uuid[])', 'execute') order by 1`);
+ok('a signed-in caller may ask, not anon, not the service role',
+   J(panelFromOutside.rows.map((x) => x.rolname)) === J(['authenticated']), J(panelFromOutside.rows));
+
 // ------------------------------------------------------------ the fences
 const direct = await trying(site.bind(null, ids.mate), 'select plugin_match($1, $2, $3::jsonb)',
   [tok.mate, 'Mate Iron', J([{ name: "Dharok's helm" }])]);

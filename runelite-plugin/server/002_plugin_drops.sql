@@ -3,8 +3,9 @@
 --
 -- DRAFT. Not in supabase/migrations on purpose, so db-push cannot apply it.
 -- It adds two columns to tile_evidence, one trigger on it, one table and new
--- functions, one of them for the site (admin_evidence_sources, the review
--- screen's "sent by plugin"). It rewrites no existing function:
+-- functions, two of them for the site (admin_evidence_sources, the review
+-- screen's "sent by plugin", and evidence_sources, the same lines under the
+-- picture in a tile's panel). It rewrites no existing function:
 -- tiles_for_team, regions_open_tile, bingo_open_tile and add_evidence are
 -- called exactly as they are, so every rule they hold applies to a plugin
 -- without being written down twice.
@@ -385,6 +386,38 @@ end;
 $$;
 
 -- ============================================================
+-- 6b. evidence_sources: what the plugin reported, under the picture
+-- ============================================================
+-- The same id, source and detail, for a tile's panel (EvidencePanel), which a
+-- team opens on its own board and an organiser on theirs. Asked by Boris,
+-- 2026-11-21: a Dink screenshot does not always show the drop (the chat box
+-- closed, the item too small to see on the ground), so the panel shows what
+-- Dink reported beside it: the item, how many, from what, the world.
+--
+-- Asked by evidence id, for the few pieces of one tile, and answered only for
+-- rows the caller can already see: evidence in a game they run (the question
+-- admin_evidence_sources asks), or evidence my_evidence already gives their
+-- own team. A row of the other team, a row that does not exist and an upload
+-- from the site all get the same answer: nothing. So it tells a player nothing
+-- about the other team's tiles, or a region their team has not opened (the
+-- second secret), and nothing their own team's list does not already hold.
+
+create or replace function evidence_sources(p_ids uuid[])
+returns table (id uuid, source text, detail jsonb)
+language sql stable security definer
+set search_path = public
+as $$
+  select e.id, e.source, e.detail
+    from tile_evidence e
+    join tile_claims c on c.id = e.claim_id
+    join tiles t on t.id = c.tile_id
+   where e.id = any (p_ids[1:100])
+     and e.source <> 'web'
+     and (may_manage_game(t.game_id)
+          or e.id in (select m.id from my_evidence(t.game_id) m));
+$$;
+
+-- ============================================================
 -- 7. Grants
 -- ============================================================
 -- Internal ones to nobody; the token-taking ones to the service role only,
@@ -406,6 +439,9 @@ revoke execute on function plugin_submit(text, text, uuid, uuid, text, text, tex
 -- refuses everyone else.
 revoke execute on function admin_evidence_sources(uuid)            from public, anon, service_role;
 grant  execute on function admin_evidence_sources(uuid)            to authenticated;
+-- Any signed-in player's; the function answers only for what they can see.
+revoke execute on function evidence_sources(uuid[])                from public, anon, service_role;
+grant  execute on function evidence_sources(uuid[])                to authenticated;
 
 grant execute on function plugin_match(text, text, jsonb)          to service_role;
 grant execute on function plugin_open(text, text, uuid, uuid, text) to service_role;
