@@ -83,6 +83,22 @@ for (const [input, want] of keys) {
 ok('drop_key of nothing is null', (await one(`select drop_key('  ’ ') k`)).k === null);
 ok('drop_key(null) is null', (await one(`select drop_key(null) k`)).k === null);
 
+// The tile editor's copy (web/src/lib/itemNames.js) warns when a drop is not
+// an item's name, and is only right if it spells names the way this does. So:
+// the two, over every item name the editor knows, the ready-made lists, the
+// cases above, and the awkward characters.
+{
+  const { dropKey } = await import('../../../web/src/lib/itemNames.js');
+  const { ITEM_NAMES } = await import('../../../web/src/lib/itemNames.data.js');
+  const { DROP_LISTS } = await import('../../../web/src/lib/dropLists.js');
+  const inputs = [...ITEM_NAMES, ...DROP_LISTS.flatMap((l) => l.drops.map((d) => d.label)),
+    ...keys.map(([input]) => input), '  ’ ', '', 'Pokémon', 'a\tb\nc', '«Dragon»  bones++', 'Ölm', '½ anchovy pizza'];
+  const rows = (await db.query('select n, drop_key(n) k from unnest($1::text[]) with ordinality u(n, i) order by i', [inputs])).rows;
+  const differ = rows.filter((r) => r.k !== dropKey(r.n));
+  ok(`the tile editor's dropKey agrees with drop_key on ${rows.length} names`, rows.length === inputs.length && differ.length === 0,
+    JSON.stringify(differ.slice(0, 5).map((r) => [r.n, r.k, dropKey(r.n)])));
+}
+
 // ---- creating ----
 ok('signed out cannot create', /Not signed in/.test(await raises('select plugin_token_create()') ?? ''));
 const tokenA = await as(A, async (tx) => (await tx.query(`select plugin_token_create('  laptop ') t`)).rows[0].t);

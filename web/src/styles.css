@@ -4141,8 +4141,29 @@ button.danger.ghost:hover:not(:disabled) {
 .tile-form-drops .row { justify-content: space-between; align-items: center; }
 .tile-form-drops h4 { margin: 0; font-size: .8125rem; font-weight: 600; }
 
+/* "Add a list…" beside "Add drop". The select is as narrow as its first
+   option; on a phone the two wrap rather than push the heading off. */
+.tile-form-drop-actions { display: flex; gap: .3rem; align-items: center; flex-wrap: wrap; justify-content: end; }
+.drop-list-pick { width: auto; max-width: 13rem; padding: .35rem .5rem; font-size: .8125rem; }
+
 .drop-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: .3rem; }
-.drop-rows li { display: flex; gap: .3rem; align-items: center; }
+/* The boxes on one line that never wraps, so a narrow screen shrinks them
+   rather than dropping the remove button onto a line of its own; a name
+   warning, when there is one, on its own line beneath. */
+.drop-rows li { display: grid; gap: .2rem; }
+.drop-line { display: flex; gap: .3rem; align-items: center; }
+/* A drop that is not an item's name. Gold, the house colour for "look at
+   this", never red: it is a warning about matching, not an error. */
+.drop-warn {
+  margin: 0 0 .15rem;
+  font-size: .75rem; color: var(--label-2);
+  overflow-wrap: anywhere;
+}
+.drop-warn-mark { color: var(--gold); }
+/* `.tile-form-hint` pulls itself up under the field above it; under the list
+   it wants the list's own spacing instead. */
+.tile-form-hint.drop-warn-hint { margin: 0; font-size: .75rem; }
+.drop-warn button.link { font-size: inherit; padding: 0; }
 .drop-rows input { padding: .4rem .5rem; font-size: .8125rem; }
 /* Column headings for the drop rows.
  *
