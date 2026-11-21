@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { PER_MILLION, millionsToTenths } from '../lib/millions.js';
 import { RULES, validateDraft, ruleSummary } from '../lib/tileDraft.js';
 import { loadItemNames } from '../lib/itemNames.js';
-import { DROP_LISTS, addDropList } from '../lib/dropLists.js';
+import { DROP_LISTS, LIST_GROUPS, addDropList } from '../lib/dropLists.js';
 import IconPicker from './IconPicker.jsx';
 
 /**
@@ -233,8 +233,12 @@ export default function TileForm({
                 aria-label="Add a ready-made list of drops"
               >
                 <option value="">Add a list…</option>
-                {DROP_LISTS.map((l) => (
-                  <option key={l.id} value={l.id}>{l.name} ({l.drops.length})</option>
+                {LIST_GROUPS.map((g) => (
+                  <optgroup key={g} label={g}>
+                    {DROP_LISTS.filter((l) => l.group === g).map((l) => (
+                      <option key={l.id} value={l.id}>{l.name} ({l.drops.length})</option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
               <button

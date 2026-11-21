@@ -69,6 +69,27 @@ const UNTRADEABLE = [
   'Jar of Dreams', 'Jar of Eyes', 'Jar of Feathers', 'Jar of Light',
   'Jar of Miasma', 'Jar of Sand', 'Jar of Smoke', 'Jar of Souls',
   'Jar of Spirits', 'Jar of Stone', 'Jar of Swamp', 'Jar of Venom',
+  // Boss uniques in src/lib/dropLists.js that cannot be traded. Each title
+  // checked to exist on the wiki on 2026-11-21; two were renamed in August
+  // 2026 ("Eye of the Duke", "Pendant of Ates"), and these are the new names.
+  'Unsired', 'Abyssal head', 'Bludgeon spine', 'Bludgeon claw', 'Bludgeon axon',
+  "Hydra's eye", "Hydra's fang", "Hydra's heart",
+  'Pendant of Ates (inert)',
+  'Noxious pommel', 'Noxious point', 'Noxious blade', 'Araxyte fang',
+  'Mooleta', 'Bottomless milk bucket (empty)',
+  'Mokhaiotl cloth',
+  'Magus vestige', 'Eye of the Duke', 'Venator vestige', "Leviathan's lure",
+  'Bellator vestige', "Siren's staff", 'Ultor vestige', "Executioner's axe head",
+  'Fire cape', 'Infernal cape',
+  'Kq head', "Vorkath's head",
+  'Elder venator fang',
+  'Mystic vigour prayer scroll', 'Deadeye prayer scroll',
+  "Scurrius' spine",
+  'Dark claw',
+  'Fish barrel', 'Tackle box', 'Big harpoonfish',
+  'Warm gloves', 'Bruma torch', 'Pyromancer hood', 'Pyromancer garb',
+  'Pyromancer robe', 'Pyromancer boots',
+  'Tanzanite mutagen', 'Magma mutagen',
 ];
 
 // A name as the game prints it: letters, digits, spaces and ordinary

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { ITEM_NAMES } from '../src/lib/itemNames.data.js';
 import { dropKey, loadItemNames, makeItemIndex } from '../src/lib/itemNames.js';
-import { DROP_LISTS, addDropList } from '../src/lib/dropLists.js';
+import { DROP_LISTS, LIST_GROUPS, addDropList } from '../src/lib/dropLists.js';
 import { payloadFromDraft, validateDraft } from '../src/lib/tileDraft.js';
 
 // ---- dropKey is the server's drop_key ----
@@ -98,6 +98,76 @@ for (const list of DROP_LISTS) {
   }
 }
 const byId = Object.fromEntries(DROP_LISTS.map((l) => [l.id, l]));
+const exact = new Set(ITEM_NAMES);
+for (const list of DROP_LISTS) {
+  for (const drop of list.drops) {
+    // Not just a name Dink would match: the name as the game prints it, so
+    // the tile shows it the way the drop looks.
+    assert.ok(exact.has(drop.label), `${list.name}: "${drop.label}" is spelled as the item is`);
+  }
+  assert.ok(LIST_GROUPS.includes(list.group), `${list.name} sits under a heading (${list.group})`);
+}
+for (const heading of LIST_GROUPS) {
+  assert.ok(DROP_LISTS.some((l) => l.group === heading), `${heading} has lists`);
+}
+const bossNames = DROP_LISTS.filter((l) => l.group === 'Bosses').map((l) => l.name);
+assert.deepEqual(bossNames, [...bossNames].sort((a, b) => a.localeCompare(b, 'en')), 'bosses are alphabetical');
+assert.ok(bossNames.every((n) => !/^The /.test(n)), 'no boss starts with "The", so typing a letter finds it');
+assert.ok(bossNames.length >= 50, `the collection log's bosses (${bossNames.length})`);
+
+const sets = (id) => [...new Set(byId[id].drops.map((d) => d.set))];
+const inSet = (id, set) => byId[id].drops.filter((d) => d.set === set).map((d) => d.label);
+
+// Barrows: four pieces from each of six brothers, a set each.
+assert.equal(byId.barrows.drops.length, 24, 'Barrows: twenty-four pieces');
+assert.deepEqual(sets('barrows'), ["Ahrim's", "Dharok's", "Guthan's", "Karil's", "Torag's", "Verac's"]);
+for (const brother of sets('barrows')) {
+  const pieces = inSet('barrows', brother);
+  assert.equal(pieces.length, 4, `${brother}: four pieces`);
+  assert.ok(pieces.every((p) => p.startsWith(brother)), `${brother}: only ${brother} pieces`);
+}
+
+// God Wars: a set per general, and the shards every general drops in a set
+// of their own, since a shard does not say which general it came from.
+assert.deepEqual(sets('gwd'), ['General Graardor', 'Commander Zilyana', "Kree'arra", "K'ril Tsutsaroth", 'God Wars Dungeon']);
+assert.deepEqual(inSet('gwd', 'God Wars Dungeon'), ['Godsword shard 1', 'Godsword shard 2', 'Godsword shard 3']);
+for (const general of ['general-graardor', 'commander-zilyana', 'kreearra', 'kril-tsutsaroth']) {
+  assert.ok(byId[general], `${general} has a list of its own`);
+  assert.equal(byId[general].drops.length, 7, `${general}: four uniques and three shards`);
+  assert.ok(byId[general].drops.some((d) => d.label === 'Godsword shard 1'), `${general} drops shards too`);
+}
+assert.ok(inSet('gwd', "K'ril Tsutsaroth").includes('Staff of the Dead'));
+
+assert.deepEqual(byId.nex.drops.map((d) => d.label), [
+  'Ancient hilt', 'Nihil horn', 'Torva full helm (damaged)', 'Torva platebody (damaged)',
+  'Torva platelegs (damaged)', 'Zaryte vambraces',
+], 'Nex: six uniques, the Torva as it drops');
+
+assert.deepEqual(sets('moons'), ['Blood Moon', 'Blue Moon', 'Eclipse Moon']);
+assert.deepEqual(sets('dt2'), ['Duke Sucellus', 'The Leviathan', 'The Whisperer', 'Vardorvis', 'Desert Treasure II']);
+assert.deepEqual(inSet('dt2', 'Desert Treasure II'), ['Chromium ingot', 'Virtus mask', 'Virtus robe top', 'Virtus robe bottom'],
+  'what all four drop sits in the shared set');
+assert.deepEqual(inSet('wilderness', 'Wilderness bosses'), ['Dragon pickaxe', 'Dragon 2h sword']);
+
+// Every drop that is a pet is in a pet list, and nowhere else.
+const petKeys = new Set(byId['all-pets'].drops.map((d) => dropKey(d.label)));
+assert.equal(byId['all-pets'].drops.length, byId['boss-pets'].drops.length + byId['skilling-pets'].drops.length
+  + inSet('all-pets', 'Other pets').length, 'all pets is the boss, skilling and other pets');
+assert.ok(!petKeys.has('gull'), 'Gull is left out until its item name is checked');
+for (const list of DROP_LISTS.filter((l) => l.group !== 'Pets')) {
+  for (const drop of list.drops) {
+    assert.ok(!petKeys.has(dropKey(drop.label)), `${list.name}: no pet (${drop.label})`);
+    assert.doesNotMatch(drop.label, /^Jar of /, `${list.name}: no jar (${drop.label})`);
+  }
+}
+// Left out on purpose: drops common enough, or certain enough, to finish a
+// tile without anyone getting lucky. Dink would hand them in by itself.
+const everything = new Set(DROP_LISTS.flatMap((l) => l.drops.map((d) => dropKey(d.label))));
+for (const common of ['Bolt rack', 'Key master teleport', "Dizana's quiver (uncharged)", 'Gauntlet cape',
+  'Attas seed', 'Iasor seed', 'Kronos seed', 'Abyssal whip', 'Ancient shard', 'Zulrah\'s scales', 'Dragon bones']) {
+  assert.ok(!everything.has(dropKey(common)), `"${common}" is in no list`);
+}
+
 assert.equal(byId['cox-uniques'].drops.length, 12, 'Chambers of Xeric: twelve purples');
 assert.equal(byId['tob-uniques'].drops.length, 7, 'Theatre of Blood: seven');
 assert.equal(byId['toa-uniques'].drops.length, 7, 'Tombs of Amascut: seven');
@@ -127,13 +197,21 @@ assert.deepEqual([...new Set(options.map((o) => o.grp))], ['Chambers of Xeric', 
   'a set rule gets one set per raid');
 assert.deepEqual(addDropList(addDropList([], cox, 'points'), cox, 'points').length, 12, 'adding a list twice adds nothing');
 
-// What the list makes is a tile the editor and the database accept.
-for (const rule of ['points', 'one_set', 'each_set', 'points_per_set']) {
-  const draft = { name: '3 raids uniques', icon: '', description: '', rule, amount: '3', perSet: '1',
-    options: addDropList([], byId['raids-uniques'], rule) };
-  assert.deepEqual(validateDraft(draft), [], `a ${rule} tile from the list is valid`);
-  assert.equal(payloadFromDraft(draft).options.length, 26);
+// What a list makes is a tile the editor and the database accept, for every
+// list and every rule that has drops.
+for (const list of DROP_LISTS) {
+  for (const rule of ['points', 'one_set', 'each_set', 'points_per_set']) {
+    const draft = { name: list.name, icon: '', description: '', rule, amount: '1', perSet: '1',
+      options: addDropList([], list, rule) };
+    assert.deepEqual(validateDraft(draft), [], `a ${rule} tile from ${list.name} is valid`);
+    assert.equal(payloadFromDraft(draft).options.length, list.drops.length);
+  }
 }
+// Two lists on one tile: what both hold is added once, in the first list's set.
+options = addDropList(addDropList([], byId['kalphite-queen'], 'each_set'), byId['king-black-dragon'], 'each_set');
+assert.equal(options.filter((o) => o.label === 'Dragon pickaxe').length, 1, 'the Dragon pickaxe only once');
+assert.equal(options.find((o) => o.label === 'Dragon pickaxe').grp, 'Kalphite Queen');
+assert.ok(options.some((o) => o.label === 'Draconic visage' && o.grp === 'King Black Dragon'));
 
 // ---- Wired into the form ----
 
@@ -147,6 +225,8 @@ assert.match(code, /onFocus=\{\(\) => setTyping\(index\)\}/, 'typing starts when
 assert.match(code, /onBlur=\{\(\) => setTyping\(null\)\}/, 'and ends when it is left');
 assert.ok(code.indexOf('drop-warn-hint') > code.indexOf('</ul>'), 'the explanation sits below the list');
 assert.match(code, /addDropList\(draft\.options, list, rule\)/, 'a list is added through addDropList');
+assert.match(code, /LIST_GROUPS\.map\(\(g\) => \(\s*<optgroup key=\{g\} label=\{g\}>/, 'the menu has a heading per group');
+assert.match(code, /DROP_LISTS\.filter\(\(l\) => l\.group === g\)/, 'and each list under its own heading');
 assert.doesNotMatch(code, /import .*itemNames\.data/, 'the names are never in the main bundle');
 // A warning, never a block: nothing about names may stop the save.
 assert.doesNotMatch(code, /errors[^\n]*nameChecks|nameChecks[^\n]*errors/, 'name warnings are not errors');
