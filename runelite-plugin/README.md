@@ -384,6 +384,25 @@ After changing a draft, run `node prepare.mjs` and `supabase db reset` before
 the test. The test reads the stack's own development keys from
 `supabase status` while it runs; they are never printed or saved.
 
+A real Dink client against the local stack, with the real site:
+
+    cd runelite-plugin/server/local
+    node site.mjs              the site on http://localhost:5177; sign up on it
+    node trial.mjs             a Region Bingo game for you, to be played at Lumbridge
+    node trial.mjs report      what the intake heard, and the evidence it made
+    node trial.mjs organiser   makes you an organiser, to see "Sent by plugin"
+
+`site.mjs` runs the site with no `.env` file read: it gets the stack's
+address and public key and nothing else, so it cannot reach the live project
+and has no imgbb key to mirror an upload with. `trial.mjs` puts the one
+person who signed up on the site in charge of "Your team"; the other team
+opens Asgarnia. Its board: "Two cowhides" (handed in, then done), two tiles
+that both want Raw beef (an "ask", not handed in), "Feathers", and in
+Asgarnia "Bones", which every cow and chicken drops and which must never be
+handed in for you. Tried on 2026-11-21 with requests shaped like Dink's
+before anyone played it: it answered exactly that. `supabase db reset`
+starts over.
+
     cd runelite-plugin/plugin
     gradle build            (JDK 11 or later; or ./gradlew build)
     gradle run              (starts RuneLite with the plugin, to try in game)
@@ -407,7 +426,8 @@ switch shows the live project's case and a failed call):
 ## Next
 
 1. One real Dink client pointed at the local function, to see a message that
-   was not written by a test.
+   was not written by a test. Set up on 2026-11-21 (`site.mjs`, `trial.mjs`);
+   Boris plays it.
 2. Load the plugin in RuneLite once (`gradle run`) to see it start and show
    its settings; then the four Plugin Hub points above. Both website changes
    (the token screen and the review screen's label) are done.
