@@ -26,6 +26,8 @@ import { pngInfo } from '../intake/shrink.mjs';
 // The site's own helper for the My Account section: every Dink request below
 // goes to a link it built, the link a player is shown.
 import { dinkUrl, isMissingFunction } from '../../../web/src/lib/pluginTokens.js';
+// And the review screen's: what it would show for the rows handed in below.
+import { evidenceSource, withSources } from '../../../web/src/lib/evidenceSource.js';
 import { expectedHalf, makePng, readPng, same } from './png.mjs';
 
 const J = (v) => JSON.stringify(v);
@@ -396,6 +398,40 @@ ok('kept in Storage at 1920 x 1200, under 3 MB, the same picture at half the siz
    chainFile.status === 200 && chainFile.bytes.length <= 3 * 1024 * 1024 && chainInfo?.width === 1920 && chainInfo?.height === 1200
    && same(readPng(chainFile.bytes).data, expectedHalf(worst.data, 3840, 2400, 4, 3)), J([chainFile.status, chainFile.bytes?.length, chainInfo]));
 ok("and its evidence says resized_from '3840x2400'", chain[0]?.detail?.resized_from === '3840x2400', J(chain[0]?.detail));
+
+// ----------------------------------- the review screen's "Sent by plugin"
+// What the organiser's screen asks, through PostgREST with their sign-in, and
+// what the site's own formatter makes of the answer.
+const sentRows = sqlJson(`select e.id from tile_evidence e join tile_claims c on c.id = e.claim_id
+  join tiles t on t.id = c.tile_id where t.game_id = '${g}' and e.source <> 'web' order by e.id`).map((x) => x.id);
+r = await rpc('admin_evidence_sources', { p_game_id: g }, org);
+const srcIds = Array.isArray(r.body) ? r.body.map((x) => x.id).sort() : [];
+ok('the organiser is told which evidence a plugin sent: every such row, and only those',
+   r.status === 200 && sentRows.length >= 3 && J(srcIds) === J([...sentRows].sort())
+   && r.body.every((x) => x.source !== 'web'), J([r.status, srcIds.length, sentRows.length]));
+const listedEv = await must('admin_list_evidence', { p_game_id: g }, org);
+const onScreen = withSources(listedEv, r.body);
+const chainRow = onScreen.find((x) => x.storage_path === chain[0]?.storage_path);
+const chainSent = evidenceSource(chainRow);
+ok('the review screen labels the chainbody "Sent by plugin", with what Dink reported',
+   chainSent?.label === 'Sent by plugin'
+   && chainSent.lines.includes('Dragon chainbody from Chaos Elemental')
+   && chainSent.lines.includes('as Mate Iron · world 302')
+   && chainSent.lines.includes('Picture made smaller from 3840×2400'), J(chainSent));
+ok("and the site's own upload has no label",
+   evidenceSource(onScreen.find((x) => x.storage_path === sitePath)) === null
+   && onScreen.filter((x) => evidenceSource(x)).length === sentRows.length, J(onScreen.map((x) => x.source ?? 'upload')));
+// The second secret: Blue reading this would learn Red's items, and through
+// them tiles in regions Blue has not opened.
+const blueSees = await rpc('admin_evidence_sources', { p_game_id: g }, people.blue.jwt);
+const blueList = await rpc('admin_list_evidence', { p_game_id: g }, people.blue.jwt);
+ok("a player is refused, in the evidence list's own words, and learns nothing",
+   blueSees.status === 400 && blueSees.body?.message === 'Not your game' && blueList.body?.message === 'Not your game'
+   && !/Chaos Elemental|chainbody|pickaxe/.test(J(blueSees)), J([blueSees, blueList.body?.message]));
+for (const [who, as] of [['anon', ANON], ['the service role', SERVICE]]) {
+  r = await rpc('admin_evidence_sources', { p_game_id: g }, as);
+  ok(`${who} cannot call it at all`, r.status >= 400 && !/Chaos Elemental|chainbody/.test(J(r)), J(r));
+}
 
 await new Promise((res) => setTimeout(res, 800));
 const log = fnLog().slice(logBefore);

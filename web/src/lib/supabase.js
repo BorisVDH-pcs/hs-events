@@ -375,6 +375,19 @@ export const revokePluginToken = (id) =>
 export const pluginDinkUrl = (token) => dinkUrl(URL, token);
 
 /**
+ * Which evidence in a game a plugin sent, and what it reported, for the
+ * review screen's "Sent by plugin". Organisers and the game's moderators only,
+ * like admin_list_evidence. Null when the database has no such function yet,
+ * and then every row reads as what it was before: an upload.
+ */
+export async function evidenceSources(gameId) {
+  const { data, error } = await supabase.rpc('admin_evidence_sources', { p_game_id: gameId });
+  if (isMissingFunction(error)) return null;
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+/**
  * Sign up, or correct the name on an entry.
  *
  * Open for as long as the event runs: a latecomer is added to the live WOM

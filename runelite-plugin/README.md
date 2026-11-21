@@ -4,11 +4,15 @@ Started 2026-11-20 from `docs/runelite-plugin-plan.md`. Everything in this
 folder is new and stands apart from the website, and nothing was applied to
 the live Supabase project.
 
-The first change to the website itself, made with Boris's go-ahead on
-2026-11-21, is the **Plugin tokens** section of My Account (see "The token
-screen" below). It is on this branch only. It hides itself on a database
-without plugin tokens, so the live site would show nothing new even if it were
-merged before the drafts are applied.
+Two changes to the website itself were made with Boris's go-ahead on
+2026-11-21: the **Plugin tokens** section of My Account (see "The token
+screen" below), and **"Sent by plugin"** in the organiser's evidence review
+(see "The review screen's label"). Both are on this branch only. Both hide
+themselves on a database without the drafts, so the live site would show
+nothing new even if they were merged before the drafts are applied.
+
+Uploading evidence on the site is unchanged and stays the normal way in. A
+plugin is an extra way to hand in a drop, for players who run Dink.
 
 The two `.sql` files in `server/` are drafts. They are kept out of
 `supabase/migrations` so that `db-push.yml` cannot apply them. They only
@@ -19,21 +23,23 @@ become migrations when they are moved there on purpose.
 | Path | What | State |
 |---|---|---|
 | `server/001_plugin_tokens.sql` | Plugin tokens, `drop_key`, `plugin_as`, `plugin_whoami` | Tested offline, and on a local Supabase stack |
-| `server/002_plugin_drops.sql` | Evidence `source` and `detail`, the intake log, `plugin_watchlist`, `plugin_match`, `plugin_open`, `plugin_submit` | Tested offline against the real rules, and on a local Supabase stack |
+| `server/002_plugin_drops.sql` | Evidence `source` and `detail`, the intake log, `plugin_watchlist`, `plugin_match`, `plugin_open`, `plugin_submit`, and `admin_evidence_sources` for the review screen | Tested offline against the real rules, and on a local Supabase stack |
 | `server/intake/dink.mjs` | Reads a Dink notification; makes the dedupe key | Tested; checked against Dink's source, not yet against a real client |
 | `server/intake/handle.mjs` | What happens to one notification: match, open, store, submit | Tested end to end, offline |
 | `server/intake/shrink.mjs` | Makes a screenshot over 3 MB smaller: halves a PNG until it fits. No library, only what the runtime has | Tested offline and in the edge runtime |
 | `server/intake/index.ts` | The Edge Function shell around `handle.mjs` | Tested on the local stack; not deployed anywhere |
 | `server/test/replay.mjs` | Replays all 129 migrations into an in-memory Postgres, with stand-ins for what Supabase provides | Works; the repo's own Region Bingo smoke test passes on it, 76 of 76 |
-| `server/test/*.test.mjs` | Three test files, 155 checks, run by `npm test` | All pass |
+| `server/test/*.test.mjs` | Three test files, 167 checks, run by `npm test` | All pass |
 | `server/test/png.mjs`, `fixtures/` | A PNG writer and reader for the tests only, and one small PNG written by Java's ImageIO | |
 | `server/local/` | A local Supabase stack: `config.toml`, and `prepare.mjs`, which copies the migrations, the two drafts and the intake function into it | Works with Supabase CLI 2.122.0 and Docker |
-| `server/test/stack.test.mjs` | 59 checks against that stack, the Edge Function included, run by `npm run test:stack` | All pass |
+| `server/test/stack.test.mjs` | 65 checks against that stack, the Edge Function included, run by `npm run test:stack` | All pass |
 | `plugin/.../core/` | `DropKey` and `WatchList`: the matching rule in plain Java | Tested, 16 checks, also run by `gradle test` |
 | `plugin/.../HsEvents*.java`, build files | The RuneLite plugin skeleton, built the template's way | Builds against RuneLite 1.13.7; **never loaded in a client** |
 | `web/src/components/PluginTokens.jsx` | The Plugin tokens section of My Account: make a token, see its Dink link once, revoke | Tried in the preview harness; **never run against a real database** |
 | `web/src/lib/pluginTokens.js` | The Dink link, the name check, "last used" in words | Tested by `web/scripts/plugin-tokens-selftest.mjs`, and used by `stack.test.mjs` |
 | `web/preview-account.html` | A harness for My Account with fixture tokens | |
+| `web/src/components/EvidenceReview.jsx` | The organiser's evidence review: "Sent by plugin" on a row a plugin handed in, with what it reported | Tried in the preview harness; **never run against a real database** |
+| `web/src/lib/evidenceSource.js` | The label and the lines under it, from `source` and `detail` | Tested by `web/scripts/evidence-source-selftest.mjs`, and used by `stack.test.mjs` |
 
 ## What the tests prove
 
@@ -75,6 +81,13 @@ and `add_evidence` are the real ones:
 - **A Leagues drop does not count.** A drop from a seasonal world is ignored
   even when an open tile wants it. The database is never asked, and a big
   screenshot is not made smaller for it.
+- **The review screen is told which evidence a plugin sent, and nobody else
+  is.** `admin_evidence_sources` gives an organiser, and a moderator of the
+  game's mode, the plugin's rows with what was reported, and never an upload
+  from the site. Every row it names is one `admin_list_evidence` already
+  lists. A moderator of another mode, and a player on either team, get "Not
+  your game", the evidence list's own words, and so does a game that does not
+  exist. Only a signed-in caller may ask: not anon, not the service role.
 
 ## Screenshots over 3 MB
 
@@ -121,7 +134,7 @@ keeps it under 3 MB.
 `stack.test.mjs` runs against the Supabase CLI's own local stack, which is the
 same software a hosted project runs: Postgres 17.11, PostgREST 16.5, Storage
 1.84.19, Auth 2.197.0, edge runtime 1.77.8 (Deno 2). It is not the live
-project and never touches it. Tested 2026-11-21, 59 of 59.
+project and never touches it. Tested 2026-11-21, 65 of 65.
 
 - **The migrations apply on real Supabase.** All 129, then the two drafts, by
   the CLI itself, with no errors.
@@ -165,6 +178,14 @@ project and never touches it. Tested 2026-11-21, 59 of 59.
   `plugin_token_list` has their token by name, and neither the token nor its
   hash. A function the database does not have is answered `PGRST202`, which
   is exactly what the section hides itself on.
+- **What the review screen asks for works.** Through PostgREST with the
+  organiser's sign-in, `admin_evidence_sources` names every row a plugin
+  sent in this run and nothing else. Laid onto `admin_list_evidence` by the
+  site's own `withSources`, the chainbody reads "Sent by plugin", "Dragon
+  chainbody from Chaos Elemental", "as Mate Iron · world 302" and "Picture
+  made smaller from 3840×2400", and the site's own upload has no label. A
+  player is refused with "Not your game" and learns nothing; anon and the
+  service role cannot call it.
 
 The Edge Function, called the way Dink calls it: a multipart request built as
 Dink's HTTP library writes it, `payload_json` with no content type and a
@@ -218,6 +239,9 @@ with no sign-in. Every request goes to a link made by the site's own
   through PostgREST, and the screen itself was tried in the preview harness,
   but never the two together: the site's dev server talks to the live
   project, which has no plugin tokens.
+- **The review screen's label against a database.** The same holds: its call
+  is proven through PostgREST and its formatter on the stack's real rows, and
+  the screen was tried in the harness, but not the screen on the stack.
 
 ## The token screen
 
@@ -241,6 +265,29 @@ Boris agreed to a sketch of it.
   PostgREST's `PGRST202`, "no such function".
 - **Nothing is kept in the browser.** The link lives in the section's memory
   until the dialog closes.
+
+## The review screen's label
+
+In the organiser's evidence review, made on 2026-11-21 with Boris's go-ahead.
+Uploading on the site is not touched: an upload sends no source, the trigger
+in draft 002 stamps it `web`, and the screen shows it exactly as before.
+
+- **"Sent by plugin", never "verified".** A grey, dashed pill beside the gold
+  one that names the drop it was filed as. Its tooltip says the plugin runs on
+  the player's own computer, so the picture is checked as any upload is.
+- **Under it, what the plugin reported**: the item and what dropped it ("Pet:"
+  for a pet), the in-game name and world, and "Picture made smaller from
+  3840×2400" when the intake shrank it. These are the client's words, shown as
+  text, cut at 60 characters, and only when they have the right shape.
+- **Its own function, not two more columns on `admin_list_evidence`.**
+  Changing what that returns means dropping and re-creating it, and its live
+  body has been rewritten in place since, so a copy in the draft could drift
+  from it. `admin_evidence_sources` reads `source` and `detail` and asks the
+  same question, `may_manage_game`, in the same words.
+- **A database without the drafts** (the live project today): the call
+  answers `PGRST202` and no row has a label. **If the call fails** any other
+  way, the rows still load and a line says the screen cannot tell which
+  evidence a plugin sent, rather than pass plugin evidence off as uploads.
 
 ## The RuneLite build
 
@@ -345,11 +392,16 @@ The token screen, with fixture data and no database:
     cd web && npm run preview:evidence      then open /preview-account.html
     cd web && npm run test:plugin-tokens
 
+The review screen's label, the same way (rows 4 and 5 came in through Dink; a
+switch shows the live project's case and a failed call):
+
+    cd web && npm run preview:evidence      then open /preview-evidence.html
+    cd web && npm run test:evidence-source
+
 ## Next
 
 1. One real Dink client pointed at the local function, to see a message that
    was not written by a test.
-2. `source` in the evidence review screen ("sent by plugin"). The second
-   change to the website, to be asked for first. The token screen is done.
-3. Load the plugin in RuneLite once (`gradle run`) to see it start and show
-   its settings; then the four Plugin Hub points above.
+2. Load the plugin in RuneLite once (`gradle run`) to see it start and show
+   its settings; then the four Plugin Hub points above. Both website changes
+   (the token screen and the review screen's label) are done.

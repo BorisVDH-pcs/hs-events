@@ -102,7 +102,7 @@ shape of what arrives differs.
 | A screenshot is revoked | Feed | A pop-up to that team | `evidence_revoked` |
 | Time running out | The site's timer | "One hour left", "Ten minutes left" | `games.ends_at`, counted in the plugin |
 | Where am I, and what is open here | The site's map | A side panel: open regions, points against the threshold, tiles and progress; "You are in Morytania: 4 open tiles" | `regions_state`; `areas.json` outlines |
-| Reviewing evidence | Every screenshot looks the same | Rows say where they came from, with item, source, world and time | `admin_list_evidence`, `EvidenceReview.jsx` |
+| Reviewing evidence | Every screenshot looks the same | Rows say where they came from, with item, source, world and time | `admin_evidence_sources` (new, beside `admin_list_evidence`), `EvidenceReview.jsx` |
 
 The location hint is cheap. `areas.json` draws the 11 regions in map-image
 pixels, and the image is one pixel per game square (`MAP` in
@@ -348,8 +348,16 @@ tile and answers the claim, then the upload, then this.
 
 Two columns on `tile_evidence` **(proposed)**: `source` (`web`, `dink` or
 `plugin`, default `web`) and `detail` (item, quantity, where it came from,
-world, in-game name). `admin_list_evidence` returns them and the review screen
-shows them.
+world, in-game name). The review screen shows them.
+
+**As built, 2026-11-21:** not through `admin_list_evidence`. Changing what it
+returns means dropping and re-creating it, and its live body has been rewritten
+in place since (20261025130000), so a copy in a draft could drift from it.
+Instead draft 002 adds `admin_evidence_sources(game)`: the id, `source` and
+`detail` of every row that did not come from the site, behind the same
+`may_manage_game` gate and the same "Not your game". The review screen lays
+them onto its rows by id. An upload from the site is unchanged and has no
+label.
 
 **The label is "sent by plugin", not "verified".** The data comes from a
 client the player controls. Somebody who would fake a screenshot today could

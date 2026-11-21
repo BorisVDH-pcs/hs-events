@@ -204,6 +204,41 @@ export const DEMO = [
   },
 ];
 
+/**
+ * admin_evidence_sources, for the "Sent by plugin" label: which DEMO rows Dink
+ * handed in, and what it reported. The harness switches `mode`:
+ *   'some'    two rows from Dink, one with a picture made smaller;
+ *   'missing' the live project before the plugin's draft (null: no labels);
+ *   'failed'  the call fails, and the screen says it cannot tell.
+ * The other four rows are uploads from the site, as most evidence is.
+ */
+export const evidenceSourceFixtures = { mode: 'some' };
+const DEMO_SOURCES = [
+  {
+    id: 'ev-4',
+    source: 'dink',
+    detail: {
+      source: 'dink', rsn: 'Duradel Iron', item: 'Bandos hilt', item_id: 11812, quantity: 1,
+      price_each: 13200000, from: 'General Graardor', category: 'NPC', world: 416,
+      region_id: 11347, dink_type: 'LOOT',
+    },
+  },
+  {
+    id: 'ev-5',
+    source: 'dink',
+    detail: {
+      source: 'dink', rsn: 'Vannaka', item: "Inquisitor's mace", item_id: 24417, quantity: 1,
+      price_each: 1010000000, from: 'The Nightmare', category: 'NPC', world: 302,
+      region_id: 15515, dink_type: 'LOOT', resized_from: '3840x2400',
+    },
+  },
+];
+export const evidenceSources = () => new Promise((resolve, reject) => setTimeout(() => {
+  if (evidenceSourceFixtures.mode === 'missing') resolve(null);
+  else if (evidenceSourceFixtures.mode === 'failed') reject(new Error('stub: the database did not answer'));
+  else resolve(DEMO_SOURCES);
+}, 80));
+
 /** Rows the harness has not revoked yet. Mutated so the list really shrinks. */
 let live = [...DEMO];
 

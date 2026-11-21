@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { supabase, adminRevokeEvidence } from '../lib/supabase.js';
+import { supabase, adminRevokeEvidence, evidenceSources } from '../lib/supabase.js';
 import { signedUrls } from '../lib/evidence.js';
+import { evidenceSource, withSources } from '../lib/evidenceSource.js';
 import { coordLabel, fromPosition } from '../lib/board.js';
 import { millionsLabel } from '../lib/millions.js';
 import { placeAtPosition } from '../lib/territory.js';
@@ -18,6 +19,11 @@ import { useConfirm } from './ConfirmDialog.jsx';
  * It names the tile and the team side by side, which is exactly what a player
  * must never see across the line — admin_list_evidence() refuses anyone who is
  * not an admin, so this is gated at the database, not by hiding the component.
+ *
+ * A row a RuneLite plugin handed in (Dink, through the intake function) says
+ * "Sent by plugin", with what the plugin reported under it. That comes from
+ * admin_evidence_sources(), behind the same gate, and is laid on by id; a row
+ * it does not name is an upload from the site, which stays the normal way in.
  *
  * ---- why it pages, and why it signs a page at a time ----
  *
@@ -268,6 +274,10 @@ export default function EvidenceReview({ gameId, mode }) {
   // screen. A revoke that is refused must not take the list with it — the
   // organiser is mid-dispute and still needs to see the evidence.
   const [actionError, setActionError] = useState(null);
+  // Set when the database could not say which evidence a plugin sent. The
+  // rows still load; they just cannot be told apart, and the screen says so
+  // rather than pass plugin evidence off as uploads.
+  const [sourceNote, setSourceNote] = useState(null);
 
   const mintedAt = useRef(0);
   // Bumped per signing run, so a slow reply for a page already left cannot
@@ -283,13 +293,19 @@ export default function EvidenceReview({ gameId, mode }) {
       mode === 'snakes'
         ? supabase.rpc('admin_list_pet_trades', { p_game_id: gameId })
         : Promise.resolve({ data: [] }),
+      // Which rows a plugin sent. Null (no label anywhere) until the database
+      // has the plugin's functions; an error is caught here so that it costs
+      // the labels, not the screen.
+      evidenceSources(gameId).catch((e) => ({ failed: e.message })),
     ])
-      .then(([ev, pets]) => {
+      .then(([ev, pets, sources]) => {
         if (cancelled) return;
         if (ev.error) { setError(ev.error.message); return; }
         // A pet list that fails to load costs the pets, not the screen.
         const petRows = pets.error ? [] : (pets.data ?? []).map(petRow);
-        setRows([...(ev.data ?? []), ...petRows].sort(newestFirst));
+        const failed = sources?.failed;
+        setSourceNote(failed ? `Could not tell which evidence a plugin sent: ${failed}` : null);
+        setRows(withSources([...(ev.data ?? []), ...petRows], failed ? null : sources).sort(newestFirst));
         setError(null);
       })
       .catch((e) => { if (!cancelled) setError(e.message); })
@@ -478,6 +494,9 @@ export default function EvidenceReview({ gameId, mode }) {
       );
     }
     const filed = submissionLabel(r);
+    // How it arrived, when it was not an upload on the site. "Sent by plugin"
+    // and never "verified": see lib/evidenceSource.js.
+    const sent = evidenceSource(r);
     return (
       <li key={r.id}>
         <a href={urls[r.storage_path]} target="_blank" rel="noreferrer">
@@ -488,10 +507,16 @@ export default function EvidenceReview({ gameId, mode }) {
               actually shows. A mis-pick is only visible as the two
               disagreeing, so this is the whole reason the screen can settle
               one. */}
-          {filed && <span className="evidence-filed">{filed}</span>}
+          {(filed || sent) && (
+            <div className="evidence-tags">
+              {filed && <span className="evidence-filed">{filed}</span>}
+              {sent && <span className="evidence-sent" title={sent.title}>{sent.label}</span>}
+            </div>
+          )}
           <span className="muted">
             {r.uploaded_by_name} · {new Date(r.created_at).toLocaleString()}
           </span>
+          {sent?.lines.map((line) => <span key={line} className="muted evidence-sent-detail">{line}</span>)}
         </div>
         <button
           className="ghost danger evidence-revoke"
@@ -509,6 +534,7 @@ export default function EvidenceReview({ gameId, mode }) {
     <>
       {confirmDialog}
       {actionError && <p className="error">{actionError}</p>}
+      {sourceNote && <p className="muted">{sourceNote}</p>}
 
       <div className="evidence-filters">
         <input
