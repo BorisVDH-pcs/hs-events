@@ -65,7 +65,7 @@ applies them on merge.
 | `web/src/lib/waitingDrops.js` | The box's helpers: a tile's name with its region, the time left. Where the copy goes is now the database's answer | Tested by `web/scripts/waiting-drops-selftest.mjs` |
 | `web/src/components/Admin.jsx` | "Drops from Dink" on each Region Bingo game that has not finished: the site's own switch, as for Discord | Tried in the admin harness (`/preview-admin.html`) at desktop and phone width; its call tested through PostgREST on the local stack. On the live site since 2026-11-21 (pull request #83): switched on there by Boris for the hidden test game (see "On the live site") |
 | `web/src/components/TileForm.jsx` | The tile editor: "Not in the item list" under a drop, with names to click, and "Add a list…" | Tried in the admin harness (`/preview-admin.html`), at desktop and phone width. On the live site since 2026-11-21 (pull request #83); not used by Boris yet |
-| `web/src/components/TileForm.jsx`, `BoardBuilder.jsx`, `web/src/lib/tileDraft.js`, `supabase.js` | "Only from" in the organiser's tile form, for board squares and catalogue entries; not in a player's suggestion | Tested by `web/scripts/tile-draft-selftest.mjs`; tried in the admin harness. On the live site since 2026-11-21 (pull request #86); tried there by Boris with a real Dink the same evening |
+| `web/src/components/TileForm.jsx`, `BoardBuilder.jsx`, `web/src/lib/tileDraft.js`, `supabase.js` | "Only from" in the organiser's tile form, for board squares and catalogue entries; not in a player's suggestion | Tested by `web/scripts/tile-draft-selftest.mjs`; tried in the admin harness. On the live site since 2026-11-21 (pull request #86); tested there by Boris with a real Dink the same evening: a drop from a monster not on the list did not count |
 | `web/src/lib/itemNames.js`, `itemNames.data.js` | `dropKey` (the server's `drop_key` in JS), the check, and 4,820 item names | Tested by `web/scripts/item-names-selftest.mjs`; `tokens.test.mjs` checks `dropKey` against `drop_key` on every name |
 | `web/scripts/build-item-names.mjs` | Makes `itemNames.data.js` from the OSRS Wiki's price list and a typed list of untradeables | Run once, 2026-11-21 |
 | `web/src/lib/dropLists.js` | The ready-made lists: 65 of them, for raids, groups of bosses, every boss in the collection log and pets | Every name is checked against the item list by the selftest, spelled exactly as the item is |
@@ -947,7 +947,8 @@ same evening: a list per tile, on catalogue entries too, and an empty list
 means a drop from any monster counts, as before. Built the same evening, and
 live the same evening (pull request #86): the migration, the intake and the
 site went out at once, and the live site's code has the new calls. Boris
-tried it there the same evening, with a real Dink. The rules sheet says it
+tried it there the same evening with a real Dink: a drop from a monster not
+on the tile's list did not count, as it should not. The rules sheet says it
 in one line, under "Drops from Dink"
 (`docs/region-bingo-rules.md`).
 
@@ -999,7 +1000,8 @@ Granite maul from Callisto (nothing) and one from the Kalphite Queen (handed
 in, through the real intake function). The form was tried in the admin
 harness: an entry's list shown, changed and saved, placed on a square, and
 changed on the square alone. A real Dink with a list was tried by Boris on
-the live site (2026-11-21). Not tried: the form on the local site.
+the live site (2026-11-21): a drop from a monster not on the list did not
+count. Not tried: the form on the local site.
 
 ## Many drops at once
 
@@ -1225,7 +1227,8 @@ a square, Edit, and type a drop.
    Dragon pickaxe from Callisto. **Decided** the same evening: a list per
    tile and on catalogue tiles, empty for any monster. **Live** the
    same evening (pull request #86; see "Only from"). Boris tried it on the
-   live site the same evening, with a real Dink. **Decided** the same
+   live site the same evening, with a real Dink: a drop from a monster not
+   on the list did not count. **Decided** the same
    evening: the rules sheet says it, under
    "Drops from Dink".
 5. **Done 2026-11-21:** Bingo (see "Bingo"). Its trial card is ended for
