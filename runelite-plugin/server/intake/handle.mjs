@@ -40,7 +40,10 @@ export async function handleDink({ token, payloadText, image }, deps) {
   }
 
   const drop = parseDink(payload);
-  // 200 for everything that is not worth a retry: Dink retries a failed send.
+  // 200 for everything that is not worth a retry. Dink retries any answer that
+  // is not a 2xx, three times by default, after 2, 4 and 8 seconds
+  // (DiscordMessageHandler), so a 401 or 400 is retried too; that only costs
+  // three calls.
   if (!drop.ok) return { status: 200, outcome: 'ignored', reason: drop.reason };
   if (!image) return { status: 200, outcome: 'ignored', reason: 'no_screenshot' };
   if (!(image.type in IMAGE_TYPES)) return { status: 200, outcome: 'ignored', reason: 'screenshot_type' };
@@ -89,7 +92,7 @@ export async function handleDink({ token, payloadText, image }, deps) {
           dedupe: `${base}:${hit.option_id}`,
           rsn: drop.rsn, item: item.name, item_id: item.id, quantity: item.quantity,
           price_each: item.priceEach, from: drop.from, category: drop.category,
-          world: drop.world, region_id: drop.regionId, dink_type: drop.type,
+          world: drop.world, region_id: drop.regionId, seasonal: drop.seasonal, dink_type: drop.type,
         },
       });
       // A retry of a drop already counted: the first screenshot is the one on

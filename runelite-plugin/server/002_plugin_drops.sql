@@ -127,6 +127,9 @@ end;
 $$;
 
 -- Is this in-game name one the caller has put on their own account list?
+-- The game puts a non-breaking space (chr(160)) between the words of a name
+-- and a plugin may send it that way. rsn_key's \s does not fold it, and
+-- rsn_key is not ours to change, so it is made a plain space here first.
 create or replace function plugin_rsn_ok(p_rsn text)
 returns boolean
 language sql stable security definer
@@ -135,7 +138,7 @@ as $$
   select exists (
     select 1 from profile_accounts a
      where a.profile_id = auth.uid()
-       and rsn_key(a.rsn) = rsn_key(p_rsn));
+       and rsn_key(a.rsn) = rsn_key(replace(p_rsn, chr(160), ' ')));
 $$;
 
 -- ============================================================

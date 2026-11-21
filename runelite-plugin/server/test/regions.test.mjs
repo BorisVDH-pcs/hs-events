@@ -65,6 +65,10 @@ ok('a locked tile and no tile give the same answer',
 ok('an ask names both tiles, so the player can choose',
    m.items[1].matches.length === 2 && m.items[1].matches.some((x) => x.tile === 'Any helmet'));
 ok('spelling does not matter', verdicts(await match('mate', 'mate_iron', ['ABYSSAL  WHIP'])) === 'one');
+// The game puts a non-breaking space between the words of a name, and Dink
+// sends the name as the game gives it. rsn_key does not fold that space.
+ok("the game's non-breaking space in a name is a space",
+   verdicts(await match('mate', 'Mate Iron', ['Abyssal whip'])) === 'one');
 m = await match('mate', 'Blue Main', ['Abyssal whip']);
 ok("somebody else's in-game name is not accepted", m.account_ok === false && m.items.length === 0, J(m));
 

@@ -17,14 +17,17 @@ const ok = (name, cond, extra = '') => {
   console.log(`${cond ? 'ok  ' : 'FAIL'} ${name}${cond ? '' : '  -- ' + extra}`);
 };
 
-// A loot notification in the shape of Dink's docs/json-examples.md.
-const loot = (rsn, items, more = {}) => ({
+// A loot notification in the shape of Dink's docs/json-examples.md, checked
+// against Dink's own classes (NotificationBody, LootNotificationData) at
+// commit ae769ad, 2026-11-19.
+const loot = (rsn, items, more = {}, extra = {}) => ({
   content: `${rsn} has looted: ...`,
   extra: {
     items: items.map((name, i) => ({ id: 4000 + i, quantity: 1, priceEach: 42069, name, criteria: ['VALUE'], rarity: null })),
     source: 'Abyssal demon', category: 'NPC', killCount: 60, npcId: 415,
+    ...extra,
   },
-  type: 'LOOT', playerName: rsn, accountType: 'NORMAL', dinkAccountHash: 'abc123', embeds: [],
+  type: 'LOOT', playerName: rsn, accountType: 'NORMAL', seasonalWorld: false, dinkAccountHash: 'abc123', embeds: [],
   world: 302, regionId: 12850,
   ...more,
 });
@@ -35,13 +38,28 @@ let p = parseDink(loot('Mate Iron', ['Abyssal whip', 'Bones']));
 ok('a loot notification parses',
    p.ok && p.rsn === 'Mate Iron' && p.items.length === 2 && p.items[0].name === 'Abyssal whip'
    && p.items[0].id === 4000 && p.items[0].priceEach === 42069 && p.from === 'Abyssal demon'
-   && p.category === 'NPC' && p.world === 302 && p.regionId === 12850, J(p));
-p = parseDink({ type: 'COLLECTION', playerName: 'A', extra: { itemName: 'Zamorak chaps', itemId: 10372, price: 500 } });
-ok('a collection log slot is one item', p.ok && p.items.length === 1 && p.items[0].name === 'Zamorak chaps' && p.items[0].id === 10372, J(p));
-p = parseDink({ type: 'PET', playerName: 'A', extra: { petName: 'Ikkle hydra' } });
+   && p.category === 'NPC' && p.world === 302 && p.regionId === 12850 && p.seasonal === false, J(p));
+p = parseDink(loot('Mate Iron', ['Abyssal whip'], { seasonalWorld: true }));
+ok('a drop on a seasonal world says so', p.ok && p.seasonal === true, J(p));
+p = parseDink(loot('Mate Iron', ['Abyssal whip']));
+ok("the game's non-breaking space in a name becomes a space", p.ok && p.rsn === 'Mate Iron', J(p));
+p = parseDink({ type: 'PET', playerName: 'A', extra: { petName: 'Ikkle hydra', milestone: '5,000 killcount', duplicate: false } });
 ok('a pet is one item', p.ok && p.items[0].name === 'Ikkle hydra' && p.items[0].quantity === 1, J(p));
-p = parseDink({ type: 'CLUE', playerName: 'A', extra: { clueType: 'Hard', items: [{ id: 1, quantity: 2, priceEach: 5, name: 'Ranger boots' }] } });
-ok('a clue reward lists its items', p.ok && p.items[0].name === 'Ranger boots' && p.items[0].quantity === 2, J(p));
+// A clue casket comes as LOOT too (Dink's "include clue scrolls", on by default).
+p = parseDink(loot('A', ['Ranger boots'], {}, { source: 'Clue Scroll (Hard)', category: 'EVENT', killCount: null, npcId: null }));
+ok('a clue reward arrives as loot, from the casket', p.ok && p.items[0].name === 'Ranger boots' && p.from === 'Clue Scroll (Hard)', J(p));
+// The same drop a second time, as another kind of notification. Dink sends both.
+for (const [name, payload] of [
+  ['a new collection log slot', { type: 'COLLECTION', playerName: 'A', extra: {
+    itemName: 'Zamorak chaps', itemId: 10372, price: 500812, completedEntries: 420, totalEntries: 1443,
+    dropperName: 'Clue Scroll (Hard)', dropperType: 'EVENT', dropperKillCount: 1500 } }],
+  ['a clue notification', { type: 'CLUE', playerName: 'A', extra: {
+    clueType: 'Hard', numberCompleted: 123, items: [{ id: 1, quantity: 2, priceEach: 5, name: 'Ranger boots' }] } }],
+]) {
+  const r = parseDink(payload);
+  ok(`${name} is ignored: the same drop also comes as loot (covered_by_loot)`,
+     r.ok === false && r.reason === 'covered_by_loot', J(r));
+}
 for (const [name, payload, reason] of [
   ['a death', { type: 'DEATH', playerName: 'A', extra: {} }, 'not_a_drop'],
   ['a level-up', { type: 'LEVEL', playerName: 'A', extra: {} }, 'not_a_drop'],
@@ -97,18 +115,28 @@ const evidence = async (teamId) =>
   (await db.query('select e.*, t.name tile from tile_evidence e join tile_claims c on c.id = e.claim_id join tiles t on t.id = c.tile_id where e.team_id = $1 order by e.created_at', [teamId])).rows;
 
 // ------------------------------------------------------------ a drop counts
-let res = await send('mate', loot('Mate Iron', ["Karil's coif", 'Bones']), png(10));
+const first = loot('Mate Iron', ["Karil's coif", 'Bones'], {}, { party: ['Mate Iron', 'Raid Friend'] });
+let res = await send('mate', first, png(10));
 let ev = await evidence(team.Red);
 ok('a wanted drop is handed in', res.status === 200 && res.outcome === 'submitted' && ev.length === 1 && ev[0].tile === 'Barrows chest', J(res));
 ok("with source 'dink' and what Dink reported",
    ev[0].source === 'dink' && ev[0].detail.item === "Karil's coif" && ev[0].detail.from === 'Abyssal demon'
-   && ev[0].detail.world === 302 && ev[0].detail.rsn === 'Mate Iron' && ev[0].uploaded_by === ids.mate, J(ev[0].detail));
+   && ev[0].detail.world === 302 && ev[0].detail.rsn === 'Mate Iron' && ev[0].detail.seasonal === false
+   && ev[0].uploaded_by === ids.mate, J(ev[0].detail));
+ok("and nothing about anybody else: a raid partner's name is not kept", !J(ev[0]).includes('Raid Friend'), J(ev[0].detail));
 ok('its screenshot is stored once, under the claim, where the row says',
    store.size === 1 && store.has(ev[0].storage_path)
    && ev[0].storage_path.startsWith(`${g}/${team.Red}/${ev[0].claim_id}/`) && ev[0].storage_path.endsWith('.png'), ev[0].storage_path);
 ok('the junk beside it was not', res.results.find((r) => r.item === 'Bones').verdict === 'none');
 
-res = await send('mate', loot('Mate Iron', ["Karil's coif", 'Bones']), png(10));
+// The same coif fills a new collection log slot, so Dink sends a second
+// notification for it, with a screenshot of its own.
+res = await send('mate', { type: 'COLLECTION', playerName: 'Mate Iron', accountType: 'NORMAL', seasonalWorld: false,
+  extra: { itemName: "Karil's coif", itemId: 4732, price: 50000, dropperName: 'Barrows', dropperType: 'EVENT' } }, png(30));
+ok('the collection log notification for that drop does not count it again',
+   res.outcome === 'ignored' && res.reason === 'covered_by_loot' && (await evidence(team.Red)).length === 1 && store.size === 1, J(res));
+
+res = await send('mate', first, png(10));
 ok('Dink retrying the same drop: counted once, and no second screenshot kept',
    res.status === 200 && res.results[0].duplicate === true && (await evidence(team.Red)).length === 1 && store.size === 1, J(res));
 
@@ -124,9 +152,11 @@ ok('a drop for a locked region: nothing stored, nothing counted',
 ok('and the same outcome as a drop nobody wants',
    J({ ...resLocked, results: resLocked.results.map((r) => r.verdict) }) === J({ ...resJunk, results: resJunk.results.map((r) => r.verdict) }));
 
-res = await send('blue', loot('Blue Main', ['Dragon pickaxe']), png(14));
+res = await send('blue', loot('Blue Main', ['Dragon pickaxe']), png(14));
 ok("the same drop counts for Blue, who has opened that region",
    res.outcome === 'submitted' && (await evidence(team.Blue)).length === 1 && (await evidence(team.Red)).length === 1, J(res));
+ok("Blue's name came with the game's non-breaking space, and is kept with a plain one",
+   (await evidence(team.Blue))[0].detail.rsn === 'Blue Main');
 
 before = store.size;
 for (const [name, run, want] of [
