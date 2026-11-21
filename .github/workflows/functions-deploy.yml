@@ -1,0 +1,38 @@
+name: Deploy Edge Functions
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/functions/**"
+  workflow_dispatch:
+
+# The `intake` function receives drops from Dink (runelite-plugin/README.md).
+# It calls functions that db-push.yml makes, and both run on the same merge.
+# A Dink request that arrives before the migrations are in is answered 500,
+# and Dink sends it again; nothing is lost. Never two deploys at once.
+concurrency:
+  group: supabase-functions-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # The same environment and secrets as db-push.yml.
+    environment: supabase-production
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          # Pinned like db-push.yml and db-backup.yml. Bump deliberately.
+          version: 2.122.0
+
+      # --no-verify-jwt: Dink sends no Authorization header. The player's
+      # plugin token is in the link, and the function checks it itself.
+      # --use-api: bundled by Supabase, so the runner needs no Docker image.
+      - name: Deploy intake
+        run: supabase functions deploy intake --project-ref "$SUPABASE_PROJECT_ID" --no-verify-jwt --use-api
