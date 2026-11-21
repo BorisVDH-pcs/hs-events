@@ -7,7 +7,7 @@ import { payloadFromDraft, validateDraft } from '../src/lib/tileDraft.js';
 
 // ---- dropKey is the server's drop_key ----
 //
-// The same cases as server/test/tokens.test.mjs (SQL) and CoreSelfTest (Java).
+// The same cases as server/test/tokens.test.mjs (SQL).
 // tokens.test.mjs also runs this function against the SQL over every name.
 
 for (const [input, want] of [

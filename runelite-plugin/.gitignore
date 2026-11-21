@@ -1,7 +1,4 @@
 node_modules/
-out/
-build/
-.gradle/
 # The local stack's copies, remade by server/local/prepare.mjs
 server/local/supabase/migrations/
 server/local/supabase/functions/
