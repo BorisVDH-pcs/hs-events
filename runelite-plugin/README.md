@@ -24,7 +24,7 @@ become migrations when they are moved there on purpose.
 |---|---|---|
 | `server/001_plugin_tokens.sql` | Plugin tokens, `drop_key`, `plugin_as`, `plugin_whoami` | Tested offline, and on a local Supabase stack |
 | `server/002_plugin_drops.sql` | Evidence `source` and `detail`, the intake log, `plugin_watchlist`, `plugin_match`, `plugin_open`, `plugin_submit`, and `admin_evidence_sources` for the review screen | Tested offline against the real rules, and on a local Supabase stack |
-| `server/intake/dink.mjs` | Reads a Dink notification; makes the dedupe key | Tested; checked against Dink's source, not yet against a real client |
+| `server/intake/dink.mjs` | Reads a Dink notification; makes the dedupe key | Tested; checked against Dink's source, and read real loot from a real Dink client on 2026-11-21. Pets not yet from a client |
 | `server/intake/handle.mjs` | What happens to one notification: match, open, store, submit | Tested end to end, offline |
 | `server/intake/shrink.mjs` | Makes a screenshot over 3 MB smaller: halves a PNG until it fits. No library, only what the runtime has | Tested offline and in the edge runtime |
 | `server/intake/index.ts` | The Edge Function shell around `handle.mjs` | Tested on the local stack; not deployed anywhere |
@@ -35,10 +35,10 @@ become migrations when they are moved there on purpose.
 | `server/test/stack.test.mjs` | 65 checks against that stack, the Edge Function included, run by `npm run test:stack` | All pass |
 | `plugin/.../core/` | `DropKey` and `WatchList`: the matching rule in plain Java | Tested, 16 checks, also run by `gradle test` |
 | `plugin/.../HsEvents*.java`, build files | The RuneLite plugin skeleton, built the template's way | Builds against RuneLite 1.13.7; **never loaded in a client** |
-| `web/src/components/PluginTokens.jsx` | The Plugin tokens section of My Account: make a token, see its Dink link once, revoke | Tried in the preview harness; **never run against a real database** |
+| `web/src/components/PluginTokens.jsx` | The Plugin tokens section of My Account: make a token, see its Dink link once, revoke | Tried in the preview harness, and used by Boris on the local stack to set up a real Dink (2026-11-21). Not on the live project |
 | `web/src/lib/pluginTokens.js` | The Dink link, the name check, "last used" in words | Tested by `web/scripts/plugin-tokens-selftest.mjs`, and used by `stack.test.mjs` |
 | `web/preview-account.html` | A harness for My Account with fixture tokens | |
-| `web/src/components/EvidenceReview.jsx` | The organiser's evidence review: "Sent by plugin" on a row a plugin handed in, with what it reported | Tried in the preview harness; **never run against a real database** |
+| `web/src/components/EvidenceReview.jsx` | The organiser's evidence review: "Sent by plugin" on a row a plugin handed in, with what it reported | Tried in the preview harness, and seen by Boris on the local stack with his own drops (2026-11-21). Not on the live project |
 | `web/src/lib/evidenceSource.js` | The label and the lines under it, from `source` and `detail` | Tested by `web/scripts/evidence-source-selftest.mjs`, and used by `stack.test.mjs` |
 
 ## What the tests prove
@@ -224,10 +224,10 @@ with no sign-in. Every request goes to a link made by the site's own
 - **A hosted Supabase project.** The local stack runs the same software, but
   the live project's settings, its Postgres version and its limits were not
   compared, by design. The Edge Function has not been deployed.
-- **A real Dink message.** `dink.mjs` was checked field by field against
-  Dink's `docs/json-examples.md` and against the Java classes that write the
-  JSON (commit `ae769ad`, 2026-11-19). It has still never read a notification
-  sent by a client.
+- **A pet from a real Dink.** Loot from a real client has been read (see "A
+  real Dink client" below). A pet notification has only been checked against
+  Dink's source, and a real screenshot over 3 MB has not come in yet: the
+  real ones were about 0.2 MB.
 - **A hosted CPU.** The shrinking was timed on this machine's CPU, under the
   same limits a hosted project has. A hosted CPU may be slower; the worst
   case uses about a sixth of the 2 seconds. The log line's `ms` will show it.
@@ -235,13 +235,42 @@ with no sign-in. Every request goes to a link made by the site's own
   screenshot over 8 MB, so this needs a screen bigger than 4K.
 - **The plugin in a client.** It builds, but it has never been loaded in
   RuneLite, and it does nothing visible yet: its watch list is still empty.
-- **The token screen against a database.** The calls it makes are proven
-  through PostgREST, and the screen itself was tried in the preview harness,
-  but never the two together: the site's dev server talks to the live
-  project, which has no plugin tokens.
-- **The review screen's label against a database.** The same holds: its call
-  is proven through PostgREST and its formatter on the stack's real rows, and
-  the screen was tried in the harness, but not the screen on the stack.
+- **The live project.** The token screen and the review screen's label have
+  run against the local stack only.
+
+## A real Dink client
+
+On 2026-11-21 Boris played the trial game (`trial.mjs`) with his own account
+and Dink, on the real site run against the local stack (`site.mjs`). He signed
+up, added his in-game name and made a token on the site, put the link in Dink,
+and killed cows and chickens at Lumbridge.
+
+| Kill | Dink sent | What happened |
+|---|---|---|
+| A cow, before his team had a region | Bones, Raw beef, Cowhide | Nothing handed in |
+| A cow, after picking Misthalin | the same | Cowhide handed in; Raw beef an "ask" (two tiles), not handed in; Bones not (its tile is in Asgarnia, locked for him) |
+| A second cow | the same | Cowhide handed in; "Two cowhides" completed, with the usual feed lines |
+| A chicken | Bones, Raw chicken, Feather x5 | Feather handed in; "Feathers" completed |
+| A second chicken | the same | Nothing: "Feathers" was done and had left the list |
+
+What that proves, beyond the tests:
+
+- **Dink's real message is what `dink.mjs` expects.** Item names, ids,
+  quantities and prices, `extra.source` ("Cow"), `extra.category` ("NPC"),
+  the world (308) and the region id (12850, 12851) all arrived and were read.
+  His in-game name, which has a space, matched his account. Every request was
+  `multipart/form-data` with a PNG of about 0.2 MB.
+- **Matching, the second secret and the tile's own rule held** with real
+  drops: one tile handed in, two tiles never guessed, a locked tile never
+  touched, a completed tile no longer wanted.
+- **The token screen works against a database.** The token was made on the
+  site, its link worked in Dink as shown, and "last used" moved.
+- **The review screen's label works against a database.** Made an organiser
+  afterwards, Boris saw "Sent by plugin" on both tiles' evidence, with his
+  screenshots.
+
+Not tried with a real client: a pet, a screenshot over 3 MB, a Leagues world.
+Our own plugin was not involved.
 
 ## The token screen
 
@@ -425,9 +454,10 @@ switch shows the live project's case and a failed call):
 
 ## Next
 
-1. One real Dink client pointed at the local function, to see a message that
-   was not written by a test. Set up on 2026-11-21 (`site.mjs`, `trial.mjs`);
-   Boris plays it.
-2. Load the plugin in RuneLite once (`gradle run`) to see it start and show
-   its settings; then the four Plugin Hub points above. Both website changes
-   (the token screen and the review screen's label) are done.
+1. **Done 2026-11-21:** a real Dink client against the local stack. See "A
+   real Dink client".
+2. Boris to decide whether our own plugin is needed at all, or Dink is enough
+   (plan, section 10, item 1). Dink handles the evidence; ours would add the
+   in-game overview, pop-ups and the "which tile?" question.
+3. If it is: load the plugin in RuneLite once (`gradle run`) to see it start
+   and show its settings; then the four Plugin Hub points above.
