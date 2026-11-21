@@ -23,6 +23,7 @@
 
 import { execFileSync, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { pngInfo } from '../../../supabase/functions/intake/shrink.mjs';
 // The site's own helper for the My Account section: every Dink request below
@@ -103,8 +104,14 @@ const PNG = Uint8Array.from(Buffer.from(
 
 // ------------------------------------------------------- the database itself
 const applied = sql(`select count(*) || ' ' || max(version) from supabase_migrations.schema_migrations`).split(' ');
-ok("every migration, the plugin's two the last, was applied by the CLI",
-   Number(applied[0]) === 131 && applied[1] === '20261121120100', J(applied));
+const repoMigrations = readdirSync(new URL('../../../supabase/migrations/', import.meta.url))
+  .filter((f) => f.endsWith('.sql')).sort();
+const newest = repoMigrations.at(-1).split('_')[0];
+const pluginIn = sql(`select count(*) from supabase_migrations.schema_migrations
+                       where version in ('20261121120000', '20261121120100')`);
+ok("every migration in supabase/migrations, the plugin's two among them, was applied by the CLI",
+   Number(applied[0]) === repoMigrations.length && applied[1] === newest && pluginIn === '2',
+   J([applied, repoMigrations.length, newest, pluginIn]));
 const pg = sql(`select current_setting('server_version') || ' | ' || datcollate from pg_database where datname = current_database()`);
 console.log(`     (Postgres ${pg})`);
 const nbsp = sql(`select rsn_key(E'Mate\\u00a0Iron') = rsn_key('Mate Iron')`);
@@ -770,6 +777,32 @@ const bingoLog = fnLog().slice(logBeforeBingo);
 const bingoOutcomes = [...bingoLog.matchAll(/\{"outcome":"([a-z_]+)"(?:,"reason":"([a-z_]+)")?/g)].map((x) => x[2] ?? x[1]);
 ok("the function's log for the Bingo requests: nothing before the start, then three handed in",
    J(bingoOutcomes) === J(['nothing_submitted', 'submitted', 'submitted', 'submitted']), J(bingoOutcomes));
+
+// -------------------------------------------------------- a hidden game
+// (20261121140000_hidden_games.sql.) The login page's "Now running"
+// (web/src/components/NowRunning.jsx) asks PostgREST for this, signed out.
+// The running game must be in it, so the column can be read and filtered on
+// by a visitor; hidden, it must not be.
+const nowRunning = async () => {
+  const res = await fetch(`${API}/rest/v1/games?select=id&status=in.(active,placement)&hidden=eq.false`,
+    { headers: { apikey: ANON } });
+  return { status: res.status, ids: res.ok ? (await res.json()).map((x) => x.id) : await res.text() };
+};
+let shown = await nowRunning();
+ok("signed out, the login page's list reads the new column and shows the running game",
+   shown.status === 200 && shown.ids.includes(g), J(shown).slice(0, 300));
+for (const [who, as] of [['a captain', people.red.jwt], ['anon', ANON]]) {
+  const no = await rpc('admin_set_game_hidden', { p_game_id: g, p_hidden: true }, as);
+  ok(`${who} cannot hide a game`, no.status >= 400 && sql(`select hidden from games where id = '${g}'`) === 'f', J(no));
+}
+await must('admin_set_game_hidden', { p_game_id: g, p_hidden: true }, org);
+shown = await nowRunning();
+ok('hidden by its organiser, it is gone from that list', shown.status === 200 && !shown.ids.includes(g), J(shown).slice(0, 300));
+r = await rpc('game_signup_join', { p_game_id: g }, people.out.jwt);
+ok('and a player cannot find it to sign up', r.status === 400 && /No such event/.test(r.body?.message), J(r));
+await must('admin_set_game_hidden', { p_game_id: g, p_hidden: false }, org);
+shown = await nowRunning();
+ok('shown again, it is back', shown.status === 200 && shown.ids.includes(g), J(shown).slice(0, 300));
 
 // ------------------------------------------------------------- revoking
 const list = await must('plugin_token_list', {}, people.mate.jwt);
