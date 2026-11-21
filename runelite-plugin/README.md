@@ -946,7 +946,8 @@ same evening: a list per tile, on catalogue entries too, and an empty list
 means a drop from any monster counts, as before. Built the same evening, and
 live the same evening (pull request #86): the migration, the intake and the
 site went out at once, and the live site's code has the new calls. Not yet
-used there.
+used there. The rules sheet says it in one line, under "Drops from Dink"
+(`docs/region-bingo-rules.md`).
 
 - **What it is.** "Only from" in the organiser's tile form, under the drops:
   monsters or bosses, separated by commas. A drop sent by Dink counts for the
@@ -1222,7 +1223,8 @@ a square, Edit, and type a drop.
    Dragon pickaxe from Callisto. **Decided** the same evening: a list per
    tile and on catalogue tiles, empty for any monster. **Live** the
    same evening (pull request #86; see "Only from"). Boris to try it in the
-   console, and to say whether the rules sheet should mention it.
+   console. **Decided** the same evening: the rules sheet says it, under
+   "Drops from Dink".
 5. **Done 2026-11-21:** Bingo (see "Bingo"). Its trial card is ended for
    now: Region Bingo first.
 5a. **Region Bingo first (Boris, 2026-11-21).** A whole game through Dink is

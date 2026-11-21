@@ -603,7 +603,8 @@ modes, one at a time.
     ("Only from"), on a board's square and on a catalogue entry. Left empty,
     a drop from any monster counts, as before. Only Dink's drops are checked;
     an upload on the site is not. Built, and live, the same evening (see
-    `runelite-plugin/README.md`, "Only from").
+    `runelite-plugin/README.md`, "Only from"). The rules sheet says it
+    under "Drops from Dink".
 
 ---
 
