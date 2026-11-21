@@ -31,7 +31,7 @@ public final class DropKey
 				c = (char) (c + 32);
 			}
 			// Apostrophes of every kind vanish: people leave them out.
-			if (c == '\'' || c == '’' || c == '‘' || c == '`' || c == '´')
+			if (c == '\'' || c == '\u2019' || c == '\u2018' || c == '`' || c == '\u00b4')
 			{
 				continue;
 			}

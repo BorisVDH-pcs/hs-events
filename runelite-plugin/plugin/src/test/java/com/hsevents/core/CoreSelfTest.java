@@ -36,13 +36,13 @@ public final class CoreSelfTest
 	public static void main(String[] args)
 	{
 		key("Dharok's helm", "dharoks helm");
-		key("Dharok’s  Helm ", "dharoks helm");
+		key("Dharok\u2019s  Helm ", "dharoks helm");
 		key("dharoks helm", "dharoks helm");
 		key("Black d'hide body (g)", "black dhide body g");
 		key("Abyssal whip", "abyssal whip");
 		key("3rd age full helmet", "3rd age full helmet");
 		key("Tumeken's shadow (uncharged)", "tumekens shadow uncharged");
-		key("  ’ ", null);
+		key("  \u2019 ", null);
 		key(null, null);
 
 		WatchList list = new WatchList();
