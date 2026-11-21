@@ -11,22 +11,25 @@ removed the same day; it is in the branch's history at commit `dcceb68` if it
 is ever wanted again. The folder keeps its name until the drafts and the
 function move into `supabase/` on merge.
 
-Five changes to the website itself were made with Boris's go-ahead on
+Six changes to the website itself were made with Boris's go-ahead on
 2026-11-21: the **Plugin tokens** section of My Account (see "The token
 screen" below), **"Sent by plugin"** in the organiser's evidence review
 (see "The review screen's label"), a **check on drop names** with
 ready-made lists of drops in the tile editor (see "The tile editor's name
 check"), **Dink's report beside every Dink screenshot** in a tile's
-panel, the team's own included (see "Dink's report beside the picture"), and
-a **box above the board where the team chooses the tile** for a drop two
-tiles want (see "A drop two tiles want"). All five are on this branch only.
-The token screen, the label, the report and the box hide themselves on a
-database without the drafts, so the live site would show nothing new even if
-they were merged before the drafts are applied. The name check needs no
-database and would show at once; it only warns.
+panel, the team's own included (see "Dink's report beside the picture"), a
+**box above the board where the team chooses the tile** for a drop two
+tiles want (see "A drop two tiles want"), and a **"Drops from Dink" switch**
+on each Region Bingo game in the admin console (see "Dink on or off, per
+game"). All six are on this branch only. The token screen, the label, the
+report, the box and the switch hide themselves on a database without the
+drafts, so the live site would show nothing new even if they were merged
+before the drafts are applied. The name check needs no database and would
+show at once; it only warns.
 
-Uploading evidence on the site is unchanged and stays the normal way in. Dink
-is an extra way to hand in a drop, for players who run it.
+Uploading evidence on the site is unchanged and stays the normal way in,
+whether Dink is on or off for a game. Dink is an extra way to hand in a
+drop, for players who run it.
 
 The two `.sql` files in `server/` are drafts. They are kept out of
 `supabase/migrations` so that `db-push.yml` cannot apply them. They only
@@ -37,16 +40,16 @@ become migrations when they are moved there on purpose.
 | Path | What | State |
 |---|---|---|
 | `server/001_plugin_tokens.sql` | Plugin tokens, `drop_key`, `plugin_as` | Tested offline, and on a local Supabase stack |
-| `server/002_plugin_drops.sql` | Evidence `source` and `detail`, the intake log, `plugin_wanted`, `plugin_match`, `plugin_open`, `plugin_submit` (for Region Bingo and Bingo), `admin_evidence_sources` for the review screen, `evidence_sources` for a tile's panel, and a drop two tiles want, kept for the team to choose (`plugin_wait_open`, `plugin_wait`, `waiting_drops`, `waiting_drop_open`, `waiting_drop_choose`) | Tested offline against the real rules, and on a local Supabase stack |
+| `server/002_plugin_drops.sql` | Evidence `source` and `detail`, the intake log, `plugin_wanted`, `plugin_match`, `plugin_open`, `plugin_submit` (for Region Bingo and Bingo), `admin_evidence_sources` for the review screen, `evidence_sources` for a tile's panel, a drop two tiles want, kept for the team to choose (`plugin_wait_open`, `plugin_wait`, `waiting_drops`, `waiting_drop_open`, `waiting_drop_choose`), removing the screenshots nobody needs (`plugin_leftover_files`, `plugin_leftovers_removed`), and Dink on or off per game (`games.plugin_drops`, `admin_set_plugin_drops`) | Tested offline against the real rules, and on a local Supabase stack |
 | `server/intake/dink.mjs` | Reads a Dink notification; makes the dedupe key | Tested; checked against Dink's source, and read real loot from a real Dink client on 2026-11-21. Pets not yet from a client |
-| `server/intake/handle.mjs` | What happens to one notification: match, open, store, submit, or keep it for the team to choose | Tested end to end, offline |
+| `server/intake/handle.mjs` | What happens to one notification: match, open, store, submit, or keep it for the team to choose; and removing the screenshots nobody needs | Tested end to end, offline |
 | `server/intake/shrink.mjs` | Makes a screenshot over 3 MB smaller: halves a PNG until it fits. No library, only what the runtime has | Tested offline and in the edge runtime |
-| `server/intake/index.ts` | The Edge Function shell around `handle.mjs` | Tested on the local stack; not deployed anywhere |
+| `server/intake/index.ts` | The Edge Function shell around `handle.mjs`; cleans up after each request whose token the database accepted | Tested on the local stack; not deployed anywhere |
 | `server/test/replay.mjs` | Replays all 129 migrations into an in-memory Postgres, with stand-ins for what Supabase provides | Works; the repo's own Region Bingo smoke test passes on it, 76 of 76 |
-| `server/test/*.test.mjs` | Six test files, 311 checks, run by `npm test` | All pass |
+| `server/test/*.test.mjs` | Seven test files, 358 checks, run by `npm test` | All pass |
 | `server/test/png.mjs`, `fixtures/` | A PNG writer and reader for the tests only, and one small PNG written by Java's ImageIO | |
 | `server/local/` | A local Supabase stack: `config.toml`, and `prepare.mjs`, which copies the migrations, the two drafts and the intake function into it | Works with Supabase CLI 2.122.0 and Docker |
-| `server/test/stack.test.mjs` | 102 checks against that stack, the Edge Function included, run by `npm run test:stack` | All pass |
+| `server/test/stack.test.mjs` | 128 checks against that stack, the Edge Function included, run by `npm run test:stack` | All pass |
 | `web/src/components/PluginTokens.jsx` | The Plugin tokens section of My Account: make a token, see its Dink link once, revoke | Tried in the preview harness, and used by Boris on the local stack to set up a real Dink (2026-11-21). Not on the live project |
 | `web/src/lib/pluginTokens.js` | The Dink link, the name check, "last used" in words | Tested by `web/scripts/plugin-tokens-selftest.mjs`, and used by `stack.test.mjs` |
 | `web/preview-account.html` | A harness for My Account with fixture tokens | |
@@ -54,7 +57,8 @@ become migrations when they are moved there on purpose.
 | `web/src/components/EvidencePanel.jsx` | Every tile's panel, a team's and an organiser's: Dink's report beside each Dink screenshot ("Bones ×1 from Woman", the time, the world) | Tried in the preview harness at desktop and phone width; its call tested through PostgREST on the local stack, and Boris's own Bones row read through it. Not yet opened by Boris on the local site. Not on the live project |
 | `web/src/lib/evidenceSource.js` | The label, the drop line and the lines under it, from `source` and `detail` | Tested by `web/scripts/evidence-source-selftest.mjs`, and used by `stack.test.mjs` |
 | `web/src/components/WaitingDrops.jsx` | The box above a team's board: a drop two tiles want, its screenshot and Dink's report, and a button for each tile | Tried in the preview harness at desktop and phone width; the calls behind it tested through PostgREST and Storage on the local stack; used by Boris on the local site for a real Dink cow (2026-11-21). Not on the live project |
-| `web/src/lib/waitingDrops.js` | The box's helpers: a tile's name with its region, the time left, where the copy goes | Tested by `web/scripts/waiting-drops-selftest.mjs` |
+| `web/src/lib/waitingDrops.js` | The box's helpers: a tile's name with its region, the time left. Where the copy goes is now the database's answer | Tested by `web/scripts/waiting-drops-selftest.mjs` |
+| `web/src/components/Admin.jsx` | "Drops from Dink" on each Region Bingo game that has not finished: the site's own switch, as for Discord | Tried in the admin harness (`/preview-admin.html`) at desktop and phone width; its call tested through PostgREST on the local stack. Not used by Boris yet. Not on the live project |
 | `web/src/components/TileForm.jsx` | The tile editor: "Not in the item list" under a drop, with names to click, and "Add a list…" | Tried in the admin harness (`/preview-admin.html`), at desktop and phone width. Not on the live project, not used by Boris yet |
 | `web/src/lib/itemNames.js`, `itemNames.data.js` | `dropKey` (the server's `drop_key` in JS), the check, and 4,820 item names | Tested by `web/scripts/item-names-selftest.mjs`; `tokens.test.mjs` checks `dropKey` against `drop_key` on every name |
 | `web/scripts/build-item-names.mjs` | Makes `itemNames.data.js` from the OSRS Wiki's price list and a typed list of untradeables | Run once, 2026-11-21 |
@@ -97,9 +101,9 @@ Against a replay of every migration, so `tiles_for_team`, `regions_open_tile`,
 - **Time up is still time up**: `add_evidence` refuses, and the plugin has no
   way round it.
 - **Grants.** A signed-in player can call no token function; the service role
-  can call exactly the five the intake uses (`plugin_match`, `plugin_open`,
-  `plugin_submit`, `plugin_wait_open`, `plugin_wait`); nobody can call
-  `plugin_as`.
+  can call exactly the seven the intake uses (`plugin_match`, `plugin_open`,
+  `plugin_submit`, `plugin_wait_open`, `plugin_wait`, `plugin_leftover_files`,
+  `plugin_leftovers_removed`); nobody can call `plugin_as`.
 - **Dink's route, end to end**: a loot notification in the documented shape
   goes in, an evidence row and one stored screenshot come out. Storage being
   down becomes a retry; a rule saying no does not.
@@ -131,7 +135,7 @@ Against a replay of every migration, so `tiles_for_team`, `regions_open_tile`,
   that does not exist; an upload from the site and someone on no team get
   nothing too. Not anon, not the service role.
 - **A drop two tiles want waits, for its own team only**
-  (`waiting.test.mjs`, 59 checks, on a Region Bingo board and a Bingo card).
+  (`waiting.test.mjs`, 76 checks, on a Region Bingo board and a Bingo card).
   The intake keeps it with the tiles that wanted it, its screenshot under the
   team's `waiting/` folder; sent twice, kept once. The team lists it with
   those tiles, and anyone on it can hand it in on one: the evidence is the
@@ -142,7 +146,21 @@ Against a replay of every migration, so `tiles_for_team`, `regions_open_tile`,
   once its tile has filled, and once the game has ended or its time is up,
   it no longer counts, each with its own words to the team. A picture that
   is not Dink's (another file, the waiting file itself, a copy under another
-  tile, a missing one) is refused. A drop two games want is not kept.
+  tile, a missing one) is refused, and so is Dink's own picture copied to a
+  place the database did not give out. A drop two games want is not kept.
+- **The screenshots nobody needs are removed, and nothing else**
+  (`waiting.test.mjs`). Once a drop is handed in: its file under `waiting/`
+  and every copy but the one handed in. Once its hour and five minutes are
+  up: its file and its copies. Never evidence, never an upload from the site,
+  never the copy handed in. A removal that fails is tried again next time.
+- **Dink is off until an organiser switches it on** (`switch.test.mjs`, 27
+  checks). Off, a drop an open tile wants gets the answer junk gets, word for
+  word, and so does a locked tile's; nothing is stored, nothing waits, and a
+  drop already waiting is not offered. Uploading on the site works, on or
+  off. A player, someone on no team and a moderator of another mode cannot
+  switch it; a moderator of Region Bingo can. Switched off mid-game and on
+  again, the drop that waited is back. Bingo cannot be switched on from the
+  console. `add_evidence` does not read the switch at all.
 
 ## Screenshots over 3 MB
 
@@ -189,14 +207,15 @@ keeps it under 3 MB.
 `stack.test.mjs` runs against the Supabase CLI's own local stack, which is the
 same software a hosted project runs: Postgres 17.11, PostgREST 16.5, Storage
 1.84.19, Auth 2.197.0, edge runtime 1.77.8 (Deno 2). It is not the live
-project and never touches it. Tested 2026-11-21, 102 of 102.
+project and never touches it. Tested 2026-11-21, 128 of 128.
 
 - **The migrations apply on real Supabase.** All 129, then the two drafts, by
   the CLI itself, with no errors.
 - **The game is built the site's way.** Users are made through Auth, sign in
   with a password, add their in-game names and pick regions through PostgREST
-  with their own sign-in. Only making the organiser an admin is done in SQL,
-  as on the live project.
+  with their own sign-in. Done in SQL: making the organiser an admin, as on
+  the live project; switching Dink on for a Bingo game, which the console
+  will not do yet; and moving a waiting drop's hour into the past.
 - **A token is the player for one request, and only that one.** The question
   the offline tests could not answer was whether `plugin_as` behaves under
   PostgREST, which sets the caller for every request itself. It does. Inside
@@ -294,11 +313,28 @@ with no sign-in. Every request goes to a link made by the site's own
   Blue's region gets what a tile that does not exist gets. Blue cannot read
   the file, nor copy it into either team's folder. Storage's own copy, as Red
   Cap, gives the copy the same eTag and size, which is what the check rests
-  on; Red Cap's own picture in its place is refused. Handed in on "Any
-  helmet", the tile completes by its own rule, the evidence is Red Mate's,
-  and the panel reads "Dharok's helm ×1 from Chaos Elemental" and "Arrived
-  … · tile chosen by Red Cap". A second hand-in is told it already was, and
-  the list is empty.
+  on. The database gives the copy its place and writes it down: Red Cap's own
+  picture at that place is refused, and so is Dink's picture copied anywhere
+  else. Handed in on "Any helmet", the tile completes by its own rule, the
+  evidence is Red Mate's, and the panel reads "Dharok's helm ×1 from Chaos
+  Elemental" and "Arrived … · tile chosen by Red Cap". A second hand-in is
+  told it already was, and the list holds only a second helm, left waiting.
+- **The screenshots nobody needs go, through the function and Storage.** The
+  second helm's hour is moved into the past. The intake's own question lists
+  exactly three files: the first helm's under `waiting/`, the copy holding
+  Red Cap's own picture, and the second helm's. A request from a made-up
+  token removes nothing. The next request from Dink, a drop nobody wants,
+  removes all three from Storage, and the log line says `"cleaned":3`. The
+  copy handed in is still there, byte for byte, and still the evidence; the
+  stray copy nobody gave out is not touched; the rows are kept, marked. Anon
+  and a signed-in player can neither ask for the list nor mark a file
+  removed. With the cleanup taken out of the function, 5 checks fail.
+- **The switch, through PostgREST.** A new game starts with Dink off. A
+  captain, anon and the service role cannot switch it; the organiser can.
+  Switched off mid-game, Dink's Dharok's helm for Barrows chest is answered
+  `200 {"ok":true}` as always and handed in nowhere, and nothing waits; the
+  same helm uploaded on the site completes the tile. The console will not
+  switch the Bingo game on.
 
 ## What they do not prove
 
@@ -321,8 +357,17 @@ with no sign-in. Every request goes to a link made by the site's own
 - **A JPEG over 3 MB** is still ignored. Dink only makes a JPEG for a
   screenshot over 8 MB, so this needs a screen bigger than 4K.
 - **The live project.** The token screen, the review screen's label,
-  Dink's report in a tile's panel and the waiting box have run against the
-  local stack only.
+  Dink's report in a tile's panel, the waiting box and the switch have run
+  against the local stack only.
+- **The switch in a signed-in browser.** Tried in the admin harness and
+  through PostgREST. Boris has not flipped it on the local site yet. His
+  "Dink trial", built before the switch existed, was switched on by SQL on
+  2026-11-21 so that it keeps working; new trial games are switched on by
+  `trial.mjs` through the console's own call.
+- **The cleanup with a real Dink.** Only the tests. It did run on the local
+  stack's real data: the stack test's requests removed the waiting file of
+  every drop there that had been chosen or had run out, Boris's Raw beef
+  from the trial among them, and its evidence file is still there.
 - **The panel in a signed-in browser.** Its call is tested through PostgREST,
   the harness draws it, and Boris's own Bones row reads "Bones ×1 from Woman",
   16:57:22, "World 308 · as Soft Papi" when asked as his account. Nobody has
@@ -393,10 +438,10 @@ in a region the team has not opened is a "one", for the card. The tests check
 that the answer is word for word what it would be with no Region Bingo game
 running at all, so nothing in it gives the locked tile away.
 
-**Not built: the switch per game.** The plan (section 7) proposes a switch on
-each game, "drops from plugins on or off". It is still open (section 10,
-item 6), so for now every running Region Bingo and Bingo game takes drops
-from Dink.
+**The switch per game.** Built 2026-11-21 (see "Dink on or off, per game").
+The console switches Dink on for Region Bingo only. Bingo is built and
+tested, and waits for Boris's word: until then a Bingo game can only be
+switched on in SQL, as the tests do.
 
 ## A real Dink client
 
@@ -581,7 +626,9 @@ screenshot was thrown away. Now it waits for the team.
   to the tile with Storage's own copy, as the player, the way an upload goes
   in; the database then checks the copy has the size and checksum (eTag) of
   what Dink sent. A teammate cannot hand in a picture of their own in its
-  place.
+  place. Where the copy goes is the database's answer, written down, so a
+  copy that is never handed in can be removed (see "Screenshots nobody
+  needs"); a copy anywhere else is refused.
 - **The second secret holds.** Only the drop's own team sees it, its picture
   and its tiles. Another team asking for it by id gets the answer a drop that
   does not exist gets, and a tile in a region the team has not opened is never
@@ -589,9 +636,11 @@ screenshot was thrown away. Now it waits for the team.
   and an organiser can read.
 - **Two games at once:** a drop two games want is still not kept (see
   "Bingo"). The clan runs one game at a time.
-- **Not cleaned up.** The file under `waiting/` stays in Storage after the
-  choice, beside the copy that is the evidence, and after the hour. A Dink
-  screenshot is about 0.2 MB. Nothing removes them yet.
+- **Cleaned up** since the evening of 2026-11-21: see "Screenshots nobody
+  needs".
+- **Only while Dink is on for the game.** Switched off, a drop already
+  waiting is no longer offered; switched on again within its hour, it is
+  back (see "Dink on or off, per game").
 - **A database without the drafts** (the live project today): there is no
   box, and no error.
 
@@ -613,6 +662,62 @@ is handed in on the tile the team picks, and once one of the two is done
 the next drop goes straight to the other. Not tried with the real client: a
 drop left until the hour is up, and a teammate choosing for the player who
 got it (the tests cover both).
+
+## Screenshots nobody needs
+
+Asked for by Boris on 2026-11-21. A drop two tiles want left files behind in
+the `evidence` bucket: Dink's screenshot under the team's `waiting/` folder,
+and a copy in a tile's folder for each try at choosing. About 0.2 MB each.
+Now the intake removes them.
+
+- **What goes.** Once a waiting drop is handed in: its file under
+  `waiting/`, and every copy but the one handed in. Once its hour is up and
+  nobody chose: its file and any copies. Five minutes' grace after the hour,
+  so a choice made in the last second is told "waited more than an hour",
+  not that a file is missing.
+- **What never goes.** Evidence, an upload from the site, and the copy that
+  was handed in. Only files the database lists are touched, and it lists
+  nothing but the two kinds above.
+- **The database says where a copy goes.** `waiting_drop_open` gives the
+  site the copy's exact place and writes it down, so a copy that is never
+  handed in can be found. The hand-in only takes a copy at such a place. Ten
+  tries per drop.
+- **When.** There is no timer on the project (no pg_cron). Instead, after
+  every request from Dink whose token the database accepted, the intake asks
+  `plugin_leftover_files` for up to 20, oldest first, removes them through
+  Storage, and marks them with `plugin_leftovers_removed`, so a removal that
+  fails is tried again next time. Dink sends something whenever a player who
+  runs it gets loot. A cleanup that fails never changes Dink's answer; it is
+  logged, and the log line says how many files went (`cleaned`).
+- **Rows stay.** A waiting drop's row is kept, with when its file went.
+
+Tested offline (`waiting.test.mjs`, `intake.test.mjs`) and on the local stack
+through the function and real Storage (`stack.test.mjs`).
+
+## Dink on or off, per game
+
+Decided by Boris on 2026-11-21 (plan, section 10, item 6): a switch on each
+game in the admin console, "Drops from Dink", off until an organiser turns
+it on, Region Bingo only for now.
+
+- **Off** (the default): Dink's drops for that game get the answer junk gets,
+  nothing is stored, nothing new waits, and a drop already waiting is not
+  offered. Dink is still answered `200 {"ok":true}`, so it does not retry.
+- **On:** a drop one open tile wants is handed in for the player, with
+  Dink's screenshot; a drop two tiles want waits an hour for the team.
+- **Uploading on the site works either way.** `add_evidence` does not read
+  the switch.
+- **Who:** an organiser, or a moderator of the game's mode, the same people
+  who manage the game. It can be changed while the game runs.
+- **Region Bingo only.** Switching a Bingo game on is refused ("Drops from
+  Dink are for Region Bingo only, for now"); switching any game off works.
+  The switch shows only on Region Bingo games that have not finished.
+- **In the console:** under the game's start and end times, the site's own
+  switch, as for Discord, with a line saying what on and off mean. On a
+  database without the drafts it does not show.
+
+Tested offline (`switch.test.mjs`), on the local stack through PostgREST
+(`stack.test.mjs`), and in the admin harness at desktop and phone width.
 
 ## The tile editor's name check
 
@@ -757,7 +862,9 @@ The local stack needs Docker and the Supabase CLI:
     cd ../local && supabase stop
 
 After changing a draft, run `node prepare.mjs` and `supabase db reset` before
-the test. A reset also wipes a trial account; draft 002 can instead be run
+the test. After changing the function, run `node prepare.mjs` and give the
+edge runtime a few seconds: a test started at once can still meet the old
+code. A reset also wipes a trial account; draft 002 can instead be run
 again as it is, since every statement in it is "if not exists" or "create or
 replace" (done that way for the Bingo change, 2026-11-21). The test reads the stack's own development keys from
 `supabase status` while it runs; they are never printed or saved.
@@ -771,6 +878,7 @@ A real Dink client against the local stack, with the real site:
     node trial.mjs bingo-end   end that card again: one game at a time
     node trial.mjs report      what the intake heard, and the evidence it made
     node trial.mjs organiser   makes you an organiser, to see "Sent by plugin"
+                               and the game's "Drops from Dink" switch
 
 `site.mjs` runs the site with no `.env` file read: it gets the stack's
 address and public key and nothing else, so it cannot reach the live project
@@ -781,7 +889,8 @@ that both want Raw beef (it waits, and you choose one in the box above the
 board), "Feathers", and in
 Asgarnia "Bones", which every cow and chicken drops and which must never be
 handed in for you. Tried on 2026-11-21 with requests shaped like Dink's
-before anyone played it: it answered exactly that. `supabase db reset`
+before anyone played it: it answered exactly that. `trial.mjs` switches
+Dink on for the game, with the console's own call. `supabase db reset`
 starts over.
 
 `trial.mjs bingo` adds "Dink trial bingo", started at once, with the same
@@ -816,6 +925,9 @@ back":
 
     cd web && npm run test:waiting-drops
 
+The console's "Drops from Dink" switch: open the admin harness, Manage on
+"Region Bingo — Leagues", and it is under the end time.
+
 The tile editor's name check: open a game's board in the admin harness, pick
 a square, Edit, and type a drop.
 
@@ -846,8 +958,9 @@ a square, Edit, and type a drop.
    checked against the item list, and the steps to the live project, each
    Boris's call.
 6. **Decided 2026-11-21:** one game at a time, so a drop is never wanted by
-   two games; nothing is built for it. Still open: whether to build the switch
-   per game (plan, section 10, item 6).
+   two games; nothing is built for it. **Done** the same day: the switch per
+   game, off by default, Region Bingo only (see "Dink on or off, per game").
+   Boris to flip it on the local site.
 7. Snakes & Ladders next. And whether to go through the tile catalogue so its
    drop tiles list real items (see "The tile editor's name check").
 8. **Done 2026-11-21:** Dink's report beside every Dink screenshot (see
@@ -857,5 +970,12 @@ a square, Edit, and type a drop.
    panel on the local site. For the go-live rules line: say both.
 9. **Done 2026-11-21:** a drop two tiles want waits an hour, and anyone on
    the team chooses its tile on the site (see "A drop two tiles want").
-   Boris played it the same day with two cows and a real Dink. Not built:
-   removing the waiting screenshots afterwards.
+   Boris played it the same day with two cows and a real Dink. **Done** the
+   same evening: removing the screenshots nobody needs (see "Screenshots
+   nobody needs").
+10. **Going live for Region Bingo** (Boris, 2026-11-21): the two drafts into
+    `supabase/migrations`, the function into `supabase/functions`, a GitHub
+    workflow to deploy it, and a pull request for Boris to merge. Decided
+    with it: a matched drop counts at once (plan, item 3), only tiles open
+    when it dropped (item 4), and an organiser cannot require Dink evidence
+    for a tile (item 8).

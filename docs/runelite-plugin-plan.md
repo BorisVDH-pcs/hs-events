@@ -484,12 +484,13 @@ that is every tile in a region the team has not opened.
 ## 7. Other modes
 
 `add_evidence` is shared, so the door works for all of them, but automatic is
-not always right. A per-game switch, `games.plugin_evidence`
-**(proposed: on by default for Region Bingo and Bingo, off elsewhere)**.
+not always right. A per-game switch, `games.plugin_drops`. **Decided,
+2026-11-21:** off by default, switched on in the admin console, for Region
+Bingo only for now. Built the same day.
 
 | Mode | Automatic evidence |
 |---|---|
-| Region Bingo, Bingo | Yes. Own progress, no claim step, nothing to give away. **Both done** (Bingo 2026-11-21), without the switch |
+| Region Bingo, Bingo | Yes. Own progress, no claim step, nothing to give away. **Both done** (Bingo 2026-11-21). The switch can turn on Region Bingo only, for now |
 | Snakes & Ladders | Yes, for the tile the team stands on, which `add_evidence` already enforces |
 | Territory | Not by default. The first screenshot on a rival's place is announced to its owner, and a plugin would make that announcement for the team |
 | Battleships | No. The last screenshot fires the shot, and when to fire is the team's decision |
@@ -555,14 +556,15 @@ modes, one at a time.
    drop two tiles want stays a question answered on the site).
 2. **An Edge Function in the project.** It is the first, and a new thing to
    deploy and watch. Proposed: yes; there is no way to receive Dink without
-   one.
+   one. **Decided, 2026-11-21:** yes, for Region Bingo, deployed by a GitHub
+   workflow when the branch is merged.
 3. **Does a matched drop count at once, or wait for the player to confirm?**
    Proposed: at once, since uploading already counts at once and revoke
-   exists.
+   exists. **Decided, 2026-11-21:** at once.
 4. **A drop from before the team opened the region.** Today nothing stops a
    player saving a screenshot and uploading it later. The plugin knows the
    time. Proposed: it only submits for tiles open at that moment, and banks
-   nothing.
+   nothing. **Decided, 2026-11-21:** as proposed.
 5. **The same drop on two open tiles.** Proposed: the player chooses; the
    plugin never does. Since Bingo was added, this includes two tiles in two
    running games (a Bingo card and a Region Bingo board): an "ask", handed
@@ -571,9 +573,11 @@ modes, one at a time.
    2026-11-21:** two tiles in one game: the drop waits an hour, and anyone on
    the team chooses the tile on the site. The plugin still never chooses.
 6. **Which modes, and the default of the per-game switch** (section 7).
+   **Decided, 2026-11-21:** a switch on each game in the admin console, off
+   by default, Region Bingo only for now; Bingo is built and waits.
 7. **Organiser announcements as in-game pop-ups.** Wanted, or noise?
 8. **May an organiser require plugin evidence for a tile?** Proposed: no.
-   Mobile players could never complete it.
+   Mobile players could never complete it. **Decided, 2026-11-21:** no.
 9. **The name on the Hub.** The plugin is public: anybody can install it, and
    it does nothing without a token from the site.
 10. **A drop on a Leagues or other seasonal world.** **Decided, 2026-11-21:**
