@@ -2,14 +2,22 @@
 // goes through intake/handle.mjs, whose database is the replay of every
 // migration plus the plugin drafts, and whose storage is a Map.
 //
+// Also intake/shrink.mjs, which makes a screenshot over 3 MB smaller, checked
+// against png.mjs (a separate PNG writer and reader on Node's zlib) and a PNG
+// written by Java's ImageIO, as Dink writes them.
+//
 // What this does not cover: intake/index.ts (the Deno shell that reads the
-// HTTP request), and a message from a real Dink client.
+// HTTP request; stack.test.mjs runs it), and a message from a real Dink client.
 //
 //   node intake.test.mjs
 
+import { readFileSync } from 'node:fs';
+import { deflateSync } from 'node:zlib';
 import { buildGame, J } from './fixture.mjs';
 import { dedupeKey, parseDink } from '../intake/dink.mjs';
-import { handleDink, MAX_BYTES } from '../intake/handle.mjs';
+import { handleDink, MAX_BYTES, MAX_SHRINK_INPUT } from '../intake/handle.mjs';
+import { canShrink, MAX_PIXELS, pngInfo, shrinkPng } from '../intake/shrink.mjs';
+import { chunk, expectedHalf, ihdr, makePng, rawPng, readPng, same } from './png.mjs';
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra = '') => {
@@ -32,6 +40,7 @@ const loot = (rsn, items, more = {}, extra = {}) => ({
   ...more,
 });
 const png = (seed) => ({ bytes: new Uint8Array([0x89, 0x50, 0x4e, 0x47, seed, seed >> 8]), type: 'image/png' });
+const padTo = (bytes, n) => { const out = new Uint8Array(n); out.set(bytes); return out; };
 
 // ------------------------------------------------------------- the parser
 let p = parseDink(loot('Mate Iron', ['Abyssal whip', 'Bones']));
@@ -84,6 +93,66 @@ ok('a dedupe key is 64 hex characters', /^[0-9a-f]{64}$/.test(k1));
 ok('the same message and screenshot give the same key', k1 === await dedupeKey('{"a":1}', png(1).bytes));
 ok('another screenshot gives another key', k1 !== await dedupeKey('{"a":1}', png(2).bytes));
 ok('another message gives another key', k1 !== await dedupeKey('{"a":2}', png(1).bytes));
+
+// ------------------------------------------------- making a screenshot smaller
+// shrink.mjs against png.mjs, a separate writer and reader on Node's zlib.
+const opaque = (x, y, k) => (k === 3 ? 255 : (x * 7 + y * 13 + k * 50 + ((x * y) % 11)) & 255);
+let src = makePng(64, 48, opaque);
+let small = await shrinkPng(src.bytes, 1e6);
+let back = small && readPng(small.bytes);
+ok('a 64 x 48 RGBA PNG, every row filter, data over several chunks: half the size',
+   small && small.width === 32 && small.height === 24 && small.fromWidth === 64 && back.width === 32, J(small && { ...small, bytes: small.bytes.length }));
+ok('each pixel the average of its 2 x 2 block, and the opaque alpha left out (RGB)',
+   back?.colourType === 2 && same(back.data, expectedHalf(src.data, 64, 48, 4, 3)));
+
+src = makePng(50, 30, (x, y, k) => (x * 5 + y * 3 + k * 90) & 255, { channels: 3 });
+back = readPng((await shrinkPng(src.bytes, 1e6)).bytes);
+ok('an RGB PNG too', back.width === 25 && back.colourType === 2 && same(back.data, expectedHalf(src.data, 50, 30, 3)));
+
+src = makePng(40, 40, (x, y, k) => (k === 3 ? (x * 6) & 255 : (x + y + k) & 255));
+back = readPng((await shrinkPng(src.bytes, 1e6)).bytes);
+ok('see-through pixels keep their alpha (RGBA)', back.colourType === 6 && same(back.data, expectedHalf(src.data, 40, 40, 4)));
+
+// Written by Java's ImageIO, as Dink writes its screenshots, with an odd size.
+const imageio = new Uint8Array(readFileSync(new URL('./fixtures/imageio-121x81.png', import.meta.url)));
+const orig = readPng(imageio);
+back = readPng((await shrinkPng(imageio, 1e6)).bytes);
+ok('a PNG written by ImageIO, 121 x 81: 60 x 40, the odd row and column dropped',
+   pngInfo(imageio)?.colourType === 6 && back.width === 60 && back.height === 40
+   && same(back.data, expectedHalf(orig.data, 121, 81, 4, 3)));
+
+let seed = 1;
+const noise = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) >> 16 & 255;
+src = makePng(64, 64, () => noise(), { channels: 3, filters: [0] });
+small = await shrinkPng(src.bytes, 1500);
+ok('when half is not small enough, it halves again', small && small.width < 32 && small.bytes.length <= 1500, J(small && { w: small.width, n: small.bytes.length }));
+ok('and gives up rather than send a file that is too big', (await shrinkPng(src.bytes, 10)) === null);
+
+const zeros = new Uint8Array(4096);
+const refused = [
+  ['not a PNG', new Uint8Array(4000)],
+  ['interlaced', rawPng(ihdr(8, 8, { interlace: 1 }), chunk('IDAT', deflateSync(zeros)), chunk('IEND', zeros.subarray(0, 0)))],
+  ['16 bits a channel', rawPng(ihdr(8, 8, { depth: 16 }), chunk('IDAT', deflateSync(zeros)), chunk('IEND', zeros.subarray(0, 0)))],
+  ['a palette PNG', rawPng(ihdr(8, 8, { colourType: 3 }), chunk('IDAT', deflateSync(zeros)), chunk('IEND', zeros.subarray(0, 0)))],
+  ['no image data', rawPng(ihdr(8, 8), chunk('IEND', zeros.subarray(0, 0)))],
+  ['image data that is not zlib', rawPng(ihdr(8, 8), chunk('IDAT', zeros.subarray(0, 100)), chunk('IEND', zeros.subarray(0, 0)))],
+  ['image data that unpacks to more than the header says', rawPng(ihdr(8, 8), chunk('IDAT', deflateSync(new Uint8Array(1 << 20))), chunk('IEND', zeros.subarray(0, 0)))],
+  ['a file cut short', makePng(64, 48, opaque).bytes.subarray(0, 900)],
+];
+const nulls = [];
+for (const [, bytes] of refused) nulls.push(await shrinkPng(bytes, 1e6));
+ok('anything else gives null, never a guess: ' + refused.map(([n]) => n).join('; '), nulls.every((x) => x === null), J(nulls.map((x) => x && 'made one')));
+const huge = rawPng(ihdr(3841, 2400), chunk('IEND', zeros.subarray(0, 0)));
+ok(`more pixels than was measured (${MAX_PIXELS}) is not tried; a 3840 x 2400 header is`,
+   !canShrink(huge) && (await shrinkPng(huge, 1e6)) === null && canShrink(rawPng(ihdr(3840, 2400), chunk('IEND', zeros.subarray(0, 0)))));
+
+// A screenshot over the bucket limit and under Dink's 8 MB: 1200 x 900,
+// stored without compression, about 4.3 MB.
+const big = makePng(1200, 900, opaque, { filters: [0], level: 0, idatChunk: 1 << 16 });
+const bigShot = { bytes: big.bytes, type: 'image/png' };
+if (!(big.bytes.length > MAX_BYTES && big.bytes.length <= MAX_SHRINK_INPUT)) throw new Error('test screenshot is the wrong size');
+let shrinkCalls = 0;
+const countShrinks = { shrink: (...a) => { shrinkCalls++; return shrinkPng(...a); } };
 
 // --------------------------------------------------------------- the game
 const { db, ids, g, team, T, opt, tok, site, plugin } = await buildGame();
@@ -152,16 +221,46 @@ ok('a drop for a locked region: nothing stored, nothing counted',
 ok('and the same outcome as a drop nobody wants',
    J({ ...resLocked, results: resLocked.results.map((r) => r.verdict) }) === J({ ...resJunk, results: resJunk.results.map((r) => r.verdict) }));
 
-res = await send('blue', loot('Blue Main', ['Dragon pickaxe']), png(14));
+res = await send('mate', loot('Mate Iron', ['Bones']), bigShot, countShrinks);
+const resBigLocked = await send('mate', loot('Mate Iron', ['Dragon pickaxe']), bigShot, countShrinks);
+ok('a big screenshot of a drop nobody wants, or of a locked tile, is never made smaller (no CPU spent on it)',
+   res.outcome === 'nothing_submitted' && resBigLocked.outcome === 'nothing_submitted' && shrinkCalls === 0 && store.size === before, J(res));
+
+// Blue's screenshot is the big one: over the bucket limit, under Dink's 8 MB.
+const bluePick = loot('Blue\u00a0Main', ['Dragon pickaxe']);
+let submittedKey = null;
+res = await send('blue', bluePick, bigShot, { ...countShrinks,
+  rpc: (fn, args) => { if (fn === 'plugin_submit') submittedKey = args.p_detail.dedupe; return deps.rpc(fn, args); } });
 ok("the same drop counts for Blue, who has opened that region",
    res.outcome === 'submitted' && (await evidence(team.Blue)).length === 1 && (await evidence(team.Red)).length === 1, J(res));
 ok("Blue's name came with the game's non-breaking space, and is kept with a plain one",
    (await evidence(team.Blue))[0].detail.rsn === 'Blue Main');
+const blueEv = (await evidence(team.Blue))[0];
+const kept = store.get(blueEv.storage_path);
+const keptPng = kept && readPng(kept.bytes);
+ok(`its ${(big.bytes.length / 1048576).toFixed(1)} MB screenshot was made smaller, once, and kept as a PNG under 3 MB`,
+   shrinkCalls === 1 && kept.type === 'image/png' && blueEv.storage_path.endsWith('.png') && kept.bytes.length <= MAX_BYTES
+   && keptPng.width === 600 && keptPng.height === 450 && same(keptPng.data, expectedHalf(big.data, 1200, 900, 4, 3)),
+   J({ calls: shrinkCalls, type: kept?.type, n: kept?.bytes.length }));
+ok("the evidence says so: resized_from '1200x900', and the log line has the sizes and the time",
+   blueEv.detail.resized_from === '1200x900' && res.resized?.to === '600x450' && res.resized.bytes_in === big.bytes.length
+   && res.resized.bytes_out === kept.bytes.length && Number.isInteger(res.resized.ms), J([blueEv.detail, res.resized]));
+ok("the dedupe key is made from the screenshot as Dink sent it, so a retry is known whatever the shrinking gives",
+   submittedKey === `${await dedupeKey(J(bluePick), big.bytes)}:${opt['Dragon pickaxe']}`, submittedKey);
+before = store.size;
+res = await send('blue', bluePick, bigShot, countShrinks);
+ok("Dink's retry once that filled the tile: nothing counted, nothing stored, nothing made smaller",
+   res.outcome === 'nothing_submitted' && (await evidence(team.Blue)).length === 1 && store.size === before && shrinkCalls === 1, J(res));
 
 before = store.size;
 for (const [name, run, want] of [
   ['no screenshot', () => send('mate', loot('Mate Iron', ['Abyssal whip']), null), 'no_screenshot'],
-  ['a screenshot over the bucket limit', () => send('mate', loot('Mate Iron', ['Abyssal whip']), { bytes: new Uint8Array(MAX_BYTES + 1), type: 'image/png' }), 'screenshot_too_large'],
+  ['a screenshot over the bucket limit that is not a PNG this can read', () => send('mate', loot('Mate Iron', ['Abyssal whip']), { bytes: new Uint8Array(MAX_BYTES + 1), type: 'image/png' }), 'screenshot_too_large'],
+  ['a JPEG over the bucket limit (not made smaller here)', () => send('mate', loot('Mate Iron', ['Abyssal whip']), { bytes: big.bytes, type: 'image/jpeg' }), 'screenshot_too_large'],
+  ["a PNG over Dink's 8 MB", () => send('mate', loot('Mate Iron', ['Abyssal whip']), { bytes: padTo(big.bytes, MAX_SHRINK_INPUT + 1), type: 'image/png' }), 'screenshot_too_large'],
+  ['a PNG with more pixels than was measured', () => send('mate', loot('Mate Iron', ['Abyssal whip']), { bytes: padTo(rawPng(ihdr(3841, 2400)), MAX_BYTES + 1), type: 'image/png' }), 'screenshot_too_large'],
+  // The whip tile wants this drop, so this one really is decoded, and fails.
+  ['a PNG over the bucket limit whose data is broken', () => send('mate', loot('Mate Iron', ['Abyssal whip']), { bytes: padTo(rawPng(ihdr(1200, 900), chunk('IDAT', new Uint8Array(500))), MAX_BYTES + 1), type: 'image/png' }), 'screenshot_too_large'],
   ['a file that is not an image the bucket takes', () => send('mate', loot('Mate Iron', ['Abyssal whip']), { bytes: new Uint8Array(4), type: 'image/gif' }), 'screenshot_type'],
   ["an in-game name that is not the player's", () => send('mate', loot('Zezima', ['Abyssal whip']), png(15)), 'unknown_account'],
   ['a notification that is not a drop', () => send('mate', { type: 'DEATH', playerName: 'Mate Iron', extra: {} }, png(16)), 'not_a_drop'],

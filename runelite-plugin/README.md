@@ -17,11 +17,13 @@ become migrations when they are moved there on purpose.
 | `server/002_plugin_drops.sql` | Evidence `source` and `detail`, the intake log, `plugin_watchlist`, `plugin_match`, `plugin_open`, `plugin_submit` | Tested offline against the real rules, and on a local Supabase stack |
 | `server/intake/dink.mjs` | Reads a Dink notification; makes the dedupe key | Tested; checked against Dink's source, not yet against a real client |
 | `server/intake/handle.mjs` | What happens to one notification: match, open, store, submit | Tested end to end, offline |
+| `server/intake/shrink.mjs` | Makes a screenshot over 3 MB smaller: halves a PNG until it fits. No library, only what the runtime has | Tested offline and in the edge runtime |
 | `server/intake/index.ts` | The Edge Function shell around `handle.mjs` | Tested on the local stack; not deployed anywhere |
 | `server/test/replay.mjs` | Replays all 129 migrations into an in-memory Postgres, with stand-ins for what Supabase provides | Works; the repo's own Region Bingo smoke test passes on it, 76 of 76 |
-| `server/test/*.test.mjs` | Three test files, 136 checks, run by `npm test` | All pass |
+| `server/test/*.test.mjs` | Three test files, 154 checks, run by `npm test` | All pass |
+| `server/test/png.mjs`, `fixtures/` | A PNG writer and reader for the tests only, and one small PNG written by Java's ImageIO | |
 | `server/local/` | A local Supabase stack: `config.toml`, and `prepare.mjs`, which copies the migrations, the two drafts and the intake function into it | Works with Supabase CLI 2.122.0 and Docker |
-| `server/test/stack.test.mjs` | 53 checks against that stack, the Edge Function included, run by `npm run test:stack` | All pass |
+| `server/test/stack.test.mjs` | 56 checks against that stack, the Edge Function included, run by `npm run test:stack` | All pass |
 | `plugin/.../core/` | `DropKey` and `WatchList`: the matching rule in plain Java | Tested, 16 checks |
 | `plugin/.../HsEvents*.java`, build files | The RuneLite plugin skeleton | **Never compiled** |
 
@@ -60,13 +62,55 @@ and `add_evidence` are the real ones:
   `plugin_rsn_ok`.
 - **Nobody else's name is kept.** The raid party Dink lists with a raid's
   loot never reaches the evidence row.
+- **A screenshot over 3 MB is made smaller, not lost.** See "Screenshots over
+  3 MB" below.
+
+## Screenshots over 3 MB
+
+The bucket takes 3 MB. Dink sends up to 8,000,000 bytes, as a PNG; only above
+that does it make a JPEG itself. A sample of 16,479 RuneLite screenshots from
+one client, taken the way Dink takes them, ran at 0.4 to 1.1 bytes a pixel.
+By that estimate a 1080p screenshot always fits, a 1440p one goes over 3 MB
+now and then, and a 4K one usually does.
+
+`shrink.mjs` halves the width and height of such a PNG until it fits: a 4K
+screenshot becomes 1920 x 1080. It uses no image library, only the runtime's
+own zlib and plain loops, so no third-party code runs beside the service-role
+key and nothing had to be downloaded. It reads only what Dink sends: an 8-bit
+RGB or RGBA PNG, not interlaced, at most 3840 x 2400 pixels. Anything else
+over 3 MB is ignored as before, and the player hands that drop in on the site.
+
+- **The cost was measured where it counts.** Supabase allows 2 seconds of CPU
+  and 256 MB per request, and the CLI's local runtime enforces the same.
+  There, the worst case, 3840 x 2400 at 7.2 MB, became 1920 x 1200 at 1.7 MB in
+  258 to 332 ms, end to end through the function. A first version took up to
+  1.1 s; nearly all of it was compressing, so rows are now left unfiltered,
+  which compresses three times faster for a slightly bigger file.
+- **It is the same picture.** Every pixel is the average of its 2 x 2 block,
+  checked against a separate PNG reader, against Pillow's own downscale, and
+  on a PNG written by Java's ImageIO, as Dink writes them. A screenshot's
+  alpha, always opaque, is left out.
+- **Only for a drop that will count.** The header is read first; the picture
+  is only decoded once the database says one open tile wants the drop. Junk
+  and a locked tile's drop cost nothing.
+- **The evidence says so**: `resized_from`, for example `3840x2400`. The log
+  line has the sizes and the time taken.
+- **A retry is still a retry.** The dedupe key is made from the screenshot as
+  Dink sent it.
+- **Anything it cannot read gives up, never guesses**: not a PNG, interlaced,
+  16-bit, a palette, broken or cut-short data, data that unpacks to more than
+  its header says, or more pixels than were measured.
+
+A player can also avoid it: Dink's "Screenshot Scale" setting (Advanced,
+default 100%) shrinks every screenshot before it is sent. On a 4K screen, 50%
+keeps it under 3 MB.
 
 ## What the local stack proves
 
 `stack.test.mjs` runs against the Supabase CLI's own local stack, which is the
 same software a hosted project runs: Postgres 17.11, PostgREST 16.5, Storage
 1.84.19, Auth 2.197.0, edge runtime 1.77.8 (Deno 2). It is not the live
-project and never touches it. Tested 2026-11-21, 53 of 53.
+project and never touches it. Tested 2026-11-21, 56 of 56.
 
 - **The migrations apply on real Supabase.** All 129, then the two drafts, by
   the CLI itself, with no errors.
@@ -131,6 +175,9 @@ with no sign-in.
   collection-log notification for a drop already counted is ignored.
 - **The log says what happened and nothing more.** One line per request with
   its outcome, and never a token.
+- **The worst screenshot fits in the runtime.** A 7.2 MB, 3840 x 2400 PNG is
+  handed in, kept at 1920 x 1200 and 1.7 MB, pixel for pixel the expected
+  half-size picture, with `resized_from` on its evidence.
 
 ## What they do not prove
 
@@ -141,9 +188,11 @@ with no sign-in.
   Dink's `docs/json-examples.md` and against the Java classes that write the
   JSON (commit `ae769ad`, 2026-11-19). It has still never read a notification
   sent by a client.
-- **Screenshot size.** Dink can send up to 8 MB and the bucket takes 3 MB.
-  Today anything larger is ignored. Shrinking it in the Edge Function is not
-  written.
+- **A hosted CPU.** The shrinking was timed on this machine's CPU, under the
+  same limits a hosted project has. A hosted CPU may be slower; the worst
+  case uses about a sixth of the 2 seconds. The log line's `ms` will show it.
+- **A JPEG over 3 MB** is still ignored. Dink only makes a JPEG for a
+  screenshot over 8 MB, so this needs a screen bigger than 4K.
 - **The RuneLite classes**, which have never been compiled.
 
 ## Found along the way
@@ -208,7 +257,6 @@ the test. The test reads the stack's own development keys from
 
 1. One real Dink client pointed at the local function, to see a message that
    was not written by a test.
-2. Shrinking a screenshot that is over 3 MB.
-3. The My Account screen for tokens, and `source` in the review screen. These
+2. The My Account screen for tokens, and `source` in the review screen. These
    are the first changes to the website itself.
 4. Build the RuneLite plugin once on a machine that can reach RuneLite.

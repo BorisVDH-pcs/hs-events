@@ -19,7 +19,7 @@ const DRAFTS = [
   ['../001_plugin_tokens.sql', '99990101000001_plugin_tokens.sql'],
   ['../002_plugin_drops.sql', '99990101000002_plugin_drops.sql'],
 ];
-const FUNCTION_FILES = ['index.ts', 'handle.mjs', 'dink.mjs'];
+const FUNCTION_FILES = ['index.ts', 'handle.mjs', 'dink.mjs', 'shrink.mjs'];
 
 const migrations = here('supabase/migrations/');
 rmSync(migrations, { recursive: true, force: true });

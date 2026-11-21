@@ -22,6 +22,8 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { pngInfo } from '../intake/shrink.mjs';
+import { expectedHalf, makePng, readPng, same } from './png.mjs';
 
 const J = (v) => JSON.stringify(v);
 let pass = 0, fail = 0;
@@ -151,6 +153,7 @@ const T = {
     options: [{ label: "Dharok's helm", points: 1 }, { label: "Karil's coif", points: 1 }] }),
   helmet: await tile(2, 3, { name: 'Any helmet', rule: 'points', amount: 1, options: [{ label: 'Dharoks helm', points: 1 }] }),
   whip: await tile(3, 2, { name: 'Whip', rule: 'points', amount: 1, options: [{ label: 'Abyssal whip', points: 1 }] }),
+  chain: await tile(4, 2, { name: 'Chainbody', rule: 'points', amount: 1, options: [{ label: 'Dragon chainbody', points: 1 }] }),
   locked: await tile(101, 4, { name: 'Locked secret tile', rule: 'points', amount: 1,
     options: [{ label: 'Dragon pickaxe', points: 1 }] }),
 };
@@ -357,12 +360,33 @@ ok('and hands nothing in for Red', sqlJson(`select 1 from tile_evidence e join t
 d = await dink(tok.blue, { ...pick, type: 'COLLECTION', extra: { itemName: 'Dragon pickaxe', itemId: 11920, price: 5_000_000 } }, PNG);
 ok('a collection-log notification for the same drop: 200, nothing new', d.status === 200 && blueRows().length === 1, J(d));
 
+// The worst screenshot Dink sends as a PNG: the most pixels shrink.mjs takes
+// (3840 x 2400), about 7 MB, so the bucket refuses it as it is. It must be made
+// smaller inside the runtime's 2 s of CPU and 256 MB.
+let lcg = 7;
+const rnd = () => (lcg = (lcg * 1103515245 + 12345) & 0x7fffffff) >> 16;
+const worst = makePng(3840, 2400, (x, y, k) => (k === 3 ? 255
+  : (((x >> 3) * 5 + (y >> 2) * 3 + k * 70) & 255) ^ ((rnd() & 31) < 3 ? rnd() & 3 : 0)), { filters: [0], idatChunk: 1 << 16 });
+if (!(worst.bytes.length > 3 * 1024 * 1024 && worst.bytes.length < 8_000_000)) throw new Error('worst-case screenshot is the wrong size');
+d = await dink(tok.mate, lootFrom('Mate Iron', [['Dragon chainbody', 3140, 4_000_000]]), worst.bytes);
+const chain = sqlJson(`select e.detail, e.storage_path from tile_evidence e join tile_claims c on c.id = e.claim_id where c.tile_id = '${T.chain}'`);
+const chainFile = chain[0] ? await download(chain[0].storage_path) : { status: 0 };
+const chainInfo = chainFile.bytes && pngInfo(chainFile.bytes);
+ok(`a ${(worst.bytes.length / 1048576).toFixed(1)} MB, 3840 x 2400 screenshot: 200, and handed in`,
+   d.status === 200 && d.body === '{"ok":true}' && chain.length === 1, J(d));
+ok('kept in Storage at 1920 x 1200, under 3 MB, the same picture at half the size',
+   chainFile.status === 200 && chainFile.bytes.length <= 3 * 1024 * 1024 && chainInfo?.width === 1920 && chainInfo?.height === 1200
+   && same(readPng(chainFile.bytes).data, expectedHalf(worst.data, 3840, 2400, 4, 3)), J([chainFile.status, chainFile.bytes?.length, chainInfo]));
+ok("and its evidence says resized_from '3840x2400'", chain[0]?.detail?.resized_from === '3840x2400', J(chain[0]?.detail));
+
 await new Promise((res) => setTimeout(res, 800));
 const log = fnLog().slice(logBefore);
 const outcomes = [...log.matchAll(/\{"outcome":"([a-z_]+)"(?:,"reason":"([a-z_]+)")?/g)].map((x) => x[2] ?? x[1]);
 ok("the function's log has one line per request, with the outcome",
    J(outcomes) === J(['bad_token', 'bad_json', 'submitted', 'nothing_submitted', 'nothing_submitted', 'nothing_submitted',
-                      'nothing_submitted', 'covered_by_loot']), J(outcomes));
+                      'nothing_submitted', 'covered_by_loot', 'submitted']), J(outcomes));
+const resizedLog = log.match(/"resized":(\{[^}]*\})/);
+console.log(`     (in the edge runtime: ${resizedLog ? resizedLog[1] : 'no resize logged'})`);
 ok('and never a token', !/hse_/.test(log) && !Object.values(tok).some((t) => log.includes(t)));
 
 // ------------------------------------------------------------- revoking

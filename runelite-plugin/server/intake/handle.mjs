@@ -8,10 +8,13 @@
 // worth (plugin_submit, which is add_evidence).
 
 import { dedupeKey, parseDink } from './dink.mjs';
+import { canShrink, shrinkPng } from './shrink.mjs';
 
 /** The evidence bucket's own limits (0021_evidence.sql). */
 export const MAX_BYTES = 3 * 1024 * 1024;
 export const IMAGE_TYPES = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' };
+/** Dink never sends more: over 8,000,000 bytes it turns the PNG into a smaller JPEG itself. */
+export const MAX_SHRINK_INPUT = 8_000_000;
 
 const TOKEN = /^hse_[0-9a-f]{64}$/;
 /** Postgres' code for `raise exception`. deps.rpc must pass it on as `error.code`. */
@@ -24,8 +27,9 @@ const RULE_REFUSAL = 'P0001';
  *   upload: (path: string, bytes: Uint8Array, type: string) => Promise<void>,
  *   remove: (path: string) => Promise<void>,
  *   uuid?: () => string,
+ *   shrink?: typeof shrinkPng,   // only the tests replace it
  * }} deps
- * @returns {Promise<{status: number, outcome: string, reason?: string, results?: object[]}>}
+ * @returns {Promise<{status: number, outcome: string, reason?: string, results?: object[], resized?: object}>}
  *   `status` is what Dink is told. Everything else is for the log only: the
  *   HTTP answer never says what matched (see index.ts).
  */
@@ -47,7 +51,12 @@ export async function handleDink({ token, payloadText, image }, deps) {
   if (!drop.ok) return { status: 200, outcome: 'ignored', reason: drop.reason };
   if (!image) return { status: 200, outcome: 'ignored', reason: 'no_screenshot' };
   if (!(image.type in IMAGE_TYPES)) return { status: 200, outcome: 'ignored', reason: 'screenshot_type' };
-  if (image.bytes.length > MAX_BYTES) return { status: 200, outcome: 'ignored', reason: 'screenshot_too_large' };
+  // Over the bucket's limit: only a PNG as Dink writes it can be made smaller
+  // (shrink.mjs). Checked from its header alone, before anything is asked.
+  const tooBig = image.bytes.length > MAX_BYTES;
+  if (tooBig && (image.type !== 'image/png' || image.bytes.length > MAX_SHRINK_INPUT || !canShrink(image.bytes))) {
+    return { status: 200, outcome: 'ignored', reason: 'screenshot_too_large' };
+  }
 
   let match;
   try {
@@ -60,9 +69,25 @@ export async function handleDink({ token, payloadText, image }, deps) {
   }
   if (!match.account_ok) return { status: 200, outcome: 'ignored', reason: 'unknown_account' };
 
+  // The key is made from the screenshot as Dink sent it, so a retry is known
+  // whatever the shrinking does.
   const base = await dedupeKey(payloadText, image.bytes);
   const uuid = deps.uuid ?? (() => crypto.randomUUID());
   const results = [];
+
+  // The shrinking costs CPU, so only for a drop that will be handed in.
+  let stored = image;
+  let resized;
+  if (tooBig && match.items.some((m) => m.verdict === 'one')) {
+    const started = performance.now();
+    const small = await (deps.shrink ?? shrinkPng)(image.bytes, MAX_BYTES);
+    if (!small) return { status: 200, outcome: 'ignored', reason: 'screenshot_too_large' };
+    stored = { bytes: small.bytes, type: 'image/png' };
+    resized = {
+      from: `${small.fromWidth}x${small.fromHeight}`, to: `${small.width}x${small.height}`,
+      bytes_in: image.bytes.length, bytes_out: small.bytes.length, ms: Math.round(performance.now() - started),
+    };
+  }
 
   for (let i = 0; i < match.items.length; i++) {
     const verdict = match.items[i].verdict;
@@ -81,8 +106,8 @@ export async function handleDink({ token, payloadText, image }, deps) {
     let path = null;
     try {
       const opened = await deps.rpc('plugin_open', args);
-      path = `${opened.path_prefix}${uuid()}.${IMAGE_TYPES[image.type]}`;
-      await deps.upload(path, image.bytes, image.type);
+      path = `${opened.path_prefix}${uuid()}.${IMAGE_TYPES[stored.type]}`;
+      await deps.upload(path, stored.bytes, stored.type);
       const res = await deps.rpc('plugin_submit', {
         ...args,
         p_storage_path: path,
@@ -93,6 +118,8 @@ export async function handleDink({ token, payloadText, image }, deps) {
           rsn: drop.rsn, item: item.name, item_id: item.id, quantity: item.quantity,
           price_each: item.priceEach, from: drop.from, category: drop.category,
           world: drop.world, region_id: drop.regionId, seasonal: drop.seasonal, dink_type: drop.type,
+          // So a reviewer knows the picture was made smaller here, and from what.
+          ...(resized ? { resized_from: resized.from } : {}),
         },
       });
       // A retry of a drop already counted: the first screenshot is the one on
@@ -115,5 +142,6 @@ export async function handleDink({ token, payloadText, image }, deps) {
     status: 200,
     outcome: results.some((r) => r.submitted) ? 'submitted' : 'nothing_submitted',
     results,
+    ...(resized ? { resized } : {}),
   };
 }

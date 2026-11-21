@@ -68,7 +68,7 @@ Deno.serve(async (req) => {
   try {
     const result = await handleDink({ token: url.searchParams.get('t'), payloadText, image }, deps);
     // The log gets the outcome. Never the token, never the request URL.
-    console.log(JSON.stringify({ outcome: result.outcome, reason: result.reason, results: result.results }));
+    console.log(JSON.stringify({ outcome: result.outcome, reason: result.reason, results: result.results, resized: result.resized }));
     return done(result.status);
   } catch (e) {
     console.error('intake failed:', (e as Error).message);
