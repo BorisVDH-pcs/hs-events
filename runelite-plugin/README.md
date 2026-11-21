@@ -1,8 +1,8 @@
 # hs-events and Dink: work so far
 
-Started 2026-11-20 from `docs/runelite-plugin-plan.md`. Nothing has been
-applied to the live Supabase project yet: that happens when Boris merges
-this branch (see "Going live").
+Started 2026-11-20 from `docs/runelite-plugin-plan.md`. Live for Region
+Bingo since 2026-11-21: Boris merged it (pull request #83, see "Going
+live"). Hidden games followed the same day (pull request #84).
 
 **Dink only.** On 2026-11-21 Boris decided against a plugin of our own: drops
 come in through Dink, the RuneLite plugin many players already run, and this
@@ -46,32 +46,34 @@ applies them on merge.
 | `supabase/functions/intake/dink.mjs` | Reads a Dink notification; makes the dedupe key | Tested; checked against Dink's source, and read real loot from a real Dink client on 2026-11-21. Pets not yet from a client |
 | `supabase/functions/intake/handle.mjs` | What happens to one notification: match, open, store, submit, or keep it for the team to choose; and removing the screenshots nobody needs | Tested end to end, offline |
 | `supabase/functions/intake/shrink.mjs` | Makes a screenshot over 3 MB smaller: halves a PNG until it fits. No library, only what the runtime has | Tested offline and in the edge runtime |
-| `supabase/functions/intake/index.ts` | The Edge Function shell around `handle.mjs`; cleans up after each request whose token the database accepted | Tested on the local stack; not deployed anywhere yet |
-| `.github/workflows/functions-deploy.yml` | Deploys `intake` when `supabase/functions` changes on `main`, with the secrets `db-push.yml` has | Not run yet: it first runs on merge |
+| `supabase/functions/intake/index.ts` | The Edge Function shell around `handle.mjs`; cleans up after each request whose token the database accepted | Tested on the local stack. Deployed to the live project on 2026-11-21 (pull request #83); not yet called there by a real Dink |
+| `.github/workflows/functions-deploy.yml` | Deploys `intake` when `supabase/functions` changes on `main`, with the secrets `db-push.yml` has | Ran on the merge of pull request #83 (2026-11-21): refused at first, since the deploy token could only read, then deployed `intake` once Boris gave it Edge Functions read-write |
 | `server/test/replay.mjs` | Replays all 132 migrations into an in-memory Postgres, with stand-ins for what Supabase provides | Works; the repo's own Region Bingo smoke test passes on it, 76 of 76 |
 | `server/test/*.test.mjs` | Eight test files, 383 checks, run by `npm test` | All pass |
 | `server/test/png.mjs`, `fixtures/` | A PNG writer and reader for the tests only, and one small PNG written by Java's ImageIO | |
 | `server/local/` | A local Supabase stack: `config.toml`, and `prepare.mjs`, which copies the migrations and the intake function into it | Works with Supabase CLI 2.122.0 and Docker |
 | `server/test/stack.test.mjs` | 134 checks against that stack, the Edge Function included, run by `npm run test:stack` | All pass |
-| `web/src/components/PluginTokens.jsx` | The Plugin tokens section of My Account: make a token, see its Dink link once, revoke | Tried in the preview harness, and used by Boris on the local stack to set up a real Dink (2026-11-21). Not on the live project |
+| `server/test/load.mjs` | A load test of the intake on that stack: 1,830 requests shaped like Dink's, with heavy screenshots, at 60, 300 and 1,000 a minute and 200 at once, sent again as Dink does. Run by `npm run load:stack`, about 6 minutes | Run on 2026-11-21: nothing lost, nothing counted twice (see "Many drops at once") |
+| `web/src/components/PluginTokens.jsx` | The Plugin tokens section of My Account: make a token, see its Dink link once, revoke | Tried in the preview harness, and used by Boris on the local stack to set up a real Dink (2026-11-21). On the live site since 2026-11-21 (pull request #83); not used there yet |
 | `web/src/lib/pluginTokens.js` | The Dink link, the name check, "last used" in words | Tested by `web/scripts/plugin-tokens-selftest.mjs`, and used by `stack.test.mjs` |
 | `web/preview-account.html` | A harness for My Account with fixture tokens | |
-| `web/src/components/EvidenceReview.jsx` | The organiser's evidence review: "Sent by plugin" on a row a plugin handed in, with what it reported | Tried in the preview harness, and seen by Boris on the local stack with his own drops (2026-11-21). Not on the live project |
-| `web/src/components/EvidencePanel.jsx` | Every tile's panel, a team's and an organiser's: Dink's report beside each Dink screenshot ("Bones ×1 from Woman", the time, the world) | Tried in the preview harness at desktop and phone width; its call tested through PostgREST on the local stack, and Boris's own Bones row read through it. Not yet opened by Boris on the local site. Not on the live project |
+| `web/src/components/EvidenceReview.jsx` | The organiser's evidence review: "Sent by plugin" on a row a plugin handed in, with what it reported | Tried in the preview harness, and seen by Boris on the local stack with his own drops (2026-11-21). On the live site since 2026-11-21 (pull request #83); not used there yet |
+| `web/src/components/EvidencePanel.jsx` | Every tile's panel, a team's and an organiser's: Dink's report beside each Dink screenshot ("Bones ×1 from Woman", the time, the world) | Tried in the preview harness at desktop and phone width; its call tested through PostgREST on the local stack, and Boris's own Bones row read through it. Not yet opened by Boris on the local site. On the live site since 2026-11-21 (pull request #83); not used there yet |
 | `web/src/lib/evidenceSource.js` | The label, the drop line and the lines under it, from `source` and `detail` | Tested by `web/scripts/evidence-source-selftest.mjs`, and used by `stack.test.mjs` |
-| `web/src/components/WaitingDrops.jsx` | The box above a team's board: a drop two tiles want, its screenshot and Dink's report, and a button for each tile | Tried in the preview harness at desktop and phone width; the calls behind it tested through PostgREST and Storage on the local stack; used by Boris on the local site for a real Dink cow (2026-11-21). Not on the live project |
+| `web/src/components/WaitingDrops.jsx` | The box above a team's board: a drop two tiles want, its screenshot and Dink's report, and a button for each tile | Tried in the preview harness at desktop and phone width; the calls behind it tested through PostgREST and Storage on the local stack; used by Boris on the local site for a real Dink cow (2026-11-21). On the live site since 2026-11-21 (pull request #83); not used there yet |
 | `web/src/lib/waitingDrops.js` | The box's helpers: a tile's name with its region, the time left. Where the copy goes is now the database's answer | Tested by `web/scripts/waiting-drops-selftest.mjs` |
-| `web/src/components/Admin.jsx` | "Drops from Dink" on each Region Bingo game that has not finished: the site's own switch, as for Discord | Tried in the admin harness (`/preview-admin.html`) at desktop and phone width; its call tested through PostgREST on the local stack. Not used by Boris yet. Not on the live project |
-| `web/src/components/TileForm.jsx` | The tile editor: "Not in the item list" under a drop, with names to click, and "Add a list…" | Tried in the admin harness (`/preview-admin.html`), at desktop and phone width. Not on the live project, not used by Boris yet |
+| `web/src/components/Admin.jsx` | "Drops from Dink" on each Region Bingo game that has not finished: the site's own switch, as for Discord | Tried in the admin harness (`/preview-admin.html`) at desktop and phone width; its call tested through PostgREST on the local stack. On the live site since 2026-11-21 (pull request #83): seen there, off, on the hidden test game; not switched yet |
+| `web/src/components/TileForm.jsx` | The tile editor: "Not in the item list" under a drop, with names to click, and "Add a list…" | Tried in the admin harness (`/preview-admin.html`), at desktop and phone width. On the live site since 2026-11-21 (pull request #83); not used by Boris yet |
 | `web/src/lib/itemNames.js`, `itemNames.data.js` | `dropKey` (the server's `drop_key` in JS), the check, and 4,820 item names | Tested by `web/scripts/item-names-selftest.mjs`; `tokens.test.mjs` checks `dropKey` against `drop_key` on every name |
 | `web/scripts/build-item-names.mjs` | Makes `itemNames.data.js` from the OSRS Wiki's price list and a typed list of untradeables | Run once, 2026-11-21 |
 | `web/src/lib/dropLists.js` | The ready-made lists: 65 of them, for raids, groups of bosses, every boss in the collection log and pets | Every name is checked against the item list by the selftest, spelled exactly as the item is |
 
 ## Going live
 
-Asked for by Boris on 2026-11-21: Dink goes live for Region Bingo. Nothing
-reaches the live project until he merges this branch into `main`. Then, side
-by side:
+Asked for by Boris on 2026-11-21: Dink goes live for Region Bingo. **Live
+since the same evening:** Boris merged pull request #83 into `main` (see
+Next, item 10). Written before the merge; what the merge set off, side by
+side:
 
 - **`db-push.yml`** applies the two new migrations,
   `20261121120000_plugin_tokens.sql` and `20261121120100_plugin_drops.sql`,
@@ -409,20 +411,26 @@ with no sign-in. Every request goes to a link made by the site's own
 
 - **A hosted Supabase project.** The local stack runs the same software, but
   the live project's settings, its Postgres version and its limits were not
-  compared, by design. The Edge Function has not been deployed; see "Going
-  live" for what is checked after the merge.
+  compared, by design. The Edge Function is deployed there, but no real
+  Dink has called it yet; see "Going live", checks 2 to 4.
 - **A pet from a real Dink.** Loot from a real client has been read (see "A
   real Dink client" below). A pet notification has only been checked against
   Dink's source, and a real screenshot over 3 MB has not come in yet: the
   real ones were about 0.2 MB.
+- **Many drops on the hosted project.** The load test ran on this machine,
+  where one edge runtime shares its cores with the database. A hosted
+  project runs the function on Supabase's own machines, which handle a burst
+  their own way, and its free-plan database is smaller than this machine.
+  Not tried there, by design: the live project is not load-tested.
 - **A hosted CPU.** The shrinking was timed on this machine's CPU, under the
   same limits a hosted project has. A hosted CPU may be slower; the worst
   case uses about a sixth of the 2 seconds. The log line's `ms` will show it.
 - **A JPEG over 3 MB** is still ignored. Dink only makes a JPEG for a
   screenshot over 8 MB, so this needs a screen bigger than 4K.
 - **The live project.** The token screen, the review screen's label,
-  Dink's report in a tile's panel, the waiting box and the switch have run
-  against the local stack only.
+  Dink's report in a tile's panel, the waiting box and the switch are on the
+  live site since 2026-11-21, but have only been used against the local
+  stack.
 - **The switch in a signed-in browser.** Tried in the admin harness and
   through PostgREST. Boris has not flipped it on the local site yet. His
   "Dink trial", built before the switch existed, was switched on by SQL on
@@ -804,8 +812,10 @@ in the console's Configure pane and in the new-event form
 Tested offline (`hidden.test.mjs`), on the local stack through PostgREST
 (`stack.test.mjs`: the login page's own query as a signed-out visitor), in
 the console and login harnesses, and with the login page's query through
-the site's own client against the local stack. Not yet on the live site: it
-goes live when Boris merges its pull request.
+the site's own client against the local stack. Live since 2026-11-21: pull
+request #84, merge `383b25e`, its database change and the site deployed
+green. The first hidden game on the live site, "Dink test (hidden)", was set
+up the same day (see Next, item 11).
 
 ## The tile editor's name check
 
@@ -886,6 +896,58 @@ tile suggestions all use.
   can answer what the server would. `tokens.test.mjs` runs both over every
   name in the list and every ready-made drop: they agree on all 5,317.
 
+## Many drops at once
+
+Asked by Boris on 2026-11-21: during an event, tens or hundreds of drops can
+come in within a minute, each with a screenshot. `load.mjs` sends that to the
+local stack and counts what comes out. Run twice on 2026-11-21, on this
+machine; the second run sends a failed request again, as Dink does.
+
+What it sends: 40 players in 4 teams, all with Misthalin open. Of every
+hundred notifications, 94 hold only drops nobody wants, 5 a drop one tile
+wants and 1 a drop two tiles want. The screenshots are 0.6, 2.8 and 6.2 MB
+(60, 35 and 5 in a hundred), made of noise, so they are as heavy as a PNG
+gets. Real Dink screenshots were about 0.2 MB.
+
+The second run, with Dink's resends:
+
+| Rate | Sent | 200 the first time | Sent again | Lost | Half answered within | 99 in 100 within | Slowest |
+|---|---|---|---|---|---|---|---|
+| 60 a minute, 30 s | 30 | 30 | 0 | 0 | 0.1 s | 0.3 s | 0.3 s |
+| 300 a minute, 2 minutes | 600 | 600 | 0 | 0 | 0.1 s | 0.6 s | 0.9 s |
+| 1,000 a minute, 1 minute | 1,000 | 988 | 12 | 0 | 0.3 s | 3.3 s | 5.1 s |
+| 200 at the same moment | 200 | 186 | 14 | 0 | 5.8 s | 13.0 s | 13.1 s |
+
+- **Nothing was lost or counted twice.** Every request was answered 200 in
+  the end: 25 after one resend, one after two. 80 drops were handed in, each
+  with one evidence row and one file. 19 waited for their team, once each.
+  No file was left without its row.
+- **A failed answer does not always mean nothing happened.** In the first
+  run, which did not resend, one request answered 503 had still handed its
+  drop in. In the second, one resend met a drop already kept, and the dedupe
+  key answered it without a second row. This is why the key is there.
+- **300 a minute had no failures.** Half the answers came within a tenth of
+  a second, the slowest within one second.
+- **At 1,000 a minute and at 200 at once, some first tries failed:** 24
+  answered 503 and 2 answered 500. In the first run: 24 answered 503 and 13
+  answered 546, all in the burst. None came from the function's own code.
+  Its error path logs "intake failed", and that line never appeared. Each
+  one lines up with the edge runtime's own limits: a worker stopped for CPU
+  time, a request cancelled by the runtime's supervisor, or a request handed
+  to a worker that had already retired. Dink's resends got every one in.
+- **The database was not the bottleneck.** The plugin's calls took 1 to 32
+  ms each, at the peak too (`plugin_match`: 25 ms over 1,849 calls). The
+  edge runtime was: in the burst it used nearly eight cores and 1.9 GB of
+  memory, holding 200 heavy screenshots at once. The database used about one.
+- **Cleanup failed four times, harmlessly.** In the burst, the function could
+  not reach the database to ask for leftover screenshots ("Connection reset
+  by peer"). That is only logged, Dink's answer does not change, and nothing
+  was marked, so the next request asks again.
+- **Storage.** The 99 kept drops took 147 MB, about 1.5 MB each, because the
+  noise screenshots are heavy. With real ones, a kept drop is about 0.2 MB.
+
+Not tried: the hosted project (see "What they do not prove").
+
 ## Found along the way
 
 Eight checks in the older smoke tests (`bingo`, `snakes`, `territory`) fail on
@@ -897,6 +959,11 @@ the expected wording is out of date. Not changed here.
 "(p+)" and "(p++)" are one drop to it, and so are "Anti-venom" and
 "Anti-venom+". A tile wanting the (p++) would take a (p). Found while building
 the name check; not changed, since it is a rule and Boris's call.
+
+The token is part of the Dink link, so the gateway's log keeps it with every
+request: seen in the local stack's log during the load test. The hosted
+project's logs may do the same; not checked. Only the project's admins can
+read them, and a player can revoke a token in My Account. Not changed.
 
 ## Dink, as it really is
 
@@ -947,7 +1014,12 @@ The local stack needs Docker and the Supabase CLI:
 
     cd runelite-plugin/server/local && node prepare.mjs && supabase start
     cd ../test && npm run test:stack
+    npm run load:stack                     the load test, about 6 minutes
     cd ../local && supabase stop
+
+`node load.mjs --quick` in `server/test` runs a short load test, to try the
+script itself. It refuses any API that is not on this machine, ends the game
+it made, and leaves that game's screenshots on the stack.
 
 After changing a migration, run `node prepare.mjs` and `supabase db reset`
 before the test. After changing the function, run `node prepare.mjs` and
@@ -1074,5 +1146,11 @@ a square, Edit, and type a drop.
     sheet has a "Drops from Dink" part, in Boris's words
     (`docs/region-bingo-rules.md`, under Playing). Still to do with Boris:
     checks 2 to 4 in "Going live", on a hidden test game (item 11).
-11. **A hidden test game** (Boris, 2026-11-21): built (see "A hidden test
-    game"); goes live when Boris merges its pull request.
+11. **A hidden test game** (Boris, 2026-11-21): **live** the same day
+    (pull request #84; see "A hidden test game"). Set up on the live site as
+    the organiser account, with no SQL: "Dink test (hidden)", Region Bingo,
+    hidden, Dink off, one team. Bones and Cowhide in each of the 11 regions,
+    22 tasks, from two catalogue entries made for it; delete them and the
+    game after. Next: Boris adds the players and a captain and starts the
+    game, the captain picks a region, Dink goes on in the console, then
+    checks 2 to 4 in "Going live".
