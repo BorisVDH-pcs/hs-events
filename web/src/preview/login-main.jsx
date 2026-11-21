@@ -3,8 +3,8 @@
  *
  * The REAL login page and stylesheet, with the "Now running" list fed from
  * canned games instead of the live project: one bingo running, one battleships
- * coming up, and a finished game that must not appear. Signing in goes nowhere
- * here -- the stub has no auth.
+ * coming up, and a finished game and a hidden test game that must not appear.
+ * Signing in goes nowhere here -- the stub has no auth.
  */
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -23,6 +23,8 @@ tableFixtures.games = [
     starts_at: inHours(74), ends_at: null },
   { id: 'g-3', name: 'Battleships V4', mode: 'battleships', status: 'finished',
     starts_at: null, ends_at: null },
+  { id: 'g-4', name: 'Test, please ignore', mode: 'regions', status: 'active',
+    starts_at: inHours(-1), ends_at: inHours(2), hidden: true },
 ];
 
 createRoot(document.getElementById('root')).render(

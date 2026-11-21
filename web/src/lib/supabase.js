@@ -687,6 +687,15 @@ export const adminSetRegionThreshold = (gameId, threshold) =>
 export const adminSetPluginDrops = (gameId, on) =>
   rpc('admin_set_plugin_drops', { p_game_id: gameId, p_on: on });
 
+/**
+ * Hidden or not (20261121140000_hidden_games.sql; Boris, 2026-11-21). Hidden,
+ * a game is left off the login page and the sign-up list for everyone but its
+ * organisers, its roster and the people who signed up, and only an organiser
+ * can sign up for it. Board modes only. Not a secret: `games` stays readable.
+ */
+export const adminSetGameHidden = (gameId, hidden) =>
+  rpc('admin_set_game_hidden', { p_game_id: gameId, p_hidden: hidden });
+
 /** Region Bingo: what the tile on a square scores (1-100). Before the start only. */
 export const adminSetTileWorth = (gameId, position, worth) =>
   rpc('admin_set_tile_worth', { p_game_id: gameId, p_position: position, p_worth: worth });

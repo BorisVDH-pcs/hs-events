@@ -15,7 +15,7 @@ import {
   adminSaveBoardPreset, adminApplyBoardPreset, adminDeleteBoardPreset,
   adminNewGame, adminAddTeam, adminDeleteTeam, adminSetEndTime, adminEndGame,
   listBoardJumps, adminSetSnakes, adminSetTerritoryHomes, snakesStandings, adminSnakesEndGame,
-  territoryStandings, regionsStandings, adminSetPluginDrops,
+  territoryStandings, regionsStandings, adminSetPluginDrops, adminSetGameHidden,
   adminListTileSubmissions, adminAcceptTileSubmission, adminRefuseTileSubmission,
   adminNewChallenge, adminChallengeEntries, adminChallengeSetFigure,
   adminChallengeVerify, adminChallengeSetTeam, adminChallengeWom,
@@ -1100,7 +1100,7 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
         busy={busy}
         modeChoices={isAdmin ? MODES : MODES.filter((m) => modes.includes(m.key))}
         onCreate={(payload) => {
-          const { name, mode, teams: teamList, gridSize, startsAt, endsAt } = payload;
+          const { name, mode, teams: teamList, gridSize, startsAt, endsAt, hidden } = payload;
           return run(async () => {
             // A challenge has its own creating call: admin_new_game refuses
             // the mode and says so, because it has no room for a metric, a
@@ -1112,6 +1112,9 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
             const id = mode === 'battleships'
               ? await adminCreateGame(name, teamList[0], teamList[1])
               : await adminNewGame({ name, mode, teams: teamList, gridSize, endsAt });
+            // Hidden first, before anything else is done to it: until this
+            // call the new game is on the sign-up list like any other.
+            if (id && hidden) await adminSetGameHidden(id, true);
             if (id && startsAt) await adminSetStartTime(id, startsAt);
             return id;
           }, mode === 'challenge' ? 'Event created — sign-ups are open, and it opens itself at its start time.'
@@ -1156,6 +1159,11 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
                   {isTerritoryGame(g) && <span className="pill mode-pill">Territory</span>}
                   {isRegionsGame(g) && <span className="pill mode-pill">Region Bingo</span>}
                   {isChallengeGame(g) && <span className="pill mode-pill">Challenge</span>}
+                  {g.hidden === true && (
+                    <span className="pill" title="Only organisers, its roster and its sign-ups come across this game">
+                      Hidden
+                    </span>
+                  )}
                   {g.is_featured && (
                     <span className="pill" title="Unassigned players see this game's countdown">
                       ★ Featured
@@ -1605,6 +1613,40 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
                       run(() => adminSetPluginDrops(game.id, on),
                         on ? 'Drops from Dink now count in this game.'
                           : 'Drops from Dink no longer count in this game. Uploading on the site works as before.',
+                        { refresh: ['games'] });
+                    }}
+                  />
+                  <span className="switch-track" aria-hidden="true" />
+                </label>
+              </div>
+            )}
+
+            {/* Hidden, per game (20261121140000_hidden_games.sql; Boris,
+                2026-11-21), for a test game. Any time, either way. Not for a
+                challenge, whose list is the only way in. A database without
+                the migration has no such column, so nothing shows there. */}
+            {!challengeMode && typeof game.hidden === 'boolean' && (
+              <div className="switch-row game-hidden-switch">
+                <span className="switch-label">
+                  Hidden
+                  <span className="muted">
+                    {game.hidden
+                      ? 'On: only organisers, the players on its roster and anyone who signed up come across this game. It is not on the login page or in the sign-up list, though someone who goes looking can still read its name.'
+                      : 'Off: anyone can come across this game, in the sign-up list before it starts and on the login page while it is about to start or running.'}
+                  </span>
+                </span>
+                <label className="switch">
+                  <input
+                    type="checkbox"
+                    role="switch"
+                    checked={game.hidden}
+                    disabled={busy}
+                    aria-label="Hide this game from players who are not in it"
+                    onChange={(e) => {
+                      const on = e.target.checked;
+                      run(() => adminSetGameHidden(game.id, on),
+                        on ? 'Hidden: only organisers and the people in this game come across it now.'
+                          : 'Shown: this game is on the sign-up list and the login page again.',
                         { refresh: ['games'] });
                     }}
                   />
@@ -2714,6 +2756,7 @@ function NewGame({ busy, onCreate, modeChoices = MODES }) {
   const [gridSize, setGridSize] = useState(5);
   const [startsAt, setStartsAt] = useState('');
   const [endsAt, setEndsAt] = useState('');
+  const [hidden, setHidden] = useState(false);
   const [at, setAt] = useState(0);
 
   const bingo = mode === 'bingo';
@@ -2842,6 +2885,28 @@ function NewGame({ busy, onCreate, modeChoices = MODES }) {
                 runs until you end it.
               </p>
             )}
+
+            {/* For a test game (20261121140000_hidden_games.sql). Switched on
+                the moment the game is made; Configure changes it after. */}
+            <div className="switch-row game-hidden-switch">
+              <span className="switch-label">
+                Hidden
+                <span className="muted">
+                  For a test game: only organisers and the players you put on its roster come
+                  across it. It stays off the login page and the sign-up list.
+                </span>
+              </span>
+              <label className="switch">
+                <input
+                  type="checkbox"
+                  role="switch"
+                  checked={hidden}
+                  aria-label="Hide this game from players who are not in it"
+                  onChange={(e) => setHidden(e.target.checked)}
+                />
+                <span className="switch-track" aria-hidden="true" />
+              </label>
+            </div>
           </>
         )}
 
@@ -2913,9 +2978,10 @@ function NewGame({ busy, onCreate, modeChoices = MODES }) {
                 gridSize: bingo ? gridSize : territory ? TASK_GRID : 10,
                 startsAt: startsAt ? new Date(startsAt).toISOString() : null,
                 endsAt: timed && endsAt ? new Date(endsAt).toISOString() : null,
+                hidden,
               });
               if (worked(result)) {
-                setName(''); setTeamNames(['', '']); setStartsAt(''); setEndsAt(''); setAt(0);
+                setName(''); setTeamNames(['', '']); setStartsAt(''); setEndsAt(''); setHidden(false); setAt(0);
               }
             }}
           >
