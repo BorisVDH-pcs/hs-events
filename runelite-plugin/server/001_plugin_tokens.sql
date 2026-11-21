@@ -6,8 +6,8 @@
 -- table, function, policy or grant.
 --
 -- Tested offline by server/test/tokens.test.mjs (PGlite, with stand-ins for
--- auth.uid(), profiles and is_admin()). NOT yet tested through PostgREST with
--- the service role, which is phase 0 of the plan.
+-- auth.uid(), profiles and is_admin()), and through PostgREST on a local
+-- Supabase stack by server/test/stack.test.mjs. Not applied anywhere else.
 
 -- ============================================================
 -- 1. drop_key: one spelling for a drop's name
