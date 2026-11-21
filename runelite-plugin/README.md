@@ -8,7 +8,7 @@ Three changes to the website itself were made with Boris's go-ahead on
 2026-11-21: the **Plugin tokens** section of My Account (see "The token
 screen" below), **"Sent by plugin"** in the organiser's evidence review
 (see "The review screen's label"), and a **check on drop names** with
-ready-made raid lists in the tile editor (see "The tile editor's name
+ready-made lists of drops in the tile editor (see "The tile editor's name
 check"). All three are on this branch only. The first two hide themselves on
 a database without the drafts, so the live site would show nothing new even
 if they were merged before the drafts are applied. The name check needs no
@@ -44,9 +44,9 @@ become migrations when they are moved there on purpose.
 | `web/src/components/EvidenceReview.jsx` | The organiser's evidence review: "Sent by plugin" on a row a plugin handed in, with what it reported | Tried in the preview harness, and seen by Boris on the local stack with his own drops (2026-11-21). Not on the live project |
 | `web/src/lib/evidenceSource.js` | The label and the lines under it, from `source` and `detail` | Tested by `web/scripts/evidence-source-selftest.mjs`, and used by `stack.test.mjs` |
 | `web/src/components/TileForm.jsx` | The tile editor: "Not in the item list" under a drop, with names to click, and "Add a list…" | Tried in the admin harness (`/preview-admin.html`), at desktop and phone width. Not on the live project, not used by Boris yet |
-| `web/src/lib/itemNames.js`, `itemNames.data.js` | `dropKey` (the server's `drop_key` in JS), the check, and 4,776 item names | Tested by `web/scripts/item-names-selftest.mjs`; `tokens.test.mjs` checks `dropKey` against `drop_key` on every name |
+| `web/src/lib/itemNames.js`, `itemNames.data.js` | `dropKey` (the server's `drop_key` in JS), the check, and 4,820 item names | Tested by `web/scripts/item-names-selftest.mjs`; `tokens.test.mjs` checks `dropKey` against `drop_key` on every name |
 | `web/scripts/build-item-names.mjs` | Makes `itemNames.data.js` from the OSRS Wiki's price list and a typed list of untradeables | Run once, 2026-11-21 |
-| `web/src/lib/dropLists.js` | The ready-made lists: raid uniques (all, and per raid) and raid weapons | Every name is checked against the item list by the selftest |
+| `web/src/lib/dropLists.js` | The ready-made lists: 65 of them, for raids, groups of bosses, every boss in the collection log and pets | Every name is checked against the item list by the selftest, spelled exactly as the item is |
 
 ## What the tests prove
 
@@ -254,10 +254,22 @@ with no sign-in. Every request goes to a link made by the site's own
   (uncharged)" because the wiki's chest pages list them so and the price list
   has only those forms. Not yet seen in a real Dink message.
 - **Every real item is in the list.** The price list has only what the Grand
-  Exchange trades. Pets, the raids' untradeables and the boss jars were added
-  by hand; any other untradeable drop (Vorkath's head, for one) is flagged
-  although it is real. The warning says what the list holds, and never
-  blocks a save.
+  Exchange trades. Pets, the raids' untradeables, the boss jars and the
+  untradeable drops in the ready-made lists were added by hand; any other
+  untradeable item (a Dragon defender, for one) is flagged although it is
+  real. The warning says what the list holds, and never blocks a save.
+- **Loot that is not a kill's.** Barrows, the Moons of Peril, the Fortis
+  Colosseum, the Gauntlet, Tempoross, Wintertodt, Zalcano, Hespori and the
+  Fight Caves and Inferno capes come from a chest, a reward pool or a
+  completion, not from a monster. Whether Dink sends each of those as loot
+  has not been tried. The Abyssal Sire's list is the same: only Unsired drops
+  from the Sire, and the rest come from the Font of Consumption, which is not
+  loot at all. Whatever Dink does not send is uploaded by hand, as now.
+- **The boss lists are right.** Each is the boss's "Uniques" table on the
+  wiki, read on 2026-11-21, or its collection log where it has none. The
+  newest bosses (Brutus, the Mad Angel, the Maggot King, the Shellbane
+  Gryphon) are known to this work only from the wiki. Nobody has checked the
+  lists against the game.
 
 ## A real Dink client
 
@@ -357,22 +369,60 @@ tile suggestions all use.
   uploaded by hand, and the line under the list says so. Nothing about names
   stops a save.
 - **"Add a list…"** beside "Add drop" adds every drop of a ready-made list,
-  spelled as the items are: raid uniques from all three raids (26), from each
-  raid (12, 7, 7), and raid weapons (10). Weapons here are what goes in the
-  weapon slot: Dinh's bulwark is in, Kodai insignia and the Avernic hilt are
-  not. A drop the tile already has is not added twice. On a set rule each drop
-  gets its raid as its set ("Raids weapons" for the weapons list), so "one
-  unique from every raid" is one pick.
-- **The names**: 4,776, from the OSRS Wiki. Its price list gives every item
-  the Grand Exchange trades; pets, the raids' untradeable drops and the boss
-  jars were typed from the wiki's own pages. Wiki content is CC BY-NC-SA 3.0,
+  spelled as the items are. 65 lists under four headings:
+  - *Raids*: raid uniques from all three raids (26), from each raid (12, 7,
+    7), and raid weapons (10). Weapons here are what goes in the weapon slot:
+    Dinh's bulwark is in, Kodai insignia and the Avernic hilt are not.
+  - *Groups of bosses*: Barrows (24), the four God Wars generals (19), the
+    four Desert Treasure II bosses (12), the Moons of Peril (12) and the
+    Wilderness bosses (17).
+  - *Bosses*: one list for each boss in the collection log, 52, in
+    alphabetical order and named as players say them ("Nightmare", not "The
+    Nightmare"), so typing a letter in the menu finds them. Nex has 6.
+  - *Pets*: all pets (71), boss pets (54), skilling pets (9). Gull is left out
+    until its item name is checked.
+- **Uniques only.** Dink hands in every drop that matches a tile by itself, so
+  a list holds only what a tile would want counted. Left out: common drops the
+  collection log also shows (Bolt racks at Barrows, Key master teleports at
+  Cerberus), drops that come with every kill or completion (anima seeds,
+  Dizana's quiver, the Gauntlet cape), jars, and pets outside the pet lists.
+  The Fire cape and the Infernal cape are the one exception: they are what
+  those two are played for. Giant Mole has no list: besides its pet, its
+  collection log is the skin and claw every kill gives. Obor and Bryophyta
+  have none either, as low-level bosses seldom on a clan board; they are
+  quick to add if wanted. Anything left out can be added to a tile by hand.
+- **Sets.** On a set rule each drop gets a set. A boss's own list is one set,
+  named after the boss. A list of several bosses gives each boss its own set
+  (each Barrows brother, each general, each moon), so "one full Barrows set" or
+  "something from every general" is one pick. A drop that more than one boss in
+  the list drops goes in a set named after the whole list: the Godsword shards
+  in "God Wars Dungeon", the Virtus robes and the Chromium ingot in "Desert
+  Treasure II", the Dragon pickaxe and Dragon 2h sword in "Wilderness bosses".
+  A drop's name does not say which boss it came from.
+- **Two lists on one tile.** A drop the tile already has is not added twice.
+  Add the Kalphite Queen's list and then the King Black Dragon's, and the
+  Dragon pickaxe is there once, in the Kalphite Queen's set.
+- **A drop counts wherever it came from.** Dink is matched by name only, so a
+  Dragon pickaxe from the King Black Dragon finishes a tile that has the
+  Kalphite Queen's list. Several lists share a drop this way: the Dragon
+  pickaxe and the Dragon 2h sword, Uncut onyx (Zulrah, Zalcano, Skotizo), the
+  Dragon chainbody (Kalphite Queen, the smoke devil), the Dragon axe (Dagannoth
+  Kings, Wintertodt) and the Draconic visage (King Black Dragon, Vorkath).
+  Dink does send the monster's name, so a rule that looks at it is possible.
+  That would be a new game rule, and it is Boris's call. Nothing has changed.
+- **The names**: 4,820, from the OSRS Wiki. Its price list gives every item
+  the Grand Exchange trades; pets, the raids' untradeable drops, the boss
+  jars and the untradeable drops in the lists were typed from the wiki's own
+  pages. Each of the last 44 was checked to exist on the wiki; two had been
+  renamed in August ("Eye of the Duke", "Pendant of Ates"), and the list has
+  the new names. Wiki content is CC BY-NC-SA 3.0,
   and the file says where it came from. The list is its own 24 KB file,
   loaded the first time a tile form opens. `npm run items:names` makes it
   again when the game adds items.
 - **The same spelling rule as the server.** `dropKey` in
   `web/src/lib/itemNames.js` is `drop_key` written again in JS, so the editor
   can answer what the server would. `tokens.test.mjs` runs both over every
-  name in the list and every ready-made drop: they agree on all 4,852.
+  name in the list and every ready-made drop: they agree on all 5,317.
 
 ## The RuneLite build
 
@@ -530,4 +580,8 @@ a square, Edit, and type a drop.
    and show its settings; then the four Plugin Hub points above.
 4. Boris to try the tile editor's name check and "Add a list…" on the local
    site (`site.mjs`), and say whether the raid weapons list is the one he
-   means. More ready-made lists (Barrows, God Wars, Nex and so on) on request.
+   means. The boss lists were added on 2026-11-21; he may want lists changed,
+   added or split.
+5. Boris to say whether a drop should count only from the boss its tile
+   names, or from anywhere, as now (see "A drop counts wherever it came
+   from").

@@ -306,7 +306,11 @@ jars) and says "Not in the item list", with up to three real names to click:
 blocks. For a tile like "3 raids uniques" there is no alias dictionary;
 instead "Add a list…" fills the tile with every item, spelled as it drops
 ("Tumeken's shadow (uncharged)"). Boris agreed to both. `drop_key` itself is
-unchanged.
+unchanged. Later that day, at Boris's request, lists for Barrows, God Wars,
+Nex and every boss in the collection log, and for pets: 65 lists, uniques
+only, because Dink hands in whatever matches. A drop still counts wherever it
+came from (a Dragon pickaxe from any boss); whether a tile should look at the
+monster's name is a new rule and Boris's call.
 
 **What happens to a drop (proposed):**
 
