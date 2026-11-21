@@ -500,8 +500,9 @@ organiser.
   else, so the second secret holds (see "What the tests prove").
 - **Still what the player's client said.** The line tells anyone looking what
   the picture is for; it is not proof, and the label still says "Sent by
-  plugin", never "verified". What an organiser does with a Dink picture that
-  does not show the drop is Boris's call (see "Next").
+  plugin", never "verified". **Decided by Boris, 2026-11-21:** a Dink picture
+  that does not show the drop is accepted on Dink's report. The organiser can
+  still revoke it, as any evidence.
 - **A database without the function** (the live project today): the panel is
   what it was. **If the call fails** any other way, the pictures still show
   and a line says the panel cannot tell which screenshots a plugin sent.
@@ -735,7 +736,6 @@ a square, Edit, and type a drop.
    drop tiles list real items (see "The tile editor's name check").
 8. **Done 2026-11-21:** Dink's report beside every Dink screenshot (see
    "Dink's report beside the picture"). **Decided** the same day: players are
-   not asked to change game or RuneLite settings. Still open: what an
-   organiser does when a Dink picture does not show the drop: (a) accept it on
-   Dink's report, (b) accept it, except that valuable tiles need the drop in
-   the picture, or (c) always need it in the picture. Proposed: (b).
+   not asked to change game or RuneLite settings, and a Dink picture that
+   does not show the drop is accepted on Dink's report. Boris to look at the
+   panel on the local site. For the go-live rules line: say both.

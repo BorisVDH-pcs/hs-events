@@ -576,10 +576,10 @@ modes, one at a time.
     handed in on the site.
 12. **A Dink screenshot that does not show the drop.** **Decided,
     2026-11-21:** players are not asked to change game or RuneLite settings;
-    Dink's report is shown beside every Dink picture instead. Still open: what
-    an organiser does when the picture does not show the drop: (a) accept it
-    on Dink's report, (b) accept it, except that valuable tiles need the drop
-    in the picture, or (c) always need it in the picture. Proposed: (b).
+    Dink's report is shown beside every Dink picture instead. **Decided,
+    2026-11-21:** a Dink picture that does not show the drop is accepted on
+    Dink's report (option a of three; the others were to need the drop in the
+    picture on valuable tiles, or always). An organiser can still revoke it.
 
 ---
 
