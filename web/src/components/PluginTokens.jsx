@@ -124,6 +124,14 @@ export default function PluginTokens() {
               Turn on <strong>Enable loot</strong> and <strong>Enable pets</strong>,
               and keep <strong>Send Image</strong> on for both.
             </li>
+            {/* Both from Dink's own settings (DinkPluginConfig): a drop under
+                the minimum is never sent, and an override takes loot away
+                from the primary list altogether. */}
+            <li>
+              Leave <strong>Min Loot value</strong> at 0, or drops worth less
+              than it never reach us, and leave <strong>Loot Webhook
+              Override</strong> empty, or Dink sends loot only there.
+            </li>
           </ol>
           <p className="muted">
             A drop counts when it is for a tile your team has opened and comes

@@ -92,6 +92,9 @@ assert.match(section, /if \(tokens === undefined \|\| tokens === null\) return n
   'no section until the first answer, and none at all without plugin tokens');
 const lib = readFileSync(new URL('../src/lib/supabase.js', import.meta.url), 'utf8');
 assert.match(lib, /if \(isMissingFunction\(error\)\) return null;/, 'pluginTokens() answers null for a missing function');
+// The two Dink settings that stop drops arriving, named as Dink names them.
+assert.match(section, /<strong>Min Loot value<\/strong> at 0/, 'the steps say to leave the minimum at 0');
+assert.match(section, /<strong>Loot Webhook\s+Override<\/strong> empty/, 'and the loot override empty');
 // Shown once: the token is never written anywhere the browser keeps.
 assert.doesNotMatch(section, /localStorage|sessionStorage|indexedDB/, 'the link is never stored in the browser');
 

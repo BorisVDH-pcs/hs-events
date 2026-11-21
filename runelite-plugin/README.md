@@ -253,7 +253,8 @@ Boris agreed to a sketch of it.
   because the link is what the player pastes. It is shown only this once,
   with a Copy button and the two steps in Dink: paste into "Primary Webhook
   URLs" on a line of its own, then turn on "Enable loot" and "Enable pets"
-  with "Send Image" on.
+  with "Send Image" on, and leave "Min Loot value" at 0 and "Loot Webhook
+  Override" empty (see "Dink, as it really is").
 - **The list** shows each live token's name, when it was made and when Dink
   last used it, or "never used", which is the clue that a link went into the
   wrong box. Never the token.
@@ -346,9 +347,9 @@ says. Each point is either handled here or a setup instruction for players.
   tell them apart. **Decided by Boris, 2026-11-21:** only LOOT and PET are
   read. Any other evidence a tile needs is handed in on the site, as today.
   With Dink's defaults, loot includes clue caskets and has no minimum value,
-  so no drop is lost. A player who raises Dink's minimum loot value or turns
-  off "include clue scrolls" loses those drops to the plugin and hands them in
-  on the site.
+  so no drop is lost. A player who raises "Min Loot value" or turns off
+  "include clue scrolls" loses those drops to the plugin and hands them in on
+  the site.
 - **A loot notification lists every item of the kill**, not only the ones
   that met the player's Dink settings. An item on the player's Dink deny list
   is still listed. It is matched like any other: it is in the loot.
@@ -363,6 +364,11 @@ says. Each point is either handled here or a setup instruction for players.
   `.png`, so the type is read from the part's content type, never the name.
 - **All of Dink's notifiers are off by default.** A player turns on Loot and
   Pet, and keeps "Send image" on for both (on by default).
+- **Two settings can stop loot reaching us**, and the token screen's steps
+  name both (checked in `DinkPluginConfig.java` on 2026-11-21). "Min Loot
+  value" is 0 by default; a drop under it is not sent. "Loot Webhook
+  Override", when it holds a link, sends loot there *instead of* the primary
+  URLs, so a player who uses it would send us pets but no loot.
 
 ## To run
 
