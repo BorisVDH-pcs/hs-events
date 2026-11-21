@@ -1,9 +1,14 @@
 # hs-events RuneLite plugin: work so far
 
 Started 2026-11-20 from `docs/runelite-plugin-plan.md`. Everything in this
-folder is new and stands apart from the website: no existing file in the repo
-was edited, nothing here is built or deployed with the site, and nothing was
-applied to the live Supabase project.
+folder is new and stands apart from the website, and nothing was applied to
+the live Supabase project.
+
+The first change to the website itself, made with Boris's go-ahead on
+2026-11-21, is the **Plugin tokens** section of My Account (see "The token
+screen" below). It is on this branch only. It hides itself on a database
+without plugin tokens, so the live site would show nothing new even if it were
+merged before the drafts are applied.
 
 The two `.sql` files in `server/` are drafts. They are kept out of
 `supabase/migrations` so that `db-push.yml` cannot apply them. They only
@@ -23,9 +28,12 @@ become migrations when they are moved there on purpose.
 | `server/test/*.test.mjs` | Three test files, 155 checks, run by `npm test` | All pass |
 | `server/test/png.mjs`, `fixtures/` | A PNG writer and reader for the tests only, and one small PNG written by Java's ImageIO | |
 | `server/local/` | A local Supabase stack: `config.toml`, and `prepare.mjs`, which copies the migrations, the two drafts and the intake function into it | Works with Supabase CLI 2.122.0 and Docker |
-| `server/test/stack.test.mjs` | 57 checks against that stack, the Edge Function included, run by `npm run test:stack` | All pass |
+| `server/test/stack.test.mjs` | 59 checks against that stack, the Edge Function included, run by `npm run test:stack` | All pass |
 | `plugin/.../core/` | `DropKey` and `WatchList`: the matching rule in plain Java | Tested, 16 checks, also run by `gradle test` |
 | `plugin/.../HsEvents*.java`, build files | The RuneLite plugin skeleton, built the template's way | Builds against RuneLite 1.13.7; **never loaded in a client** |
+| `web/src/components/PluginTokens.jsx` | The Plugin tokens section of My Account: make a token, see its Dink link once, revoke | Tried in the preview harness; **never run against a real database** |
+| `web/src/lib/pluginTokens.js` | The Dink link, the name check, "last used" in words | Tested by `web/scripts/plugin-tokens-selftest.mjs`, and used by `stack.test.mjs` |
+| `web/preview-account.html` | A harness for My Account with fixture tokens | |
 
 ## What the tests prove
 
@@ -113,7 +121,7 @@ keeps it under 3 MB.
 `stack.test.mjs` runs against the Supabase CLI's own local stack, which is the
 same software a hosted project runs: Postgres 17.11, PostgREST 16.5, Storage
 1.84.19, Auth 2.197.0, edge runtime 1.77.8 (Deno 2). It is not the live
-project and never touches it. Tested 2026-11-21, 56 of 56.
+project and never touches it. Tested 2026-11-21, 59 of 59.
 
 - **The migrations apply on real Supabase.** All 129, then the two drafts, by
   the CLI itself, with no errors.
@@ -153,11 +161,16 @@ project and never touches it. Tested 2026-11-21, 56 of 56.
   added from the site is still source `web`, with no detail.
 - **Revoking works.** A revoked token, and a token nobody was given, get the
   same refusal and can hand nothing in.
+- **What the token screen asks for works.** A signed-in player's
+  `plugin_token_list` has their token by name, and neither the token nor its
+  hash. A function the database does not have is answered `PGRST202`, which
+  is exactly what the section hides itself on.
 
 The Edge Function, called the way Dink calls it: a multipart request built as
 Dink's HTTP library writes it, `payload_json` with no content type and a
 `file` part named `lootImage.png`, to `/functions/v1/intake/dink?t=<token>`,
-with no sign-in.
+with no sign-in. Every request goes to a link made by the site's own
+`dinkUrl`, the one the token screen shows a player.
 
 - **It runs.** `index.ts` reads the request, and supabase-js reaches the
   database and Storage with the service role the runtime hands it. No secret
@@ -201,6 +214,33 @@ with no sign-in.
   screenshot over 8 MB, so this needs a screen bigger than 4K.
 - **The plugin in a client.** It builds, but it has never been loaded in
   RuneLite, and it does nothing visible yet: its watch list is still empty.
+- **The token screen against a database.** The calls it makes are proven
+  through PostgREST, and the screen itself was tried in the preview harness,
+  but never the two together: the site's dev server talks to the live
+  project, which has no plugin tokens.
+
+## The token screen
+
+At the foot of My Account, under the in-game names. Made on 2026-11-21 after
+Boris agreed to a sketch of it.
+
+- **Make a token.** An optional name ("Laptop", at most 40 characters), then
+  one press. The answer is shown as the whole Dink link, not the bare token,
+  because the link is what the player pastes. It is shown only this once,
+  with a Copy button and the two steps in Dink: paste into "Primary Webhook
+  URLs" on a line of its own, then turn on "Enable loot" and "Enable pets"
+  with "Send Image" on.
+- **The list** shows each live token's name, when it was made and when Dink
+  last used it, or "never used", which is the clue that a link went into the
+  wrong box. Never the token.
+- **Revoke** takes two presses, like removing an account. Revoking the token
+  whose link is still on screen takes the link off the screen too.
+- **At five tokens** the form gives way to "5 tokens is the limit".
+- **No plugin tokens in the database** (the live project today): no section
+  at all, and no error. The site tells this apart from a refusal by
+  PostgREST's `PGRST202`, "no such function".
+- **Nothing is kept in the browser.** The link lives in the section's memory
+  until the dialog closes.
 
 ## The RuneLite build
 
@@ -300,11 +340,16 @@ or, with nothing but a JDK:
     javac -d out src/main/java/com/hsevents/core/*.java src/test/java/com/hsevents/core/CoreSelfTest.java
     java -cp out com.hsevents.core.CoreSelfTest
 
+The token screen, with fixture data and no database:
+
+    cd web && npm run preview:evidence      then open /preview-account.html
+    cd web && npm run test:plugin-tokens
+
 ## Next
 
 1. One real Dink client pointed at the local function, to see a message that
    was not written by a test.
-2. The My Account screen for tokens, and `source` in the review screen. These
-   are the first changes to the website itself.
+2. `source` in the evidence review screen ("sent by plugin"). The second
+   change to the website, to be asked for first. The token screen is done.
 3. Load the plugin in RuneLite once (`gradle run`) to see it start and show
    its settings; then the four Plugin Hub points above.

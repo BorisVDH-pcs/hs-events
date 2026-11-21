@@ -7,6 +7,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { actingTeam, assertWritable } from './viewOnly.js';
+import { dinkUrl, isMissingFunction } from './pluginTokens.js';
 
 const URL = import.meta.env.VITE_SUPABASE_URL;
 const ANON = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -342,6 +343,36 @@ export async function removeAccount(id) {
   const { error } = await supabase.from('profile_accounts').delete().eq('id', id);
   if (error) throw new Error(error.message);
 }
+
+// ---- Plugin tokens (runelite-plugin/server/001_plugin_tokens.sql) ----------
+//
+// A DRAFT on the database side: until it is applied, these functions do not
+// exist and pluginTokens() answers null, which hides the section. No
+// assertWritable, for the reason given above My Account: every one of these
+// acts on the signed-in player's own tokens and nobody else's.
+
+/**
+ * This player's live tokens: name, made, last used. Never the token itself,
+ * which exists only in makePluginToken's answer. Null when the database has
+ * no plugin tokens yet.
+ */
+export async function pluginTokens() {
+  const { data, error } = await supabase.rpc('plugin_token_list');
+  if (isMissingFunction(error)) return null;
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+/** A new token. This answer is the only time it is ever seen. */
+export const makePluginToken = (label) =>
+  rpc('plugin_token_create', { p_label: label });
+
+/** From now on, Dink holding this one hands nothing in. */
+export const revokePluginToken = (id) =>
+  rpc('plugin_token_revoke', { p_id: id });
+
+/** What the player pastes into Dink for this token. */
+export const pluginDinkUrl = (token) => dinkUrl(URL, token);
 
 /**
  * Sign up, or correct the name on an entry.

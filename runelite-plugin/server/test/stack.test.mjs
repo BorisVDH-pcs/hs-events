@@ -23,6 +23,9 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { pngInfo } from '../intake/shrink.mjs';
+// The site's own helper for the My Account section: every Dink request below
+// goes to a link it built, the link a player is shown.
+import { dinkUrl, isMissingFunction } from '../../../web/src/lib/pluginTokens.js';
 import { expectedHalf, makePng, readPng, same } from './png.mjs';
 
 const J = (v) => JSON.stringify(v);
@@ -176,7 +179,16 @@ ok('a player makes a token on the site, and sees it once', /^hse_[0-9a-f]{64}$/.
 ok('only its hash is stored',
    sql(`select count(*) from plugin_tokens where profile_id = '${people.mate.id}' and token_hash <> '${tok.mate}'`) === '1');
 
-let r = await rpc('plugin_whoami', { p_token: tok.mate }, SERVICE);
+// What the My Account section asks (web/src/lib/supabase.js), as the player.
+let r = await rpc('plugin_token_list', {}, people.mate.jwt);
+ok("My Account's list: the player's own token, by its name, with neither the token nor its hash",
+   r.status === 200 && r.body.length === 1 && r.body[0].label === 'mate'
+   && !J(r.body).includes('hse_') && !('token_hash' in r.body[0]), J(r));
+r = await rpc('plugin_token_not_there', {}, people.mate.jwt);
+ok('a function the database does not have answers PGRST202, which is what the section hides on',
+   r.status === 404 && isMissingFunction(r.body), J(r));
+
+r = await rpc('plugin_whoami', { p_token: tok.mate }, SERVICE);
 ok('the service role turns a token into its player (plugin_whoami)',
    r.status === 200 && r.body.profile_id === people.mate.id && r.body.accounts[0]?.rsn === 'Mate Iron', J(r));
 
@@ -290,8 +302,8 @@ ok("and cannot upload into the other team's folder", up.status >= 400 && /row-le
 // ------------------------------------- the intake Edge Function, as Dink calls it
 // The request is built the way Dink's OkHttp MultipartBody writes it: a
 // payload_json part with no content type, then a file part whose name ends in
-// .png, each with its own Content-Length.
-const FN = `${API}/functions/v1/intake/dink`;
+// .png, each with its own Content-Length. It goes to dinkUrl(API, token): the
+// same link the site's My Account section shows a player.
 const EDGE = 'supabase_edge_runtime_hs-events-plugin-local';
 const fnLog = () => { const l = spawnSync(DOCKER, ['logs', EDGE], { encoding: 'utf8' }); return (l.stdout ?? '') + (l.stderr ?? ''); };
 const logBefore = fnLog().length;
@@ -307,7 +319,7 @@ function multipart(payload, image, type = 'image/png') {
 }
 async function dink(token, payload, image, type) {
   const { body, type: ct } = multipart(payload, image, type);
-  const res = await fetch(`${FN}?t=${token}`, { method: 'POST', headers: { 'Content-Type': ct }, body });
+  const res = await fetch(dinkUrl(API, token), { method: 'POST', headers: { 'Content-Type': ct }, body });
   return { status: res.status, body: await res.text() };
 }
 const lootFrom = (rsn, items, more = {}) => ({
@@ -326,9 +338,9 @@ if (/UNAUTHORIZED_NO_AUTH_HEADER/.test(d.body)) {
   throw new Error('intake is served with JWT checks on: run `supabase functions serve intake --no-verify-jwt` from server/local');
 }
 ok('the function runs without a sign-in, as Dink calls it, and refuses an unknown token: 401', d.status === 401 && d.body === '{"ok":false}', J(d));
-const got404 = await fetch(`${FN}?t=${tok.blue}`);
+const got404 = await fetch(dinkUrl(API, tok.blue));
 ok('anything but a POST to /dink is a 404', got404.status === 404 && (await got404.text()) === '{"ok":false}');
-d = await fetch(`${FN}?t=${tok.blue}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: 'not json' });
+d = await fetch(dinkUrl(API, tok.blue), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: 'not json' });
 ok('a body that is not JSON is a 400', d.status === 400);
 
 const pick = lootFrom('Blue Main', [['Dragon pickaxe', 11920, 5_000_000], ['Bones', 526, 100]], { world: 330 });

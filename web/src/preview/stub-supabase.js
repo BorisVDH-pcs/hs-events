@@ -20,6 +20,7 @@
  * here, since this is the one module the alias points at.
  */
 import { adminFrom, adminRpc } from './stub-admin.js';
+import { dinkUrl } from '../lib/pluginTokens.js';
 
 export * from './stub-admin.js';
 
@@ -293,6 +294,31 @@ export const DEMO_URLS = Object.fromEntries(
  */
 export const accountFixtures = [];
 export const myAccounts = () => Promise.resolve(accountFixtures);
+
+/**
+ * Plugin tokens, for the My Account harness (account-main.jsx). `list` null is
+ * the live project before the plugin's migrations: the section hides. Made
+ * tokens are random and the link points at no project; nothing is sent.
+ */
+export const pluginTokenFixtures = { list: [] };
+export const pluginTokens = () =>
+  new Promise((resolve) => setTimeout(() => resolve(
+    pluginTokenFixtures.list && pluginTokenFixtures.list.map((t) => ({ ...t }))), 120));
+export function makePluginToken(label) {
+  if (pluginTokenFixtures.list.length >= 5) {
+    return Promise.reject(new Error('You already have 5 plugin tokens. Revoke one first.'));
+  }
+  const hex = Array.from(crypto.getRandomValues(new Uint8Array(32)), (b) => b.toString(16).padStart(2, '0')).join('');
+  pluginTokenFixtures.list.push({
+    id: `pt-${hex.slice(0, 8)}`, label, created_at: new Date().toISOString(), last_used_at: null,
+  });
+  return Promise.resolve(`hse_${hex}`);
+}
+export function revokePluginToken(id) {
+  pluginTokenFixtures.list = pluginTokenFixtures.list.filter((t) => t.id !== id);
+  return Promise.resolve(null);
+}
+export const pluginDinkUrl = (token) => dinkUrl('https://your-project.supabase.co', token);
 
 /**
  * Enough of an auth surface to boot the real App (app-main.jsx).

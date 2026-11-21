@@ -5722,6 +5722,49 @@ body.dragging-jump * { cursor: grabbing !important; user-select: none; }
 
 .rsn-add { margin-top: 1rem; display: grid; gap: .5rem; }
 
+/* ---- Plugin tokens (PluginTokens.jsx) ---------------------------------------
+   The foot of My Account, set off by a rule because it is about RuneLite and
+   not about names. The one-time link is the only gold-edged box on the
+   screen: it is the one thing here that must not be missed, because closing
+   the dialog loses it for good. */
+
+.plugin-tokens {
+  margin-top: 1.3rem; padding-top: 1.1rem;
+  border-top: 1px solid var(--hairline);
+}
+.plugin-tokens h4 {
+  margin: 0 0 .5rem;
+  font-size: 1rem; font-weight: 600; letter-spacing: -.01em;
+  color: var(--gold);
+}
+.token-once {
+  display: grid; gap: .55rem;
+  margin: .9rem 0 0; padding: .8rem .9rem;
+  border: 1px solid var(--gold-dim);
+  border-radius: var(--r-md);
+  background: var(--fill-3);
+}
+.token-once p { margin: 0; font-size: .875rem; }
+.token-once-title { color: var(--gold); font-weight: 600; }
+.token-once-link { display: flex; gap: .5rem; }
+.token-once-link input {
+  flex: 1; min-width: 0;
+  padding: .5rem .6rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-md);
+  background: var(--bg);
+  color: var(--text);
+  font: .8125rem/1.3 var(--mono);
+}
+.token-once-steps {
+  display: grid; gap: .3rem;
+  margin: 0; padding-left: 1.2rem;
+  font-size: .875rem; color: var(--label-2);
+}
+.token-once-steps strong { color: var(--text); font-weight: 600; }
+/* Five at most, so no scroll box of its own inside a dialog that scrolls. */
+.token-list { max-height: none; overflow: visible; }
+
 /* ---- the side rail (SideNav.jsx) ----
  *
  * Home, the game you are in, and the two screens that are not a game, down
