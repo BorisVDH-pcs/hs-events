@@ -39,7 +39,7 @@ become migrations when they are moved there on purpose.
 | `server/intake/shrink.mjs` | Makes a screenshot over 3 MB smaller: halves a PNG until it fits. No library, only what the runtime has | Tested offline and in the edge runtime |
 | `server/intake/index.ts` | The Edge Function shell around `handle.mjs` | Tested on the local stack; not deployed anywhere |
 | `server/test/replay.mjs` | Replays all 129 migrations into an in-memory Postgres, with stand-ins for what Supabase provides | Works; the repo's own Region Bingo smoke test passes on it, 76 of 76 |
-| `server/test/*.test.mjs` | Four test files, 205 checks, run by `npm test` | All pass |
+| `server/test/*.test.mjs` | Five test files, 239 checks, run by `npm test` | All pass |
 | `server/test/png.mjs`, `fixtures/` | A PNG writer and reader for the tests only, and one small PNG written by Java's ImageIO | |
 | `server/local/` | A local Supabase stack: `config.toml`, and `prepare.mjs`, which copies the migrations, the two drafts and the intake function into it | Works with Supabase CLI 2.122.0 and Docker |
 | `server/test/stack.test.mjs` | 73 checks against that stack, the Edge Function included, run by `npm run test:stack` | All pass |
@@ -66,6 +66,17 @@ Against a replay of every migration, so `tiles_for_team`, `regions_open_tile`,
   else: no tile name, no drop. A drop for a
   locked tile gets the same answer, word for word, as a drop for a tile that
   does not exist.
+- **A whole Region Bingo game, played through Dink** (`regions-game.test.mjs`,
+  added 2026-11-21 after Bingo, because Region Bingo is the next event). A
+  region completed by drops alone earns its pick; the pick, spent on the
+  site, makes the new region's drops count at once, and until then they get
+  the answer junk gets. All three set rules work from drops: one set (a piece
+  already in is not wanted again), one from each group, and points per group.
+  A tile with no drop list, and a value tile, are never matched and are still
+  handed in on the site. A revoke undoes the tile, its points and the region's
+  completion; the region its pick opened stays open; the drop is wanted again,
+  and handing it in again does not pay a second pick. Once the organiser ends
+  the game, when every tile is shown to everyone, no drop counts.
 - **Bingo works the same way, by Bingo's own rules.** See "Bingo" below.
 - **A drop counts as an upload does.** One evidence row, by that player, for
   their team, with the points taken from the option. The tile completes by its
@@ -242,8 +253,11 @@ with no sign-in. Every request goes to a link made by the site's own
 
 ## What they do not prove
 
-- **Bingo with a real Dink.** Only the tests so far. `node trial.mjs bingo`
-  has built a card beside the trial game for Boris to play (see "To run").
+- **A region opened by a pick, with a real Dink.** The tests prove it; a
+  real client has not done it yet. Boris's trial game is ready for it (see
+  "Region Bingo first" below).
+- **Bingo with a real Dink.** Only the tests so far. Its trial card was ended
+  on 2026-11-21 so that one game runs at a time, Region Bingo first.
 - **The other modes.** Snakes and Ladders, Territory and Challenge are not
   wired: a drop there is never counted, because `plugin_wanted` does not
   read those games.
@@ -361,6 +375,26 @@ What that proves, beyond the tests:
 
 Not tried with a real client: a pet, a screenshot over 3 MB, a Leagues world.
 Our own plugin was not involved.
+
+### Region Bingo first: a region opened by a pick
+
+Region Bingo is the next event, so it is proven before the other modes. By
+the end of the first trial Boris's team had completed Misthalin (7 points)
+and had a pick it had not spent. The Bingo trial card was ended on
+2026-11-21, so the trial game is the only game he plays in, as in a real
+event. What his drops are matched against now: Raw beef only (two tiles, so
+an "ask"). Spending the pick on Asgarnia was tried first as his account,
+inside a transaction that was then undone: Bones then joins the list, and the
+pick is still his.
+
+To play it, with Dink as it is:
+
+1. On the local site, spend the pick on Asgarnia.
+2. Kill a cow: its Bones are handed in, on the "Bones" tile. They never were
+   before the pick.
+3. `node trial.mjs report` shows the points, the picks and the evidence.
+4. If wanted, as an organiser, revoke that Bones in the review screen and kill
+   another cow: it is handed in again.
 
 ## The token screen
 
@@ -563,6 +597,7 @@ A real Dink client against the local stack, with the real site:
     node site.mjs              the site on http://localhost:5177; sign up on it
     node trial.mjs             a Region Bingo game for you, to be played at Lumbridge
     node trial.mjs bingo       a Bingo card beside it, for the same drops
+    node trial.mjs bingo-end   end that card again: one game at a time
     node trial.mjs report      what the intake heard, and the evidence it made
     node trial.mjs organiser   makes you an organiser, to see "Sent by plugin"
 
@@ -585,7 +620,9 @@ it as well, so an "ask"), "Cowhide" and "Feathers" (done in Region Bingo
 already, so only the card wants them), and four tiles with no drop list, for
 uploads on the site. Built on 2026-11-21 for Boris's local account; what his
 drops would match was read from `plugin_wanted` as his account, and is
-exactly that list.
+exactly that list. Ended the same day with `trial.mjs bingo-end` (the
+organiser's own `admin_end_game`), since the clan runs one game at a time.
+`report` now also shows the team's points, picks and regions.
 
 The token screen, with fixture data and no database:
 
@@ -619,9 +656,13 @@ a square, Edit, and type a drop.
 4. Boris to say whether a drop should count only from the boss its tile
    names, or from anywhere, as now (see "A drop counts wherever it came
    from").
-5. **Done 2026-11-21:** Bingo (see "Bingo"). Boris to play the card
-   `trial.mjs bingo` built, with Dink as it is: cows and chickens at
-   Lumbridge.
+5. **Done 2026-11-21:** Bingo (see "Bingo"). Its trial card is ended for
+   now: Region Bingo first.
+5a. **Region Bingo first (Boris, 2026-11-21).** A whole game through Dink is
+   tested (`regions-game.test.mjs`). Boris to play the pick on his trial game
+   with Dink (see "Region Bingo first: a region opened by a pick"). Then, for
+   the real event: its board's drop tiles checked against the item list, and
+   the steps to the live project, each Boris's call.
 6. **Decided 2026-11-21:** one game at a time, so a drop is never wanted by
    two games; nothing is built for it. Still open: whether to build the switch
    per game (plan, section 10, item 6).
