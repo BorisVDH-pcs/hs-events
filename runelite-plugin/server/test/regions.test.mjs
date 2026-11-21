@@ -21,16 +21,22 @@ const ok = (name, cond, extra = '') => {
 
 ok('the board was built with its drops', Object.keys(opt).length === 5, J(Object.keys(opt)));
 
-const watch = async (key) => (await plugin('select plugin_watchlist($1) j', [tok[key]])).j;
+// What a token's team can hand in right now: plugin_wanted, the list every
+// match is made against, read as that token's player. Internal, so it is read
+// here as the database owner after plugin_as, in one transaction, which is
+// exactly how plugin_match reaches it.
+const wanted = async (key) => db.transaction(async (tx) => {
+  await tx.query('select plugin_as($1)', [tok[key]]);
+  return (await tx.query('select * from plugin_wanted() order by tile_position, label')).rows;
+});
 const match = async (key, rsn, names) =>
   (await plugin('select plugin_match($1, $2, $3::jsonb) j', [tok[key], rsn, J(names.map((name) => ({ name })))])).j;
 const verdicts = (m) => m.items.map((i) => i.verdict).join(',');
 
 // ------------------------------------------------- before the first region
-let w = await watch('mate');
-ok('before the first pick: the game is listed, with nothing to hand in',
-   w.length === 1 && w[0].game_id === g && w[0].wanted.length === 0, J(w).slice(0, 300));
-ok('and no tile name has reached the plugin',
+let w = await wanted('mate');
+ok('before the first pick: nothing to hand in', w.length === 0, J(w).slice(0, 300));
+ok('and no tile name is in what a drop is matched against',
    !/Barrows|helmet|Whip|Locked|Dragon/.test(J(w)), J(w).slice(0, 300));
 ok('a drop matches nothing yet',
    verdicts(await match('mate', 'Mate Iron', ["Dharok's helm"])) === 'none');
@@ -39,22 +45,21 @@ ok('a drop matches nothing yet',
 await site(ids.red, `select regions_pick($1, 'misthalin')`, [g]);
 await site(ids.blue, `select regions_pick($1, 'asgarnia')`, [g]);
 
-// --------------------------------------------------------- the watch list
-w = await watch('mate');
-const labels = w[0].wanted.map((x) => x.label).sort();
-ok("Red's watch list is Misthalin's drops",
+// ------------------------------------------------ what a drop can match
+w = await wanted('mate');
+const labels = w.map((x) => x.label).sort();
+ok("Red can hand in Misthalin's drops, and only those",
    J(labels) === J(['Abyssal whip', "Dharok's helm", 'Dharoks helm', "Karil's coif"]), J(labels));
 ok('each one carries its tile, option and key',
-   w[0].wanted.every((x) => x.tile_id && x.option_id && x.drop && x.region === 'misthalin'), J(w[0].wanted[0]));
+   w.every((x) => x.tile_id && x.option_id && x.drop && x.region === 'misthalin' && x.game_id === g), J(w[0]));
 ok("a region Red has not opened is not in it: no tile name, no drop",
    !/Locked secret|Dragon pickaxe/.test(J(w)), J(w).slice(0, 400));
-ok('it carries the region standings for the side panel', w[0].regions && typeof w[0].regions === 'object');
 
-const wb = await watch('blue');
-ok("Blue's watch list is Asgarnia's, and none of Red's",
-   J(wb[0].wanted.map((x) => x.label)) === J(['Dragon pickaxe']) && !/Barrows|Whip|helmet/.test(J(wb)), J(wb).slice(0, 300));
-ok('someone on no team gets an empty list', J(await watch('out')) === '[]');
-ok("an organiser's token carries no organiser's view", J(await watch('org')) === '[]');
+const wb = await wanted('blue');
+ok("Blue can hand in Asgarnia's, and none of Red's",
+   J(wb.map((x) => x.label)) === J(['Dragon pickaxe']) && !/Barrows|Whip|helmet/.test(J(wb)), J(wb).slice(0, 300));
+ok('someone on no team can hand in nothing', (await wanted('out')).length === 0);
+ok("an organiser's token carries no organiser's view", (await wanted('org')).length === 0);
 
 // --------------------------------------------------------------- matching
 let m = await match('mate', 'Mate Iron', ['Abyssal whip', "Dharok's helm", 'Dragon pickaxe', 'Bones']);
@@ -150,12 +155,11 @@ ok('the second drop completes the tile, by the tile\'s own rule', claim.status =
 ok('and the game says so, as it does for an upload from the site',
    (await db.query(`select count(*)::int n from game_events where game_id = $1 and team_id = $2 and type = 'tile_completed'`,
      [g, team.Red])).rows[0].n >= 1);
-w = await watch('mate');
-ok('a completed tile leaves the watch list',
-   !w[0].wanted.some((x) => x.tile_id === T.barrows), J(w[0].wanted.map((x) => x.tile)));
+w = await wanted('mate');
+ok('a completed tile can no longer be handed in',
+   !w.some((x) => x.tile_id === T.barrows), J(w.map((x) => x.tile_name)));
 ok("so Dharok's helm is no longer a question: one tile wants it",
    verdicts(await match('mate', 'Mate Iron', ["Dharok's helm"])) === 'one');
-ok('the region standings moved', J(w[0].regions) !== '{}' && /misthalin/.test(J(w[0].regions)));
 
 // ------------------------------------------- the review screen's label
 // Red now has three pieces of evidence: Karil's coif from Dink, the whip
@@ -204,7 +208,8 @@ ok('only a signed-in caller may ask at all: not anon, not the service role',
    J(fromOutside.rows.map((x) => x.rolname)) === J(['authenticated']), J(fromOutside.rows));
 
 // ------------------------------------------------------------ the fences
-const direct = await trying(site.bind(null, ids.mate), 'select plugin_watchlist($1)', [tok.mate]);
+const direct = await trying(site.bind(null, ids.mate), 'select plugin_match($1, $2, $3::jsonb)',
+  [tok.mate, 'Mate Iron', J([{ name: "Dharok's helm" }])]);
 ok('a signed-in player cannot call a token function directly', /permission denied/.test(direct ?? ''), direct);
 const asPlayer = await trying(site.bind(null, ids.mate), 'select * from plugin_wanted()');
 ok('nor the internal ones', /permission denied/.test(asPlayer ?? ''), asPlayer);
@@ -214,15 +219,16 @@ const fns = (await db.query(`
   select p.proname from pg_proc p
    where p.pronamespace = 'public'::regnamespace and p.proname like 'plugin\\_%'
      and has_function_privilege('service_role', p.oid, 'execute') order by 1`)).rows.map((x) => x.proname);
-ok('the service role can call exactly the five token functions',
-   J(fns) === J(['plugin_match', 'plugin_open', 'plugin_submit', 'plugin_watchlist', 'plugin_whoami']), J(fns));
+ok('the service role can call exactly the three the intake uses',
+   J(fns) === J(['plugin_match', 'plugin_open', 'plugin_submit']), J(fns));
 ok('a token cannot spend a pick: no plugin function touches regions_pick',
    (await db.query(`select count(*)::int n from pg_proc where proname like 'plugin\\_%' and prosrc ilike '%regions_pick%'`)).rows[0].n === 0);
 
 const idMate = (await db.query('select id from plugin_tokens where profile_id = $1', [ids.mate])).rows[0].id;
 await site(ids.mate, 'select plugin_token_revoke($1)', [idMate]);
-const revoked = await trying(plugin, 'select plugin_watchlist($1)', [tok.mate]);
-ok('a revoked token reads nothing', /Unknown or revoked/.test(revoked ?? ''), revoked);
+const revoked = await trying(plugin, 'select plugin_match($1, $2, $3::jsonb)',
+  [tok.mate, 'Mate Iron', J([{ name: "Dharok's helm" }])]);
+ok('a revoked token matches nothing: refused', /Unknown or revoked/.test(revoked ?? ''), revoked);
 
 // Time up: the rule lives in add_evidence, and the plugin gets no way round it.
 const oLate = (await open('red', 'Red Main', T.helmet, opt['Dharoks helm'], "Dharok's helm")).j;

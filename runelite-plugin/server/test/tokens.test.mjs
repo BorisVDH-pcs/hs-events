@@ -151,20 +151,14 @@ for (const [name, bad] of [
 }
 ok('a null token is refused', /Unknown or revoked/.test(await raises('select plugin_as(null)') ?? ''));
 
-// ---- whoami ----
-const me = (await one('select plugin_whoami($1) j', [tokenA])).j;
-ok('whoami lists the owner\'s accounts, primary first',
-   me.profile_id === A && me.accounts.length === 2 && me.accounts[0].rsn === 'Alice' && me.accounts[0].primary === true);
-ok("whoami never shows another player's accounts", !JSON.stringify(me).includes('Bob'));
-
 // ---- revoking ----
 const idA = (await one('select id from plugin_tokens where profile_id = $1', [A])).id;
 const errB = await raisesAs(B, 'select plugin_token_revoke($1)', [idA]);
 ok("Bob cannot revoke Alice's token", /No such plugin token/.test(errB ?? ''), `got ${errB}`);
-ok("and Alice's token still works", (await one('select plugin_whoami($1) j', [tokenA])).j.profile_id === A);
+ok("and Alice's token still works", (await one('select plugin_as($1) p', [tokenA])).p === A);
 
 await as(A, (tx) => tx.query('select plugin_token_revoke($1)', [idA]));
-ok('a revoked token is refused', /Unknown or revoked/.test(await raises('select plugin_whoami($1)', [tokenA]) ?? ''));
+ok('a revoked token is refused', /Unknown or revoked/.test(await raises('select plugin_as($1)', [tokenA]) ?? ''));
 ok('a revoked token leaves the list',
    (await as(A, async (tx) => (await tx.query('select * from plugin_token_list()')).rows)).length === 0);
 
@@ -188,8 +182,9 @@ const grants = (await db.query(`
 const can = (fn, role) => grants.find((g) => g.proname === fn && g.rolname === role)?.can;
 ok('anon can call nothing', grants.filter((g) => g.rolname === 'anon').every((g) => !g.can));
 ok('nobody is granted plugin_as', ['anon', 'authenticated', 'service_role'].every((r) => !can('plugin_as', r)));
-ok('a signed-in player cannot call a token-taking function', !can('plugin_whoami', 'authenticated'));
-ok('the service role can call plugin_whoami', can('plugin_whoami', 'service_role'));
+// The functions that take a token are in 002 and checked there
+// (regions.test.mjs): this file grants the service role nothing.
+ok('the service role can call nothing here', grants.filter((g) => g.rolname === 'service_role').every((g) => !g.can));
 ok('a signed-in player can manage their tokens',
    can('plugin_token_create', 'authenticated') && can('plugin_token_list', 'authenticated') && can('plugin_token_revoke', 'authenticated'));
 

@@ -18,8 +18,9 @@
 -- (people leave them out); anything else that is not a letter or digit is a
 -- space; spacing is collapsed. Null for nothing-left, so '' never equals ''.
 --
--- The Java twin is com.hsevents.core.DropKey and the two must never disagree:
--- both test files run the same cases.
+-- The tile editor's twin is dropKey in web/src/lib/itemNames.js, and the two
+-- must never disagree: server/test/tokens.test.mjs runs both over every item
+-- name the editor knows.
 
 create or replace function drop_key(p_text text)
 returns text
@@ -171,38 +172,12 @@ end;
 $$;
 
 -- ============================================================
--- 5. plugin_whoami: the first thing a plugin can ask
--- ============================================================
--- "Test connection" in the plugin's settings, and what a submission is checked
--- against later: the in-game names this player has put on their own list.
--- Reads only; touches no game.
-
-create or replace function plugin_whoami(p_token text)
-returns jsonb
-language plpgsql security definer
-set search_path = public
-as $$
-declare
-  v_me uuid := plugin_as(p_token);
-begin
-  return jsonb_build_object(
-    'profile_id', v_me,
-    'accounts', coalesce((
-      select jsonb_agg(jsonb_build_object('rsn', a.rsn, 'primary', a.is_primary)
-                       order by a.is_primary desc, a.rsn)
-        from profile_accounts a
-       where a.profile_id = v_me), '[]'::jsonb));
-end;
-$$;
-
--- ============================================================
--- 6. Grants
+-- 5. Grants
 -- ============================================================
 
 -- Supabase grants every new function in public to the three API roles by
 -- default, so "to nobody" has to name the service role as well.
 revoke execute on function plugin_as(text)               from public, anon, authenticated, service_role;
-revoke execute on function plugin_whoami(text)           from public, anon, authenticated;
 -- These three need a signed-in player (auth.uid()), which the service role is not.
 revoke execute on function plugin_token_create(text)     from public, anon, service_role;
 revoke execute on function plugin_token_list()           from public, anon, service_role;
@@ -211,6 +186,5 @@ revoke execute on function plugin_token_revoke(uuid)     from public, anon, serv
 grant execute on function plugin_token_create(text)      to authenticated;
 grant execute on function plugin_token_list()            to authenticated;
 grant execute on function plugin_token_revoke(uuid)      to authenticated;
--- Only the intake Edge Function, which holds the service-role key, may call a
--- token-taking function.
-grant execute on function plugin_whoami(text)            to service_role;
+-- The functions that take a token are in 002, and only the service role (the
+-- intake Edge Function) may call them.

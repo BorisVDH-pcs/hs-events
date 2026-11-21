@@ -110,7 +110,7 @@ console.log(`     (rsn_key folds the game's non-breaking space on this locale: $
 // ------------------------------------------------------ people, through Auth
 const run = Date.now().toString(36);
 const people = {};
-for (const [key, name, rsn] of [['org', 'Organiser'], ['red', 'Red Cap', 'Red Main'], ['mate', 'Red Mate', 'Mate Iron'],
+for (const [key, name, rsn] of [['org', 'Organiser', 'Org Main'], ['red', 'Red Cap', 'Red Main'], ['mate', 'Red Mate', 'Mate Iron'],
                                 ['blue', 'Blue Cap', 'Blue Main'], ['out', 'Outsider']]) {
   const email = `${key}-${run}@plugin-stack-test.invalid`;
   const password = randomUUID();
@@ -133,7 +133,7 @@ ok('a new user gets a profile through the signup trigger',
    Number(sql(`select count(*) from profiles where id in (${Object.values(people).map((p) => `'${p.id}'`).join(',')})`)) === 5);
 
 // Their in-game names, the way the site's My Account adds them.
-for (const key of ['red', 'mate', 'blue']) {
+for (const key of ['org', 'red', 'mate', 'blue']) {
   const res = await fetch(`${API}/rest/v1/profile_accounts`, {
     method: 'POST',
     headers: { apikey: ANON, Authorization: `Bearer ${people[key].jwt}`, 'Content-Type': 'application/json' },
@@ -190,15 +190,21 @@ r = await rpc('plugin_token_not_there', {}, people.mate.jwt);
 ok('a function the database does not have answers PGRST202, which is what the section hides on',
    r.status === 404 && isMissingFunction(r.body), J(r));
 
-r = await rpc('plugin_whoami', { p_token: tok.mate }, SERVICE);
-ok('the service role turns a token into its player (plugin_whoami)',
-   r.status === 200 && r.body.profile_id === people.mate.id && r.body.accounts[0]?.rsn === 'Mate Iron', J(r));
+// plugin_match is the intake's first call: its account check reads the
+// token's player's own in-game names, so "yes" means the token became that
+// player.
+const items = (names) => names.map((name) => ({ name }));
+const matchWith = (token, rsn, names, as = SERVICE, headers) =>
+  rpc('plugin_match', { p_token: token, p_rsn: rsn, p_items: items(names) }, as, headers);
+r = await matchWith(tok.mate, 'Mate Iron', ['Abyssal whip']);
+ok("the service role turns a token into its player: the player's own in-game name is recognised",
+   r.status === 200 && r.body.account_ok === true, J(r));
+r = await matchWith(tok.mate, 'Blue Main', ['Abyssal whip']);
+ok("and somebody else's is not", r.status === 200 && r.body.account_ok === false, J(r));
 
 for (const [who, as] of [['anon', ANON], ['a signed-in player', people.mate.jwt]]) {
-  for (const fn of ['plugin_whoami', 'plugin_watchlist']) {
-    r = await rpc(fn, { p_token: tok.mate }, as);
-    ok(`${who} cannot call ${fn}`, r.status >= 400 && !J(r.body).includes(people.mate.id), J(r));
-  }
+  r = await matchWith(tok.mate, 'Mate Iron', ['Abyssal whip'], as);
+  ok(`${who} cannot call plugin_match`, r.status >= 400 && !J(r.body).includes('account_ok'), J(r));
 }
 r = await rpc('plugin_as', { p_token: tok.mate }, SERVICE);
 ok('nobody can call plugin_as, not even the service role', r.status >= 400, J(r));
@@ -210,8 +216,8 @@ ok('nobody can call plugin_as, not even the service role', r.status >= 400, J(r)
 // many times over, so the pool hands out the same connections again.
 let leaked = 0, held = 0;
 for (let i = 0; i < 24; i++) {
-  const who = await rpc('plugin_whoami', { p_token: tok.org }, SERVICE);
-  if (who.body?.profile_id === people.org.id) held++;
+  const who = await matchWith(tok.org, 'Org Main', ['Abyssal whip']);
+  if (who.body?.account_ok === true) held++;
   const after = await rpc('is_admin', {}, SERVICE);
   if (after.body !== false) leaked++;
 }
@@ -224,21 +230,20 @@ await must('regions_pick', { p_game_id: g, p_region: 'misthalin' }, people.red.j
 await must('regions_pick', { p_game_id: g, p_region: 'asgarnia' }, people.blue.jwt);
 const viaSite = await must('my_team_in_game', { p_game_id: g }, org, { 'x-act-as-team': team.Red });
 ok("(control) the header does make the organiser's own sign-in act as Red", viaSite === team.Red, J(viaSite));
-const asRed = await must('plugin_watchlist', { p_token: tok.org }, SERVICE, { 'x-act-as-team': team.Red });
-ok("an organiser's token with the act-as-team header still sees nothing", J(asRed) === '[]', J(asRed).slice(0, 200));
+const match = (key, rsn, names) => must('plugin_match', { p_token: tok[key], p_rsn: rsn, p_items: items(names) }, SERVICE);
+const verdicts = (m) => m.items.map((i) => i.verdict).join(',');
+const asRed = await must('plugin_match', { p_token: tok.org, p_rsn: 'Org Main', p_items: items(['Abyssal whip']) },
+  SERVICE, { 'x-act-as-team': team.Red });
+ok("an organiser's token with the act-as-team header still matches nothing of Red's",
+   asRed.account_ok && verdicts(asRed) === 'none' && !/Barrows|Whip|helmet/i.test(J(asRed.items[0].matches)), J(asRed).slice(0, 200));
 
 // ------------------------------------------------- the second secret, for real
-const wRed = await must('plugin_watchlist', { p_token: tok.mate }, SERVICE);
-const wBlue = await must('plugin_watchlist', { p_token: tok.blue }, SERVICE);
-ok("Red's watch list holds Misthalin's drops and nothing of Asgarnia's",
-   wRed.length === 1 && wRed[0].wanted.some((x) => x.label === 'Abyssal whip')
-   && !/Dragon pickaxe|Locked secret/.test(J(wRed)), J(wRed).slice(0, 300));
-ok("Blue's holds Asgarnia's and nothing of Misthalin's",
-   wBlue.length === 1 && J(wBlue[0].wanted.map((x) => x.label)) === J(['Dragon pickaxe'])
-   && !/Barrows|Whip|helmet/.test(J(wBlue)), J(wBlue).slice(0, 300));
-
-const match = (key, rsn, names) => must('plugin_match', { p_token: tok[key], p_rsn: rsn, p_items: names.map((name) => ({ name })) }, SERVICE);
-const verdicts = (m) => m.items.map((i) => i.verdict).join(',');
+const mRed = await match('mate', 'Mate Iron', ['Abyssal whip', 'Dragon pickaxe']);
+const mBlue = await match('blue', 'Blue Main', ['Abyssal whip', 'Dragon pickaxe']);
+ok("Red's drops match Misthalin's tiles and nothing of Asgarnia's",
+   verdicts(mRed) === 'one,none' && !/Dragon pickaxe|Locked secret/.test(J(mRed.items.map((i) => i.matches))), J(mRed).slice(0, 300));
+ok("Blue's match Asgarnia's and nothing of Misthalin's",
+   verdicts(mBlue) === 'none,one' && !/Barrows|Whip|helmet/.test(J(mBlue.items.map((i) => i.matches))), J(mBlue).slice(0, 300));
 let m = await match('mate', 'Mate Iron', ['Abyssal whip', "Dharok's helm", 'Dragon pickaxe', 'Bones']);
 ok('matching: one, ask, a locked tile none, junk none', m.account_ok && verdicts(m) === 'one,ask,none,none', J(m).slice(0, 300));
 ok('a locked tile and no tile give the same answer', J({ ...m.items[2], name: 0 }) === J({ ...m.items[3], name: 0 }));
@@ -446,11 +451,11 @@ ok('and never a token', !/hse_/.test(log) && !Object.values(tok).some((t) => log
 // ------------------------------------------------------------- revoking
 const list = await must('plugin_token_list', {}, people.mate.jwt);
 await must('plugin_token_revoke', { p_id: list[0].id }, people.mate.jwt);
-r = await rpc('plugin_whoami', { p_token: tok.mate }, SERVICE);
+r = await matchWith(tok.mate, 'Mate Iron', ['Abyssal whip']);
 ok('a revoked token is refused', r.status === 400 && /Unknown or revoked plugin token/.test(r.body?.message), J(r));
 r = await submit(`${opened.body.path_prefix}${randomUUID()}.png`, `stack-${run}-2`);
 ok('and can hand nothing in', r.status === 400 && /Unknown or revoked/.test(r.body?.message), J(r));
-r = await rpc('plugin_whoami', { p_token: 'hse_' + '0'.repeat(64) }, SERVICE);
+r = await matchWith('hse_' + '0'.repeat(64), 'Mate Iron', ['Abyssal whip']);
 ok('a token nobody was given gets the same refusal', r.status === 400 && /Unknown or revoked plugin token/.test(r.body?.message), J(r));
 
 console.log(`\n${pass} passed, ${fail} failed`);

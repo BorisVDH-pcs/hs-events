@@ -145,41 +145,9 @@ as $$
 $$;
 
 -- ============================================================
--- 4. plugin_watchlist: what our own plugin keeps in memory
+-- 4. plugin_match: what would these drops count for?
 -- ============================================================
-
-create or replace function plugin_watchlist(p_token text)
-returns jsonb
-language plpgsql security definer
-set search_path = public
-as $$
-declare
-  v_me uuid := plugin_as(p_token);
-begin
-  return coalesce((
-    select jsonb_agg(jsonb_build_object(
-             'game_id', g.id, 'game', g.name, 'mode', g.mode, 'ends_at', g.ends_at,
-             'team_id', te.id, 'team', te.name,
-             'regions', regions_state(g.id, te.id),
-             'wanted', coalesce((
-               select jsonb_agg(jsonb_build_object(
-                        'tile_id', w.tile_id, 'tile', w.tile_name, 'region', w.region,
-                        'option_id', w.option_id, 'label', w.label, 'drop', w.drop)
-                      order by w.tile_position, w.label)
-                 from plugin_wanted() w
-                where w.game_id = g.id), '[]'::jsonb))
-           order by g.created_at)
-      from games g
-      join teams te on te.id = my_team_in_game(g.id)
-     where g.status = 'active' and g.mode = 'regions'
-  ), '[]'::jsonb);
-end;
-$$;
-
--- ============================================================
--- 5. plugin_match: what would these drops count for?
--- ============================================================
--- For Dink, which knows nothing of the watch list and sends every drop: the
+-- For Dink, which knows nothing of the tiles and sends every drop: the
 -- intake function asks this first, and stores a screenshot only for a 'one'.
 --
 -- p_items is [{"name": "Dharok's helm", ...}, ...]. For each: 'none', 'one' or
@@ -221,7 +189,7 @@ end;
 $$;
 
 -- ============================================================
--- 6. plugin_open and plugin_submit: handing a drop in
+-- 5. plugin_open and plugin_submit: handing a drop in
 -- ============================================================
 -- Two calls, because the storage path holds the claim id and the claim does
 -- not exist until the tile is opened:
@@ -344,7 +312,7 @@ end;
 $$;
 
 -- ============================================================
--- 7. admin_evidence_sources: the review screen's label
+-- 6. admin_evidence_sources: the review screen's label
 -- ============================================================
 -- Which evidence a plugin sent, and what it reported, for EvidenceReview's
 -- "sent by plugin" (never "verified").
@@ -382,7 +350,7 @@ end;
 $$;
 
 -- ============================================================
--- 8. Grants
+-- 7. Grants
 -- ============================================================
 -- Internal ones to nobody; the token-taking ones to the service role only,
 -- which is the intake Edge Function.
@@ -393,7 +361,6 @@ revoke execute on function evidence_stamp_source()                 from public, 
 revoke execute on function plugin_wanted()                         from public, anon, authenticated, service_role;
 revoke execute on function plugin_rsn_ok(text)                     from public, anon, authenticated, service_role;
 revoke execute on function plugin_check(text, uuid, uuid, text)    from public, anon, authenticated, service_role;
-revoke execute on function plugin_watchlist(text)                  from public, anon, authenticated;
 revoke execute on function plugin_match(text, text, jsonb)         from public, anon, authenticated;
 revoke execute on function plugin_open(text, text, uuid, uuid, text) from public, anon, authenticated;
 revoke execute on function plugin_submit(text, text, uuid, uuid, text, text, text, jsonb)
@@ -404,7 +371,6 @@ revoke execute on function plugin_submit(text, text, uuid, uuid, text, text, tex
 revoke execute on function admin_evidence_sources(uuid)            from public, anon, service_role;
 grant  execute on function admin_evidence_sources(uuid)            to authenticated;
 
-grant execute on function plugin_watchlist(text)                   to service_role;
 grant execute on function plugin_match(text, text, jsonb)          to service_role;
 grant execute on function plugin_open(text, text, uuid, uuid, text) to service_role;
 grant execute on function plugin_submit(text, text, uuid, uuid, text, text, text, jsonb)
