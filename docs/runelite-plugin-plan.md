@@ -299,6 +299,15 @@ carried through every one of those. A name needs nothing carried:
   label nobody can match is not an error. It only means that drop is handed in
   by hand.
 
+**As built, 2026-11-21:** the tile editor checks each drop against a list of
+item names (the OSRS Wiki's price list, plus untradeable pets, raid drops and
+jars) and says "Not in the item list", with up to three real names to click:
+"thamarons sceptre" offers "Thammaron's sceptre (u)". It warns and never
+blocks. For a tile like "3 raids uniques" there is no alias dictionary;
+instead "Add a list…" fills the tile with every item, spelled as it drops
+("Tumeken's shadow (uncharged)"). Boris agreed to both. `drop_key` itself is
+unchanged.
+
 **What happens to a drop (proposed):**
 
 1. No open tile of the team's lists it: nothing is stored, nothing is kept.

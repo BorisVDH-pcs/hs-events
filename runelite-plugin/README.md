@@ -4,12 +4,15 @@ Started 2026-11-20 from `docs/runelite-plugin-plan.md`. Everything in this
 folder is new and stands apart from the website, and nothing was applied to
 the live Supabase project.
 
-Two changes to the website itself were made with Boris's go-ahead on
+Three changes to the website itself were made with Boris's go-ahead on
 2026-11-21: the **Plugin tokens** section of My Account (see "The token
-screen" below), and **"Sent by plugin"** in the organiser's evidence review
-(see "The review screen's label"). Both are on this branch only. Both hide
-themselves on a database without the drafts, so the live site would show
-nothing new even if they were merged before the drafts are applied.
+screen" below), **"Sent by plugin"** in the organiser's evidence review
+(see "The review screen's label"), and a **check on drop names** with
+ready-made raid lists in the tile editor (see "The tile editor's name
+check"). All three are on this branch only. The first two hide themselves on
+a database without the drafts, so the live site would show nothing new even
+if they were merged before the drafts are applied. The name check needs no
+database and would show at once; it only warns.
 
 Uploading evidence on the site is unchanged and stays the normal way in. A
 plugin is an extra way to hand in a drop, for players who run Dink.
@@ -29,7 +32,7 @@ become migrations when they are moved there on purpose.
 | `server/intake/shrink.mjs` | Makes a screenshot over 3 MB smaller: halves a PNG until it fits. No library, only what the runtime has | Tested offline and in the edge runtime |
 | `server/intake/index.ts` | The Edge Function shell around `handle.mjs` | Tested on the local stack; not deployed anywhere |
 | `server/test/replay.mjs` | Replays all 129 migrations into an in-memory Postgres, with stand-ins for what Supabase provides | Works; the repo's own Region Bingo smoke test passes on it, 76 of 76 |
-| `server/test/*.test.mjs` | Three test files, 167 checks, run by `npm test` | All pass |
+| `server/test/*.test.mjs` | Three test files, 168 checks, run by `npm test` | All pass |
 | `server/test/png.mjs`, `fixtures/` | A PNG writer and reader for the tests only, and one small PNG written by Java's ImageIO | |
 | `server/local/` | A local Supabase stack: `config.toml`, and `prepare.mjs`, which copies the migrations, the two drafts and the intake function into it | Works with Supabase CLI 2.122.0 and Docker |
 | `server/test/stack.test.mjs` | 65 checks against that stack, the Edge Function included, run by `npm run test:stack` | All pass |
@@ -40,6 +43,10 @@ become migrations when they are moved there on purpose.
 | `web/preview-account.html` | A harness for My Account with fixture tokens | |
 | `web/src/components/EvidenceReview.jsx` | The organiser's evidence review: "Sent by plugin" on a row a plugin handed in, with what it reported | Tried in the preview harness, and seen by Boris on the local stack with his own drops (2026-11-21). Not on the live project |
 | `web/src/lib/evidenceSource.js` | The label and the lines under it, from `source` and `detail` | Tested by `web/scripts/evidence-source-selftest.mjs`, and used by `stack.test.mjs` |
+| `web/src/components/TileForm.jsx` | The tile editor: "Not in the item list" under a drop, with names to click, and "Add a list…" | Tried in the admin harness (`/preview-admin.html`), at desktop and phone width. Not on the live project, not used by Boris yet |
+| `web/src/lib/itemNames.js`, `itemNames.data.js` | `dropKey` (the server's `drop_key` in JS), the check, and 4,776 item names | Tested by `web/scripts/item-names-selftest.mjs`; `tokens.test.mjs` checks `dropKey` against `drop_key` on every name |
+| `web/scripts/build-item-names.mjs` | Makes `itemNames.data.js` from the OSRS Wiki's price list and a typed list of untradeables | Run once, 2026-11-21 |
+| `web/src/lib/dropLists.js` | The ready-made lists: raid uniques (all, and per raid) and raid weapons | Every name is checked against the item list by the selftest |
 
 ## What the tests prove
 
@@ -237,6 +244,20 @@ with no sign-in. Every request goes to a link made by the site's own
   RuneLite, and it does nothing visible yet: its watch list is still empty.
 - **The live project.** The token screen and the review screen's label have
   run against the local stack only.
+- **Raid loot from a real Dink.** Dink sends a raid chest as loot with the
+  category "EVENT" (its own docs show one for Tombs of Amascut), and the
+  intake does not look at the category, so it should be matched like a cow's
+  drop. Nobody has done a raid against the local stack yet. Only the player
+  whose chest holds the purple sends it.
+- **That the raid weapons drop uncharged.** The lists say "Tumeken's shadow
+  (uncharged)", "Scythe of Vitur (uncharged)" and "Sanguinesti staff
+  (uncharged)" because the wiki's chest pages list them so and the price list
+  has only those forms. Not yet seen in a real Dink message.
+- **Every real item is in the list.** The price list has only what the Grand
+  Exchange trades. Pets, the raids' untradeables and the boss jars were added
+  by hand; any other untradeable drop (Vorkath's head, for one) is flagged
+  although it is real. The warning says what the list holds, and never
+  blocks a save.
 
 ## A real Dink client
 
@@ -319,6 +340,40 @@ in draft 002 stamps it `web`, and the screen shows it exactly as before.
   way, the rows still load and a line says the screen cannot tell which
   evidence a plugin sent, rather than pass plugin evidence off as uploads.
 
+## The tile editor's name check
+
+Dink is matched to a tile by name: `drop_key` forgives capitals, apostrophes
+and spacing, and nothing else. A drop typed "thamarons sceptre" never meets
+the "Thammaron's sceptre (u)" the revenants drop. Made on 2026-11-21 with
+Boris's go-ahead, in the one tile form the board builder, the catalogue and
+tile suggestions all use.
+
+- **"Not in the item list."** Shown under a drop once its box is left, not
+  while it is typed. Up to three real names follow, to click: "Did you mean
+  Thammaron's sceptre (u)?". It finds a missing letter, two letters swapped,
+  "scepter" for "sceptre", and a bracket left out or wrong ("Tumeken's shadow"
+  offers "Tumeken's shadow (uncharged)"). Under five letters it does not guess.
+- **A warning, never an error.** "Any Barrows piece" is a fine drop for a tile
+  uploaded by hand, and the line under the list says so. Nothing about names
+  stops a save.
+- **"Add a list…"** beside "Add drop" adds every drop of a ready-made list,
+  spelled as the items are: raid uniques from all three raids (26), from each
+  raid (12, 7, 7), and raid weapons (10). Weapons here are what goes in the
+  weapon slot: Dinh's bulwark is in, Kodai insignia and the Avernic hilt are
+  not. A drop the tile already has is not added twice. On a set rule each drop
+  gets its raid as its set ("Raids weapons" for the weapons list), so "one
+  unique from every raid" is one pick.
+- **The names**: 4,776, from the OSRS Wiki. Its price list gives every item
+  the Grand Exchange trades; pets, the raids' untradeable drops and the boss
+  jars were typed from the wiki's own pages. Wiki content is CC BY-NC-SA 3.0,
+  and the file says where it came from. The list is its own 24 KB file,
+  loaded the first time a tile form opens. `npm run items:names` makes it
+  again when the game adds items.
+- **The same spelling rule as the server.** `dropKey` in
+  `web/src/lib/itemNames.js` is `drop_key` written again in JS, so the editor
+  can answer what the server would. `tokens.test.mjs` runs both over every
+  name in the list and every ready-made drop: they agree on all 4,852.
+
 ## The RuneLite build
 
 `plugin/` now has the shape of RuneLite's plugin template
@@ -357,6 +412,11 @@ Eight checks in the older smoke tests (`bingo`, `snakes`, `territory`) fail on
 the replay. Each expects the words "admins only" where the function now says
 "Not a mode you run" or "Not your game". The player is still refused; only
 the expected wording is out of date. Not changed here.
+
+`drop_key` turns "+" into a space like any other sign, so "Dragon dagger(p)",
+"(p+)" and "(p++)" are one drop to it, and so are "Anti-venom" and
+"Anti-venom+". A tile wanting the (p++) would take a (p). Found while building
+the name check; not changed, since it is a rule and Boris's call.
 
 ## Dink, as it really is
 
@@ -452,6 +512,13 @@ switch shows the live project's case and a failed call):
     cd web && npm run preview:evidence      then open /preview-evidence.html
     cd web && npm run test:evidence-source
 
+The tile editor's name check: open a game's board in the admin harness, pick
+a square, Edit, and type a drop.
+
+    cd web && npm run preview:evidence      then open /preview-admin.html
+    cd web && npm run test:item-names
+    cd web && npm run items:names           fetches the wiki's price list again
+
 ## Next
 
 1. **Done 2026-11-21:** a real Dink client against the local stack. See "A
@@ -461,3 +528,6 @@ switch shows the live project's case and a failed call):
    in-game overview, pop-ups and the "which tile?" question.
 3. If it is: load the plugin in RuneLite once (`gradle run`) to see it start
    and show its settings; then the four Plugin Hub points above.
+4. Boris to try the tile editor's name check and "Add a list…" on the local
+   site (`site.mjs`), and say whether the raid weapons list is the one he
+   means. More ready-made lists (Barrows, God Wars, Nex and so on) on request.
