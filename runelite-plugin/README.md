@@ -1,8 +1,8 @@
 # hs-events and Dink: work so far
 
-Started 2026-11-20 from `docs/runelite-plugin-plan.md`. Nothing has been
-applied to the live Supabase project yet: that happens when Boris merges
-this branch (see "Going live").
+Started 2026-11-20 from `docs/runelite-plugin-plan.md`. Live for Region
+Bingo since 2026-11-21: Boris merged it (pull request #83, see "Going
+live"). Hidden games followed the same day (pull request #84).
 
 **Dink only.** On 2026-11-21 Boris decided against a plugin of our own: drops
 come in through Dink, the RuneLite plugin many players already run, and this
@@ -46,33 +46,34 @@ applies them on merge.
 | `supabase/functions/intake/dink.mjs` | Reads a Dink notification; makes the dedupe key | Tested; checked against Dink's source, and read real loot from a real Dink client on 2026-11-21. Pets not yet from a client |
 | `supabase/functions/intake/handle.mjs` | What happens to one notification: match, open, store, submit, or keep it for the team to choose; and removing the screenshots nobody needs | Tested end to end, offline |
 | `supabase/functions/intake/shrink.mjs` | Makes a screenshot over 3 MB smaller: halves a PNG until it fits. No library, only what the runtime has | Tested offline and in the edge runtime |
-| `supabase/functions/intake/index.ts` | The Edge Function shell around `handle.mjs`; cleans up after each request whose token the database accepted | Tested on the local stack; not deployed anywhere yet |
-| `.github/workflows/functions-deploy.yml` | Deploys `intake` when `supabase/functions` changes on `main`, with the secrets `db-push.yml` has | Not run yet: it first runs on merge |
+| `supabase/functions/intake/index.ts` | The Edge Function shell around `handle.mjs`; cleans up after each request whose token the database accepted | Tested on the local stack. Deployed to the live project on 2026-11-21 (pull request #83); not yet called there by a real Dink |
+| `.github/workflows/functions-deploy.yml` | Deploys `intake` when `supabase/functions` changes on `main`, with the secrets `db-push.yml` has | Ran on the merge of pull request #83 (2026-11-21): refused at first, since the deploy token could only read, then deployed `intake` once Boris gave it Edge Functions read-write |
 | `server/test/replay.mjs` | Replays all 132 migrations into an in-memory Postgres, with stand-ins for what Supabase provides | Works; the repo's own Region Bingo smoke test passes on it, 76 of 76 |
 | `server/test/*.test.mjs` | Eight test files, 383 checks, run by `npm test` | All pass |
 | `server/test/png.mjs`, `fixtures/` | A PNG writer and reader for the tests only, and one small PNG written by Java's ImageIO | |
 | `server/local/` | A local Supabase stack: `config.toml`, and `prepare.mjs`, which copies the migrations and the intake function into it | Works with Supabase CLI 2.122.0 and Docker |
 | `server/test/stack.test.mjs` | 134 checks against that stack, the Edge Function included, run by `npm run test:stack` | All pass |
 | `server/test/load.mjs` | A load test of the intake on that stack: 1,830 requests shaped like Dink's, with heavy screenshots, at 60, 300 and 1,000 a minute and 200 at once, sent again as Dink does. Run by `npm run load:stack`, about 6 minutes | Run on 2026-11-21: nothing lost, nothing counted twice (see "Many drops at once") |
-| `web/src/components/PluginTokens.jsx` | The Plugin tokens section of My Account: make a token, see its Dink link once, revoke | Tried in the preview harness, and used by Boris on the local stack to set up a real Dink (2026-11-21). Not on the live project |
+| `web/src/components/PluginTokens.jsx` | The Plugin tokens section of My Account: make a token, see its Dink link once, revoke | Tried in the preview harness, and used by Boris on the local stack to set up a real Dink (2026-11-21). On the live site since 2026-11-21 (pull request #83); not used there yet |
 | `web/src/lib/pluginTokens.js` | The Dink link, the name check, "last used" in words | Tested by `web/scripts/plugin-tokens-selftest.mjs`, and used by `stack.test.mjs` |
 | `web/preview-account.html` | A harness for My Account with fixture tokens | |
-| `web/src/components/EvidenceReview.jsx` | The organiser's evidence review: "Sent by plugin" on a row a plugin handed in, with what it reported | Tried in the preview harness, and seen by Boris on the local stack with his own drops (2026-11-21). Not on the live project |
-| `web/src/components/EvidencePanel.jsx` | Every tile's panel, a team's and an organiser's: Dink's report beside each Dink screenshot ("Bones ×1 from Woman", the time, the world) | Tried in the preview harness at desktop and phone width; its call tested through PostgREST on the local stack, and Boris's own Bones row read through it. Not yet opened by Boris on the local site. Not on the live project |
+| `web/src/components/EvidenceReview.jsx` | The organiser's evidence review: "Sent by plugin" on a row a plugin handed in, with what it reported | Tried in the preview harness, and seen by Boris on the local stack with his own drops (2026-11-21). On the live site since 2026-11-21 (pull request #83); not used there yet |
+| `web/src/components/EvidencePanel.jsx` | Every tile's panel, a team's and an organiser's: Dink's report beside each Dink screenshot ("Bones ×1 from Woman", the time, the world) | Tried in the preview harness at desktop and phone width; its call tested through PostgREST on the local stack, and Boris's own Bones row read through it. Not yet opened by Boris on the local site. On the live site since 2026-11-21 (pull request #83); not used there yet |
 | `web/src/lib/evidenceSource.js` | The label, the drop line and the lines under it, from `source` and `detail` | Tested by `web/scripts/evidence-source-selftest.mjs`, and used by `stack.test.mjs` |
-| `web/src/components/WaitingDrops.jsx` | The box above a team's board: a drop two tiles want, its screenshot and Dink's report, and a button for each tile | Tried in the preview harness at desktop and phone width; the calls behind it tested through PostgREST and Storage on the local stack; used by Boris on the local site for a real Dink cow (2026-11-21). Not on the live project |
+| `web/src/components/WaitingDrops.jsx` | The box above a team's board: a drop two tiles want, its screenshot and Dink's report, and a button for each tile | Tried in the preview harness at desktop and phone width; the calls behind it tested through PostgREST and Storage on the local stack; used by Boris on the local site for a real Dink cow (2026-11-21). On the live site since 2026-11-21 (pull request #83); not used there yet |
 | `web/src/lib/waitingDrops.js` | The box's helpers: a tile's name with its region, the time left. Where the copy goes is now the database's answer | Tested by `web/scripts/waiting-drops-selftest.mjs` |
-| `web/src/components/Admin.jsx` | "Drops from Dink" on each Region Bingo game that has not finished: the site's own switch, as for Discord | Tried in the admin harness (`/preview-admin.html`) at desktop and phone width; its call tested through PostgREST on the local stack. Not used by Boris yet. Not on the live project |
-| `web/src/components/TileForm.jsx` | The tile editor: "Not in the item list" under a drop, with names to click, and "Add a list…" | Tried in the admin harness (`/preview-admin.html`), at desktop and phone width. Not on the live project, not used by Boris yet |
+| `web/src/components/Admin.jsx` | "Drops from Dink" on each Region Bingo game that has not finished: the site's own switch, as for Discord | Tried in the admin harness (`/preview-admin.html`) at desktop and phone width; its call tested through PostgREST on the local stack. On the live site since 2026-11-21 (pull request #83): seen there, off, on the hidden test game; not switched yet |
+| `web/src/components/TileForm.jsx` | The tile editor: "Not in the item list" under a drop, with names to click, and "Add a list…" | Tried in the admin harness (`/preview-admin.html`), at desktop and phone width. On the live site since 2026-11-21 (pull request #83); not used by Boris yet |
 | `web/src/lib/itemNames.js`, `itemNames.data.js` | `dropKey` (the server's `drop_key` in JS), the check, and 4,820 item names | Tested by `web/scripts/item-names-selftest.mjs`; `tokens.test.mjs` checks `dropKey` against `drop_key` on every name |
 | `web/scripts/build-item-names.mjs` | Makes `itemNames.data.js` from the OSRS Wiki's price list and a typed list of untradeables | Run once, 2026-11-21 |
 | `web/src/lib/dropLists.js` | The ready-made lists: 65 of them, for raids, groups of bosses, every boss in the collection log and pets | Every name is checked against the item list by the selftest, spelled exactly as the item is |
 
 ## Going live
 
-Asked for by Boris on 2026-11-21: Dink goes live for Region Bingo. Nothing
-reaches the live project until he merges this branch into `main`. Then, side
-by side:
+Asked for by Boris on 2026-11-21: Dink goes live for Region Bingo. **Live
+since the same evening:** Boris merged pull request #83 into `main` (see
+Next, item 10). Written before the merge; what the merge set off, side by
+side:
 
 - **`db-push.yml`** applies the two new migrations,
   `20261121120000_plugin_tokens.sql` and `20261121120100_plugin_drops.sql`,
@@ -410,8 +411,8 @@ with no sign-in. Every request goes to a link made by the site's own
 
 - **A hosted Supabase project.** The local stack runs the same software, but
   the live project's settings, its Postgres version and its limits were not
-  compared, by design. The Edge Function has not been deployed; see "Going
-  live" for what is checked after the merge.
+  compared, by design. The Edge Function is deployed there, but no real
+  Dink has called it yet; see "Going live", checks 2 to 4.
 - **A pet from a real Dink.** Loot from a real client has been read (see "A
   real Dink client" below). A pet notification has only been checked against
   Dink's source, and a real screenshot over 3 MB has not come in yet: the
@@ -427,8 +428,9 @@ with no sign-in. Every request goes to a link made by the site's own
 - **A JPEG over 3 MB** is still ignored. Dink only makes a JPEG for a
   screenshot over 8 MB, so this needs a screen bigger than 4K.
 - **The live project.** The token screen, the review screen's label,
-  Dink's report in a tile's panel, the waiting box and the switch have run
-  against the local stack only.
+  Dink's report in a tile's panel, the waiting box and the switch are on the
+  live site since 2026-11-21, but have only been used against the local
+  stack.
 - **The switch in a signed-in browser.** Tried in the admin harness and
   through PostgREST. Boris has not flipped it on the local site yet. His
   "Dink trial", built before the switch existed, was switched on by SQL on
@@ -810,8 +812,10 @@ in the console's Configure pane and in the new-event form
 Tested offline (`hidden.test.mjs`), on the local stack through PostgREST
 (`stack.test.mjs`: the login page's own query as a signed-out visitor), in
 the console and login harnesses, and with the login page's query through
-the site's own client against the local stack. Not yet on the live site: it
-goes live when Boris merges its pull request.
+the site's own client against the local stack. Live since 2026-11-21: pull
+request #84, merge `383b25e`, its database change and the site deployed
+green. The first hidden game on the live site, "Dink test (hidden)", was set
+up the same day (see Next, item 11).
 
 ## The tile editor's name check
 
@@ -1142,5 +1146,11 @@ a square, Edit, and type a drop.
     sheet has a "Drops from Dink" part, in Boris's words
     (`docs/region-bingo-rules.md`, under Playing). Still to do with Boris:
     checks 2 to 4 in "Going live", on a hidden test game (item 11).
-11. **A hidden test game** (Boris, 2026-11-21): built (see "A hidden test
-    game"); goes live when Boris merges its pull request.
+11. **A hidden test game** (Boris, 2026-11-21): **live** the same day
+    (pull request #84; see "A hidden test game"). Set up on the live site as
+    the organiser account, with no SQL: "Dink test (hidden)", Region Bingo,
+    hidden, Dink off, one team. Bones and Cowhide in each of the 11 regions,
+    22 tasks, from two catalogue entries made for it; delete them and the
+    game after. Next: Boris adds the players and a captain and starts the
+    game, the captain picks a region, Dink goes on in the console, then
+    checks 2 to 4 in "Going live".
