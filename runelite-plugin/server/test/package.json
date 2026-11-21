@@ -5,7 +5,8 @@
   "scripts": {
     "test": "node tokens.test.mjs && node regions.test.mjs && node regions-game.test.mjs && node bingo.test.mjs && node intake.test.mjs && node waiting.test.mjs && node switch.test.mjs && node hidden.test.mjs",
     "replay": "node replay.mjs",
-    "test:stack": "node stack.test.mjs"
+    "test:stack": "node stack.test.mjs",
+    "load:stack": "node load.mjs"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.17"
