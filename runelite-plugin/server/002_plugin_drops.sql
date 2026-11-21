@@ -3,12 +3,15 @@
 --
 -- DRAFT. Not in supabase/migrations on purpose, so db-push cannot apply it.
 -- It adds two columns to tile_evidence, one trigger on it, one table and new
--- functions. It rewrites no existing function: tiles_for_team,
--- regions_open_tile and add_evidence are called exactly as they are, so every
--- rule they hold applies to a plugin without being written down twice.
+-- functions, one of them for the site (admin_evidence_sources, the review
+-- screen's "sent by plugin"). It rewrites no existing function:
+-- tiles_for_team, regions_open_tile and add_evidence are called exactly as
+-- they are, so every rule they hold applies to a plugin without being written
+-- down twice.
 --
 -- Tested offline by server/test/regions.test.mjs, against a replay of every
--- migration in supabase/migrations.
+-- migration in supabase/migrations, and on a local Supabase stack by
+-- server/test/stack.test.mjs.
 --
 -- Region Bingo only, for now. The other modes are a branch in plugin_open
 -- each, added one at a time (plan, section 7).
@@ -341,7 +344,45 @@ end;
 $$;
 
 -- ============================================================
--- 7. Grants
+-- 7. admin_evidence_sources: the review screen's label
+-- ============================================================
+-- Which evidence a plugin sent, and what it reported, for EvidenceReview's
+-- "sent by plugin" (never "verified").
+--
+-- A function of its own rather than two more columns on admin_list_evidence:
+-- changing what that returns means dropping and re-creating it, and its live
+-- body has been rewritten in place since (20261025130000), so a copy here
+-- could drift from it. This one reads two columns and asks the same gate,
+-- may_manage_game, in the same words.
+--
+-- Organisers only. A player who could call it would read the item names of
+-- the other team's evidence, and through them tiles in regions their own team
+-- has not opened.
+--
+-- Only rows that did not come from the site: a 'web' row has no detail, and
+-- the screen treats a row it is not told about as an upload.
+
+create or replace function admin_evidence_sources(p_game_id uuid)
+returns table (id uuid, source text, detail jsonb)
+language plpgsql stable security definer
+set search_path = public
+as $$
+begin
+  if not may_manage_game(p_game_id) then
+    raise exception 'Not your game';
+  end if;
+  return query
+    select e.id, e.source, e.detail
+      from tile_evidence e
+      join tile_claims c on c.id = e.claim_id
+      join tiles t on t.id = c.tile_id
+     where t.game_id = p_game_id
+       and e.source <> 'web';
+end;
+$$;
+
+-- ============================================================
+-- 8. Grants
 -- ============================================================
 -- Internal ones to nobody; the token-taking ones to the service role only,
 -- which is the intake Edge Function.
@@ -357,6 +398,11 @@ revoke execute on function plugin_match(text, text, jsonb)         from public, 
 revoke execute on function plugin_open(text, text, uuid, uuid, text) from public, anon, authenticated;
 revoke execute on function plugin_submit(text, text, uuid, uuid, text, text, text, jsonb)
   from public, anon, authenticated;
+
+-- A signed-in organiser's, like admin_list_evidence; the function itself
+-- refuses everyone else.
+revoke execute on function admin_evidence_sources(uuid)            from public, anon, service_role;
+grant  execute on function admin_evidence_sources(uuid)            to authenticated;
 
 grant execute on function plugin_watchlist(text)                   to service_role;
 grant execute on function plugin_match(text, text, jsonb)          to service_role;

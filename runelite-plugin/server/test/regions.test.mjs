@@ -157,6 +157,52 @@ ok("so Dharok's helm is no longer a question: one tile wants it",
    verdicts(await match('mate', 'Mate Iron', ["Dharok's helm"])) === 'one');
 ok('the region standings moved', J(w[0].regions) !== '{}' && /misthalin/.test(J(w[0].regions)));
 
+// ------------------------------------------- the review screen's label
+// Red now has three pieces of evidence: Karil's coif from Dink, the whip
+// uploaded on the site, and Dharok's helm from the plugin.
+const sources = async (who, game = g) =>
+  site(who, 'select * from admin_evidence_sources($1) order by source', [game]);
+let src = await sources(ids.org);
+ok("an organiser is told which evidence a plugin sent: 'dink' and 'plugin'",
+   J(src.map((x) => x.source)) === J(['dink', 'plugin']), J(src));
+ok('with what was reported', src[0].detail.item === "Karil's coif" && src[0].detail.world === 302, J(src[0]));
+const siteUpload = (await db.query('select id from tile_evidence where claim_id = $1', [cWhip])).rows[0].id;
+ok('the upload from the site is not among them',
+   !src.some((x) => x.id === siteUpload) && src.length === 2, J(src));
+const listed = (await site(ids.org, 'select id, storage_path from admin_list_evidence($1)', [g]));
+ok('every row is one the review screen already lists, by its id',
+   src.every((x) => listed.some((l) => l.id === x.id)) && listed.length === 3, J(listed));
+ok("the site's upload is the one row with no label",
+   listed.filter((l) => !src.some((x) => x.id === l.id)).map((l) => l.storage_path).join() === `${g}/${team.Red}/${cWhip}/site.webp`,
+   J(listed));
+
+// A moderator of this mode runs this game, so sees the same.
+await site(ids.org, `select admin_set_moderator_modes($1, array['regions']::game_mode[])`, [ids.out]);
+ok("a moderator of Region Bingo is told the same", J((await sources(ids.out)).map((x) => x.source)) === J(['dink', 'plugin']));
+await site(ids.org, `select admin_set_moderator_modes($1, array['battleships']::game_mode[])`, [ids.out]);
+const otherMode = await trying(site.bind(null, ids.out), 'select * from admin_evidence_sources($1)', [g]);
+ok('a moderator of another mode is not', /Not your game/.test(otherMode ?? ''), otherMode);
+await site(ids.org, `select admin_set_moderator_modes($1, array[]::game_mode[])`, [ids.out]);
+
+// The second secret. A player who could read this would learn the item names
+// on the other team's tiles, and through them tiles in regions they have not
+// opened. Refused in the words admin_list_evidence uses.
+const blueAsks = await trying(site.bind(null, ids.blue), 'select * from admin_evidence_sources($1)', [g]);
+const blueList = await trying(site.bind(null, ids.blue), 'select * from admin_list_evidence($1)', [g]);
+ok("a player on the other team is refused", /Not your game/.test(blueAsks ?? ''), blueAsks);
+ok('in the same words as the evidence list itself', blueAsks === blueList, J([blueAsks, blueList]));
+const mateAsks = await trying(site.bind(null, ids.mate), 'select * from admin_evidence_sources($1)', [g]);
+ok('and so is a player on the team that sent it', /Not your game/.test(mateAsks ?? ''), mateAsks);
+const noGame = await trying(site.bind(null, ids.blue), 'select * from admin_evidence_sources($1)',
+  ['00000000-0000-0000-0000-000000000001']);
+ok('a game that does not exist gets the same answer as a game that is not yours', noGame === blueAsks, J([noGame, blueAsks]));
+const fromOutside = await db.query(`
+  select r.rolname from pg_roles r
+   where r.rolname in ('anon', 'service_role', 'authenticated')
+     and has_function_privilege(r.rolname, 'admin_evidence_sources(uuid)', 'execute') order by 1`);
+ok('only a signed-in caller may ask at all: not anon, not the service role',
+   J(fromOutside.rows.map((x) => x.rolname)) === J(['authenticated']), J(fromOutside.rows));
+
 // ------------------------------------------------------------ the fences
 const direct = await trying(site.bind(null, ids.mate), 'select plugin_watchlist($1)', [tok.mate]);
 ok('a signed-in player cannot call a token function directly', /permission denied/.test(direct ?? ''), direct);
