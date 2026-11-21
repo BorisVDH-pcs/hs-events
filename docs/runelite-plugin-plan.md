@@ -597,6 +597,13 @@ modes, one at a time.
     2026-11-21:** a Dink picture that does not show the drop is accepted on
     Dink's report (option a of three; the others were to need the drop in the
     picture on valuable tiles, or always). An organiser can still revoke it.
+13. **A drop from the wrong monster.** Matching is by item name, so a Dragon
+    pickaxe from Callisto finished a Kalphite Queen tile. **Decided,
+    2026-11-21:** a tile can say which monsters its drop must come from
+    ("Only from"), on a board's square and on a catalogue entry. Left empty,
+    a drop from any monster counts, as before. Only Dink's drops are checked;
+    an upload on the site is not. Built the same evening, not live yet (see
+    `runelite-plugin/README.md`, "Only from").
 
 ---
 
