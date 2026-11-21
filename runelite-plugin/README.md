@@ -33,16 +33,16 @@ become migrations when they are moved there on purpose.
 | Path | What | State |
 |---|---|---|
 | `server/001_plugin_tokens.sql` | Plugin tokens, `drop_key`, `plugin_as` | Tested offline, and on a local Supabase stack |
-| `server/002_plugin_drops.sql` | Evidence `source` and `detail`, the intake log, `plugin_wanted`, `plugin_match`, `plugin_open`, `plugin_submit`, and `admin_evidence_sources` for the review screen | Tested offline against the real rules, and on a local Supabase stack |
+| `server/002_plugin_drops.sql` | Evidence `source` and `detail`, the intake log, `plugin_wanted`, `plugin_match`, `plugin_open`, `plugin_submit` (for Region Bingo and Bingo), and `admin_evidence_sources` for the review screen | Tested offline against the real rules, and on a local Supabase stack |
 | `server/intake/dink.mjs` | Reads a Dink notification; makes the dedupe key | Tested; checked against Dink's source, and read real loot from a real Dink client on 2026-11-21. Pets not yet from a client |
 | `server/intake/handle.mjs` | What happens to one notification: match, open, store, submit | Tested end to end, offline |
 | `server/intake/shrink.mjs` | Makes a screenshot over 3 MB smaller: halves a PNG until it fits. No library, only what the runtime has | Tested offline and in the edge runtime |
 | `server/intake/index.ts` | The Edge Function shell around `handle.mjs` | Tested on the local stack; not deployed anywhere |
 | `server/test/replay.mjs` | Replays all 129 migrations into an in-memory Postgres, with stand-ins for what Supabase provides | Works; the repo's own Region Bingo smoke test passes on it, 76 of 76 |
-| `server/test/*.test.mjs` | Three test files, 163 checks, run by `npm test` | All pass |
+| `server/test/*.test.mjs` | Four test files, 205 checks, run by `npm test` | All pass |
 | `server/test/png.mjs`, `fixtures/` | A PNG writer and reader for the tests only, and one small PNG written by Java's ImageIO | |
 | `server/local/` | A local Supabase stack: `config.toml`, and `prepare.mjs`, which copies the migrations, the two drafts and the intake function into it | Works with Supabase CLI 2.122.0 and Docker |
-| `server/test/stack.test.mjs` | 64 checks against that stack, the Edge Function included, run by `npm run test:stack` | All pass |
+| `server/test/stack.test.mjs` | 73 checks against that stack, the Edge Function included, run by `npm run test:stack` | All pass |
 | `web/src/components/PluginTokens.jsx` | The Plugin tokens section of My Account: make a token, see its Dink link once, revoke | Tried in the preview harness, and used by Boris on the local stack to set up a real Dink (2026-11-21). Not on the live project |
 | `web/src/lib/pluginTokens.js` | The Dink link, the name check, "last used" in words | Tested by `web/scripts/plugin-tokens-selftest.mjs`, and used by `stack.test.mjs` |
 | `web/preview-account.html` | A harness for My Account with fixture tokens | |
@@ -55,8 +55,8 @@ become migrations when they are moved there on purpose.
 
 ## What the tests prove
 
-Against a replay of every migration, so `tiles_for_team`, `regions_open_tile`
-and `add_evidence` are the real ones:
+Against a replay of every migration, so `tiles_for_team`, `regions_open_tile`,
+`bingo_open_tile` and `add_evidence` are the real ones:
 
 - **A token is the player, for one request.** `plugin_as` makes `auth.uid()`
   the token's owner for one transaction, so the existing functions apply their
@@ -66,6 +66,7 @@ and `add_evidence` are the real ones:
   else: no tile name, no drop. A drop for a
   locked tile gets the same answer, word for word, as a drop for a tile that
   does not exist.
+- **Bingo works the same way, by Bingo's own rules.** See "Bingo" below.
 - **A drop counts as an upload does.** One evidence row, by that player, for
   their team, with the points taken from the option. The tile completes by its
   own rule, and the usual feed lines are written.
@@ -148,7 +149,7 @@ keeps it under 3 MB.
 `stack.test.mjs` runs against the Supabase CLI's own local stack, which is the
 same software a hosted project runs: Postgres 17.11, PostgREST 16.5, Storage
 1.84.19, Auth 2.197.0, edge runtime 1.77.8 (Deno 2). It is not the live
-project and never touches it. Tested 2026-11-21, 64 of 64.
+project and never touches it. Tested 2026-11-21, 73 of 73.
 
 - **The migrations apply on real Supabase.** All 129, then the two drafts, by
   the CLI itself, with no errors.
@@ -232,8 +233,20 @@ with no sign-in. Every request goes to a link made by the site's own
 - **The worst screenshot fits in the runtime.** A 7.2 MB, 3840 x 2400 PNG is
   handed in, kept at 1920 x 1200 and 1.7 MB, pixel for pixel the expected
   half-size picture, with `resized_from` on its evidence.
+- **Bingo through the function.** A Bingo game built through PostgREST beside
+  the Region Bingo one. A drop on the card before the start hands nothing in;
+  after it, the same drop is one row for the player's Bingo team, with its
+  screenshot in Storage. The other team's drop on the same tile is its own.
+  Red's Dragon pickaxe, wanted by the card and by the tile in the region Red
+  has not opened, is handed in on the card and nowhere else.
 
 ## What they do not prove
+
+- **Bingo with a real Dink.** Only the tests so far. `node trial.mjs bingo`
+  has built a card beside the trial game for Boris to play (see "To run").
+- **The other modes.** Snakes and Ladders, Territory and Challenge are not
+  wired: a drop there is never counted, because `plugin_wanted` does not
+  read those games.
 
 - **A hosted Supabase project.** The local stack runs the same software, but
   the live project's settings, its Postgres version and its limits were not
@@ -275,6 +288,43 @@ with no sign-in. Every request goes to a link made by the site's own
   newest bosses (Brutus, the Mad Angel, the Maggot King, the Shellbane
   Gryphon) are known to this work only from the wiki. Nobody has checked the
   lists against the game.
+
+## Bingo
+
+Added 2026-11-21. Dink works for a Bingo game as it does for Region Bingo,
+and no rule was written twice:
+
+- **What a team can hand in** is its card's drops, once the organiser has
+  pressed Start, less the tiles it has completed and the options that are
+  full. Before the start the card is hidden, so nothing matches: that is
+  `tiles_for_team`'s own rule.
+- **Opening a tile** goes through `bingo_open_tile`, what the site calls on a
+  first screenshot, so the player's team, the game running and the time are
+  checked by the site's own code. A small internal function,
+  `plugin_open_tile`, sends each tile to the opener for its mode. Nobody
+  outside may call it.
+- **Completing a tile, and the card,** happen in `add_evidence`, as for an
+  upload. In the tests the drop that fills the card ends the game, by "full
+  card", with that team the winner.
+- **Both teams play the same card.** A drop is handed in for the player's own
+  team, on its own claim. A path under the other team's claim is refused by
+  `add_evidence` itself.
+
+**Two games at once.** A player in a Bingo game and a Region Bingo game at
+the same time has every drop matched against both. A drop wanted by tiles in
+both games is an "ask", as with two tiles in one game, so Dink hands it in
+nowhere and the player uploads it on the site where they want it. Whether it
+should count in both games instead is Boris's call (see "Next").
+
+**The second secret across games.** A drop wanted by the card and by a tile
+in a region the team has not opened is a "one", for the card. The tests check
+that the answer is word for word what it would be with no Region Bingo game
+running at all, so nothing in it gives the locked tile away.
+
+**Not built: the switch per game.** The plan (section 7) proposes a switch on
+each game, "drops from plugins on or off". It is still open (section 10,
+item 6), so for now every running Region Bingo and Bingo game takes drops
+from Dink.
 
 ## A real Dink client
 
@@ -500,7 +550,9 @@ The local stack needs Docker and the Supabase CLI:
     cd ../local && supabase stop
 
 After changing a draft, run `node prepare.mjs` and `supabase db reset` before
-the test. The test reads the stack's own development keys from
+the test. A reset also wipes a trial account; draft 002 can instead be run
+again as it is, since every statement in it is "if not exists" or "create or
+replace" (done that way for the Bingo change, 2026-11-21). The test reads the stack's own development keys from
 `supabase status` while it runs; they are never printed or saved.
 
 A real Dink client against the local stack, with the real site:
@@ -508,6 +560,7 @@ A real Dink client against the local stack, with the real site:
     cd runelite-plugin/server/local
     node site.mjs              the site on http://localhost:5177; sign up on it
     node trial.mjs             a Region Bingo game for you, to be played at Lumbridge
+    node trial.mjs bingo       a Bingo card beside it, for the same drops
     node trial.mjs report      what the intake heard, and the evidence it made
     node trial.mjs organiser   makes you an organiser, to see "Sent by plugin"
 
@@ -521,6 +574,16 @@ Asgarnia "Bones", which every cow and chicken drops and which must never be
 handed in for you. Tried on 2026-11-21 with requests shaped like Dink's
 before anyone played it: it answered exactly that. `supabase db reset`
 starts over.
+
+`trial.mjs bingo` adds "Dink trial bingo", started at once, with the same
+person as captain of "Your team". Its card: "Three bones" (Bones, three
+times: locked in Region Bingo, so it counts for the card and must never
+count for the region), "Raw chicken", "Raw beef" (two Region Bingo tiles want
+it as well, so an "ask"), "Cowhide" and "Feathers" (done in Region Bingo
+already, so only the card wants them), and four tiles with no drop list, for
+uploads on the site. Built on 2026-11-21 for Boris's local account; what his
+drops would match was read from `plugin_wanted` as his account, and is
+exactly that list.
 
 The token screen, with fixture data and no database:
 
@@ -554,6 +617,11 @@ a square, Edit, and type a drop.
 4. Boris to say whether a drop should count only from the boss its tile
    names, or from anywhere, as now (see "A drop counts wherever it came
    from").
-5. The other modes, one at a time (plan, section 7): Bingo, then Snakes &
-   Ladders. And whether to go through the tile catalogue so its drop tiles
-   list real items (see "The tile editor's name check").
+5. **Done 2026-11-21:** Bingo (see "Bingo"). Boris to play the card
+   `trial.mjs bingo` built, with Dink as it is: cows and chickens at
+   Lumbridge.
+6. Boris to say whether a drop wanted in two running games should stay an
+   "ask" (now) or count in both, and whether to build the switch per game
+   (plan, section 10, item 6).
+7. Snakes & Ladders next. And whether to go through the tile catalogue so its
+   drop tiles list real items (see "The tile editor's name check").

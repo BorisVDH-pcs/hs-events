@@ -11,6 +11,11 @@ phase 2 are shelved, and the Java started for them was removed (it is in the
 branch's history at `dcceb68`). What is left of this plan is phase 1, Dink's
 route, and the other modes (section 7).
 
+**Done 2026-11-21: Bingo.** Dink's drops count in Bingo as in Region Bingo,
+through the site's own `bingo_open_tile` and `add_evidence`. Tested offline
+and on a local stack; see the README's "Bingo". The switch per game below is
+not built: it waits on decision 6.
+
 First drafts of the server side, with their tests, are in `runelite-plugin/`;
 its README says what is tested and what is not. The drafts are ahead of the
 SQL sketches below where the two differ.
@@ -469,7 +474,7 @@ not always right. A per-game switch, `games.plugin_evidence`
 
 | Mode | Automatic evidence |
 |---|---|
-| Region Bingo, Bingo | Yes. Own progress, no claim step, nothing to give away |
+| Region Bingo, Bingo | Yes. Own progress, no claim step, nothing to give away. **Both done** (Bingo 2026-11-21), without the switch |
 | Snakes & Ladders | Yes, for the tile the team stands on, which `add_evidence` already enforces |
 | Territory | Not by default. The first screenshot on a rival's place is announced to its owner, and a plugin would make that announcement for the team |
 | Battleships | No. The last screenshot fires the shot, and when to fire is the team's decision |
@@ -544,7 +549,9 @@ modes, one at a time.
    time. Proposed: it only submits for tiles open at that moment, and banks
    nothing.
 5. **The same drop on two open tiles.** Proposed: the player chooses; the
-   plugin never does.
+   plugin never does. Since Bingo was added, this includes two tiles in two
+   running games (a Bingo card and a Region Bingo board): an "ask" today,
+   handed in nowhere by Dink. Open: should it count in both games instead?
 6. **Which modes, and the default of the per-game switch** (section 7).
 7. **Organiser announcements as in-game pop-ups.** Wanted, or noise?
 8. **May an organiser require plugin evidence for a tile?** Proposed: no.
