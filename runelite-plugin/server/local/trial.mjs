@@ -9,6 +9,7 @@
 //                               clan runs one game at a time
 //   node trial.mjs report       what came in: the intake's log and the evidence
 //   node trial.mjs organiser    make you an organiser, to see the review screen
+//                               and the game's "Drops from Dink" switch
 //
 // The board, for drops near Lumbridge. Misthalin (you pick it on the site):
 //   Two cowhides       Cowhide, twice   one tile wants it: handed in, then done
@@ -143,6 +144,9 @@ if (mode === 'build') {
   await must('admin_set_member', { p_team_id: team['Your team'], p_profile_id: me.id, p_role: 'captain' }, org.jwt);
   await must('admin_set_member', { p_team_id: team.Rivals, p_profile_id: rival.id, p_role: 'captain' }, org.jwt);
   await must('start_game', { p_game_id: g }, org.jwt);
+  // Dink is off for a new game until an organiser switches it on in the
+  // console (draft 002, 6e); this is the console's own call.
+  await must('admin_set_plugin_drops', { p_game_id: g, p_on: true }, org.jwt);
   await must('regions_pick', { p_game_id: g, p_region: 'asgarnia' }, rival.jwt);
 
   console.log(`"${NAME}" is built and started. ${me.display_name} is captain of "Your team".`);
@@ -168,6 +172,9 @@ if (mode === 'build') {
   await must('admin_set_member', { p_team_id: team['Your team'], p_profile_id: me.id, p_role: 'captain' }, org.jwt);
   await must('admin_set_member', { p_team_id: team.Rivals, p_profile_id: rival.id, p_role: 'captain' }, org.jwt);
   await must('start_game', { p_game_id: g }, org.jwt);
+  // The console switches Dink on for Region Bingo only, for now; Bingo is
+  // built and waits for Boris's word, so it is switched on here by SQL.
+  sql(`update games set plugin_drops = true where id = ${lit(g)}`);
 
   console.log(`"${BINGO}" is built and started. ${me.display_name} is captain of "Your team".`);
   console.log('Your plugin token and Dink link stay as they are: every drop is matched against both games.');

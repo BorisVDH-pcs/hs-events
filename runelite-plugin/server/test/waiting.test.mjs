@@ -17,11 +17,14 @@
 // Then a Bingo card for the same teams, with a whip on two tiles: for a drop
 // two games want (not kept: one game at a time), and for Bingo on its own.
 //
+// And the cleanup (6d): the screenshots a waiting drop leaves behind are
+// removed once it is handed in or its hour is up, and nothing else is.
+//
 //   node waiting.test.mjs
 
 import { createHash, randomUUID } from 'node:crypto';
 import { buildPeople, J } from './fixture.mjs';
-import { handleDink } from '../intake/handle.mjs';
+import { handleDink, removeLeftovers } from '../intake/handle.mjs';
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra = '') => {
@@ -41,6 +44,10 @@ const newGame = async (name, mode) => {
   await site(ids.org, `select admin_set_member($1, $2, 'captain')`, [teams.Red, ids.red]);
   await site(ids.org, `select admin_set_member($1, $2, 'member')`, [teams.Red, ids.mate]);
   await site(ids.org, `select admin_set_member($1, $2, 'captain')`, [teams.Blue, ids.blue]);
+  // Dink is off until switched on (6e). The console only switches it on for
+  // Region Bingo for now, so Bingo is switched on by hand.
+  if (mode === 'regions') await site(ids.org, 'select admin_set_plugin_drops($1, true)', [id]);
+  else await db.query('update games set plugin_drops = true where id = $1', [id]);
   return { id, teams };
 };
 const setTile = (game, row, col, spec) =>
@@ -92,8 +99,20 @@ const deps = {
     if (!/^plugin_[a-z_]+$/.test(fn)) throw new Error('unexpected function ' + fn);
     const keys = Object.keys(args);
     const isJson = (v) => v !== null && typeof v === 'object';
-    const sql = `select ${fn}(${keys.map((k, i) => `${k} => $${i + 1}${isJson(args[k]) ? '::jsonb' : ''}`).join(', ')}) j`;
-    return (await plugin(sql, keys.map((k) => (isJson(args[k]) ? J(args[k]) : args[k])))).j;
+    const isTexts = (v) => Array.isArray(v) && v.length > 0 && v.every((x) => typeof x === 'string');
+    const arg = (k, i) => (isTexts(args[k]) ? `array(select jsonb_array_elements_text($${i + 1}::jsonb))`
+      : `$${i + 1}${isJson(args[k]) ? '::jsonb' : ''}`);
+    const values = keys.map((k) => (isJson(args[k]) ? J(args[k]) : args[k]));
+    // A function returning a table answers rows, as PostgREST does; anything
+    // else answers its one value.
+    if (fn === 'plugin_leftover_files') {
+      return db.transaction(async (tx) => {
+        await tx.query('set local role service_role');
+        return (await tx.query(`select * from ${fn}(${keys.map((k, i) => `${k} => ${arg(k, i)}`).join(', ')})`, values)).rows;
+      });
+    }
+    const sql = `select ${fn}(${keys.map((k, i) => `${k} => ${arg(k, i)}`).join(', ')}) j`;
+    return (await plugin(sql, values)).j;
   },
   async upload(path, bytes, type) {
     await db.query(`insert into storage.objects (bucket_id, name, metadata) values ('evidence', $1, $2::jsonb)`,
@@ -101,6 +120,14 @@ const deps = {
   },
   async remove(path) {
     await db.query(`delete from storage.objects where bucket_id = 'evidence' and name = $1`, [path]);
+  },
+  // What the cleanup asked Storage to remove, every time.
+  removed: [],
+  async removeAll(paths) {
+    deps.removed.push([...paths]);
+    if (deps.storageDown) throw new Error('Storage is down');
+    await db.query(`delete from storage.objects where bucket_id = 'evidence'
+                      and name in (select jsonb_array_elements_text($1::jsonb))`, [J(paths)]);
   },
 };
 const rsnOf = { red: 'Red Main', mate: 'Mate Iron', blue: 'Blue Main' };
@@ -124,8 +151,9 @@ const evidenceAt = async (path) =>
                     where e.storage_path = $1`, [path])).rows[0];
 
 // The site, as WaitingDrops.jsx does it: open the tile, copy the screenshot
-// into the claim's folder as the player (Storage's copy: the read policy on
-// the source, the write policy on the copy), then hand it in.
+// to the place the database gives out, in the claim's folder, as the player
+// (Storage's copy: the read policy on the source, the write policy on the
+// copy), then hand it in.
 const list = (who, game = g) => site(who, 'select * from waiting_drops($1)', [game]);
 const open = (who, w, tile, option) => site(who, 'select waiting_drop_open($1, $2, $3) j', [w, tile, option]).then((r) => r[0].j);
 const copy = (who, from, to) => site(who,
@@ -137,7 +165,7 @@ const choose = (who, w, tile, option, path) =>
   site(who, 'select waiting_drop_choose($1, $2, $3, $4) j', [w, tile, option, path]).then((r) => r[0].j);
 const handIn = async (who, w, tile, option) => {
   const o = await open(who, w, tile, option);
-  const to = `${o.path_prefix}${randomUUID()}.png`;
+  const to = o.copy_path;
   await copy(who, o.from_path, to);
   return { o, to, res: await choose(who, w, tile, option, to) };
 };
@@ -251,14 +279,21 @@ const oA = await open(ids.red, A.id, T.whips, opt[T.whips]['Abyssal whip']);
 const claimA = await claimOf(team.Red, T.whips);
 ok('Red Cap chooses Whips: the tile is opened, as the first screenshot on the site opens it',
    oA.claim_id === claimA?.id && oA.from_path === A.storage_path && oA.path_prefix === `${g}/${team.Red}/${claimA.id}/`, J(oA));
-ok('opening it twice is harmless', (await open(ids.red, A.id, T.whips, opt[T.whips]['Abyssal whip'])).claim_id === claimA.id);
+ok('and the database says where the copy goes: in that folder, a new name, the type Dink sent',
+   /^[0-9a-f-]{36}\.png$/.test(oA.copy_path?.slice(oA.path_prefix.length) ?? '') && oA.copy_path.startsWith(oA.path_prefix), J(oA));
+const oA2 = await open(ids.red, A.id, T.whips, opt[T.whips]['Abyssal whip']);
+ok('opening it twice is harmless: the same claim, another place for the copy',
+   oA2.claim_id === claimA.id && oA2.copy_path !== oA.copy_path);
+const givenOut = async () => (await db.query('select storage_path from plugin_waiting_copies where waiting_id = $1',
+  [A.id])).rows.map((r) => r.storage_path).sort();
+ok('both places are written down for the cleanup', J(await givenOut()) === J([oA.copy_path, oA2.copy_path].sort()));
 
 const NOT_DINKS = 'That is not the screenshot Dink sent for this drop';
-const forged = `${oA.path_prefix}${randomUUID()}.png`;
+const forged = oA.copy_path;
 await site(ids.red, `insert into storage.objects (bucket_id, name, owner, metadata) values ('evidence', $1, auth.uid(), $2::jsonb)`,
   [forged, J({ eTag: `"${md5(new Uint8Array([1, 2, 3, 4, 5, 6]))}"`, size: 6, mimetype: 'image/png' })]);
 let m = await chooseMsg(ids.red, A.id, T.whips, opt[T.whips]['Abyssal whip'], forged);
-ok("a picture of Red Cap's own in the claim's folder is refused", m === NOT_DINKS, m);
+ok("a picture of Red Cap's own, put where the copy should go, is refused", m === NOT_DINKS, m);
 m = await chooseMsg(ids.red, A.id, T.whips, opt[T.whips]['Abyssal whip'], A.storage_path);
 ok('so is the waiting file itself (it is not in the claim\'s folder)', m === NOT_DINKS, m);
 const bootsClaim = (await claimOf(team.Red, T.boots)).id;
@@ -266,11 +301,16 @@ const elsewhere = `${g}/${team.Red}/${bootsClaim}/${randomUUID()}.png`;
 await copy(ids.red, A.storage_path, elsewhere);
 m = await chooseMsg(ids.red, A.id, T.whips, opt[T.whips]['Abyssal whip'], elsewhere);
 ok("and Dink's own picture copied into another tile's folder", m === NOT_DINKS, m);
-m = await chooseMsg(ids.red, A.id, T.whips, opt[T.whips]['Abyssal whip'], `${oA.path_prefix}${randomUUID()}.png`);
-ok('and a file that was never copied at all', m === NOT_DINKS, m);
+m = await chooseMsg(ids.red, A.id, T.whips, opt[T.whips]['Abyssal whip'], oA2.copy_path);
+ok('and a place given out where nothing was ever copied', m === NOT_DINKS, m);
+const unlisted = `${oA.path_prefix}${randomUUID()}.png`;
+await copy(ids.red, A.storage_path, unlisted);
+m = await chooseMsg(ids.red, A.id, T.whips, opt[T.whips]['Abyssal whip'], unlisted);
+ok("and Dink's own picture in the right folder, at a place the database never gave out", m === NOT_DINKS, m);
 ok('none of that handed anything in', (await db.query('select count(*)::int n from tile_evidence where claim_id = $1', [claimA.id])).rows[0].n === 0);
 
-const realCopy = `${oA.path_prefix}${randomUUID()}.png`;
+const oA3 = await open(ids.red, A.id, T.whips, opt[T.whips]['Abyssal whip']);
+const realCopy = oA3.copy_path;
 ok("the real copy: Red Cap may read Dink's file and write into the claim's folder",
    (await copy(ids.red, A.storage_path, realCopy)).length === 1);
 // One transaction, to see what the caller is afterwards.
@@ -294,8 +334,9 @@ ok('and says who chose, and when the drop arrived',
 ok('afterwards the caller is Red Cap again, and no source is left set',
    after.s.uid === ids.red && !after.s.src, J(after.s));
 const doneA = (await waitingRows()).find((r) => r.id === A.id);
-ok('the waiting row says it was chosen, by whom, and which evidence it became',
-   doneA.chosen_at !== null && doneA.chosen_by === ids.red && doneA.evidence_id === evA.id, J(doneA));
+ok('the waiting row says it was chosen, by whom, which evidence it became, and its file',
+   doneA.chosen_at !== null && doneA.chosen_by === ids.red && doneA.evidence_id === evA.id && doneA.chosen_path === realCopy,
+   J(doneA));
 ok('it is no longer listed', !(await list(ids.mate)).some((r) => r.id === A.id));
 m = await chooseMsg(ids.mate, A.id, T.slayer, opt[T.slayer]['Abyssal whip'], realCopy);
 ok('choosing it a second time: already handed in', m === 'That drop has already been handed in', m);
@@ -308,6 +349,50 @@ ok("Whips is full now: Red Cap's whip can only go to Slayer drops",
    J(seen?.choices.map((c) => c.tile)) === J(['Slayer drops']), J(seen));
 m = await openMsg(ids.mate, B.id, T.whips, opt[T.whips]['Abyssal whip']);
 ok('and choosing Whips for it is refused', m === NOWHERE, m);
+
+// ------------------------------------------- screenshots nobody needs (6d)
+// Now: A was handed in (its waiting file, the forged picture and the empty
+// place are not needed; the chosen copy is the evidence). B still waits. C
+// ran out of time a minute ago. `unlisted` and `elsewhere` were never given
+// out by the database, so the cleanup does not know them.
+const exists = async (path) => (await db.query(`select 1 from storage.objects where name = $1`, [path])).rows.length === 1;
+const leftovers = async () => (await deps.rpc('plugin_leftover_files', { p_limit: 100 })).map((r) => r.storage_path).sort();
+const dueNow = [A.storage_path, oA.copy_path, oA2.copy_path].sort();
+ok('the leftovers of the handed-in drop: its waiting file, the forged picture and the empty place',
+   J(await leftovers()) === J(dueNow), J(await leftovers()));
+ok('never the copy that was handed in, nor the drop still waiting',
+   !(await leftovers()).includes(realCopy) && !(await leftovers()).includes(B.storage_path));
+ok('a drop whose hour ran out a minute ago is kept for five more, so a last-second choice reads "waited more than an hour"',
+   !(await leftovers()).includes(C.storage_path));
+await db.query(`update plugin_waiting set expires_at = expires_at - interval '5 minutes' where id = $1`, [C.id]);
+ok('after that it is a leftover too', (await leftovers()).includes(C.storage_path));
+
+deps.storageDown = true;
+let cleanErr = null;
+try { await removeLeftovers(deps); } catch (e) { cleanErr = e.message; }
+ok('Storage down: the cleanup fails, and nothing is marked removed',
+   cleanErr === 'Storage is down' && J(await leftovers()) === J([...dueNow, C.storage_path].sort())
+   && (await exists(A.storage_path)) && (await exists(C.storage_path)), cleanErr);
+deps.storageDown = false;
+deps.removed.length = 0;
+const cleaned = await removeLeftovers(deps);
+ok('next time: all four are removed, through Storage, in one call',
+   cleaned === 4 && deps.removed.length === 1 && J([...deps.removed[0]].sort()) === J([...dueNow, C.storage_path].sort()),
+   J([cleaned, deps.removed]));
+ok("gone from the bucket; Dink's copy, now the evidence, is still there",
+   !(await exists(A.storage_path)) && !(await exists(oA.copy_path)) && !(await exists(C.storage_path))
+   && (await exists(realCopy)) && (await evidenceAt(realCopy))?.id === evA.id);
+ok('the drop still waiting keeps its file, and the files never given out are not touched',
+   (await exists(B.storage_path)) && (await exists(unlisted)) && (await exists(elsewhere)));
+ok('nothing left to remove; asked again, nothing is', (await leftovers()).length === 0 && (await removeLeftovers(deps)) === 0);
+const marked = (await db.query(`select (select count(*)::int from plugin_waiting where file_removed_at is not null) w,
+                                        (select count(*)::int from plugin_waiting_copies where removed_at is not null) c`)).rows[0];
+ok('the database marks what was removed: two waiting files, two places', marked.w === 2 && marked.c === 2, J(marked));
+ok('marking a file that is not a leftover changes nothing',
+   (await deps.rpc('plugin_leftovers_removed', { p_paths: [realCopy, B.storage_path, unlisted] })) === 0
+   && (await waitingRows()).find((r) => r.id === B.id).file_removed_at === null);
+ok('removing them changed nothing else: A is still handed in, B still waits',
+   (await claimOf(team.Red, T.whips)).status === 'completed' && (await list(ids.mate)).some((r) => r.id === B.id));
 
 // ---------------------------------------------------- two games want a drop
 await site(ids.org, 'select start_game($1)', [gb]);
@@ -359,8 +444,14 @@ ok('the site may call the three waiting_drop functions; anon and the intake may 
    J(await can('waiting_drops(uuid)')) === J(['authenticated'])
    && J(await can('waiting_drop_open(uuid, uuid, uuid)')) === J(['authenticated'])
    && J(await can('waiting_drop_choose(uuid, uuid, uuid, text)')) === J(['authenticated']));
-ok('the two internal ones: nobody',
-   (await can('plugin_wait_choices(text)')).length === 0 && (await can('waiting_drop_check(uuid, uuid, uuid)')).length === 0);
+ok('the three internal ones: nobody',
+   (await can('plugin_wait_choices(text)')).length === 0 && (await can('waiting_drop_check(uuid, uuid, uuid)')).length === 0
+   && (await can('plugin_leftovers()')).length === 0);
+ok('the cleanup: the intake only',
+   J(await can('plugin_leftover_files(integer)')) === J(['service_role'])
+   && J(await can('plugin_leftovers_removed(text[])')) === J(['service_role']));
+ok('the table of copies is shut to the site, like the waiting table',
+   /permission denied/.test(await trying(as(ids.mate), 'select * from plugin_waiting_copies') ?? ''));
 const direct = await trying(as(ids.mate), 'select plugin_wait($1, $2, $3, $4, $5::jsonb)',
   [tok.mate, 'Mate Iron', 'Abyssal whip', `${gb}/${teamB.Red}/waiting/x.png`, J({ dedupe: 'by-hand-0001' })]);
 ok('a signed-in player cannot call the intake\'s function directly', /permission denied/.test(direct ?? ''), direct);

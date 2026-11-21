@@ -66,6 +66,8 @@ await site(ids.org, `select admin_set_member($1, $2, 'captain')`, [team.Red, ids
 await site(ids.org, `select admin_set_member($1, $2, 'member')`, [team.Red, ids.mate]);
 await site(ids.org, `select admin_set_member($1, $2, 'captain')`, [team.Blue, ids.blue]);
 await site(ids.org, 'select start_game($1)', [g]);
+// Dink is off until an organiser switches it on (draft 002, 6e).
+await site(ids.org, 'select admin_set_plugin_drops($1, true)', [g]);
 
 // ------------------------------------------------------------- helpers
 const wanted = async (key) => db.transaction(async (tx) => {

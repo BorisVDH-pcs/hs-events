@@ -2,12 +2,13 @@
 -- in. docs/runelite-plugin-plan.md, sections 4.4 and 4.5. Needs 001.
 --
 -- DRAFT. Not in supabase/migrations on purpose, so db-push cannot apply it.
--- It adds two columns to tile_evidence, one trigger on it, two tables and new
--- functions, five of them for the site: admin_evidence_sources (the review
--- screen's "sent by plugin"), evidence_sources (the same lines under the
--- picture in a tile's panel), and waiting_drops, waiting_drop_open and
--- waiting_drop_choose (a drop two tiles want, chosen by the team, section
--- 6c). It rewrites no existing function:
+-- It adds two columns to tile_evidence, one trigger on it, one column to
+-- games (Dink on or off, section 6e), three tables and new functions, six of
+-- them for the site: admin_evidence_sources (the review screen's "sent by
+-- plugin"), evidence_sources (the same lines under the picture in a tile's
+-- panel), waiting_drops, waiting_drop_open and waiting_drop_choose (a drop
+-- two tiles want, chosen by the team, section 6c), and admin_set_plugin_drops
+-- (the switch). It rewrites no existing function:
 -- tiles_for_team, regions_open_tile, bingo_open_tile and add_evidence are
 -- called exactly as they are, so every rule they hold applies to a plugin
 -- without being written down twice.
@@ -19,7 +20,8 @@
 -- Region Bingo and Bingo, for now. Each mode is one line in plugin_wanted and
 -- one branch in plugin_open_tile, added one at a time (plan, section 7);
 -- Snakes and Ladders, Territory and Challenge are not wired, so a drop never
--- counts there.
+-- counts there. Only a game an organiser has switched Dink on for takes
+-- drops at all, and only a Region Bingo can be switched on (section 6e).
 
 -- ============================================================
 -- 1. Where a piece of evidence came from
@@ -104,6 +106,13 @@ revoke all on plugin_intake_log from public, anon, authenticated;
 -- Bingo needs nothing of its own here: tiles_for_team shows a Bingo team the
 -- whole card once the game has started, and nothing of it before. region is
 -- null for a Bingo tile.
+--
+-- Only games with Dink switched on (section 6e). A game with it off is not
+-- read at all, so its drops get the answer junk gets.
+
+alter table games add column if not exists plugin_drops boolean not null default false;
+comment on column games.plugin_drops is
+  'Drops sent by Dink count in this game (admin_set_plugin_drops). Uploading on the site works either way.';
 
 create or replace function plugin_wanted()
 returns table (
@@ -122,7 +131,7 @@ begin
   -- caller is really on, never with a null one.
   for v_game, v_mode in
     select g.id, g.mode::text from games g
-     where g.status = 'active' and g.mode::text in ('regions', 'bingo')
+     where g.status = 'active' and g.plugin_drops and g.mode::text in ('regions', 'bingo')
   loop
     v_team := my_team_in_game(v_game);
     continue when v_team is null;
@@ -458,12 +467,32 @@ create table if not exists plugin_waiting (
   expires_at   timestamptz not null default now() + interval '1 hour',
   chosen_at    timestamptz,
   chosen_by    uuid        references profiles(id) on delete set null,
-  evidence_id  uuid
+  evidence_id  uuid,
+  -- The copy that was handed in: the evidence's own file, never removed.
+  chosen_path  text,
+  -- When the intake removed storage_path from Storage (section 6d).
+  file_removed_at timestamptz
 );
+-- For a database that ran an earlier draft of this table.
+alter table plugin_waiting add column if not exists chosen_path text;
+alter table plugin_waiting add column if not exists file_removed_at timestamptz;
 
 create index if not exists plugin_waiting_open on plugin_waiting (team_id) where chosen_at is null;
 alter table plugin_waiting enable row level security;
 revoke all on plugin_waiting from public, anon, authenticated;
+
+-- Every place waiting_drop_open told the site to copy the screenshot to. The
+-- one handed in becomes evidence; any other (two teammates at once, a choice
+-- refused after the copy, a browser closed half way) is removed by 6d.
+create table if not exists plugin_waiting_copies (
+  storage_path text        primary key,
+  waiting_id   uuid        not null references plugin_waiting(id) on delete cascade,
+  made_at      timestamptz not null default now(),
+  removed_at   timestamptz
+);
+create index if not exists plugin_waiting_copies_drop on plugin_waiting_copies (waiting_id);
+alter table plugin_waiting_copies enable row level security;
+revoke all on plugin_waiting_copies from public, anon, authenticated;
 
 -- Where a drop could go for the caller's team now, one row per tile. Internal.
 create or replace function plugin_wait_choices(p_item text)
@@ -638,14 +667,26 @@ language plpgsql security definer
 set search_path = public
 as $$
 declare
-  w       plugin_waiting := waiting_drop_check(p_waiting_id, p_tile_id, p_option_id);
-  v_claim uuid;
+  w        plugin_waiting := waiting_drop_check(p_waiting_id, p_tile_id, p_option_id);
+  v_claim  uuid;
+  v_prefix text;
+  v_copy   text;
 begin
+  -- A few tries are plenty; more is a button pressed in a loop. Only the
+  -- drop's own team gets this far (waiting_drop_check).
+  if (select count(*) from plugin_waiting_copies c where c.waiting_id = w.id) >= 10 then
+    raise exception 'Too many tries for that drop';
+  end if;
   -- What the site's first screenshot on a tile does, as the one choosing.
   v_claim := plugin_open_tile(p_tile_id);
+  v_prefix := w.game_id || '/' || w.team_id || '/' || v_claim || '/';
+  -- Where the copy goes is decided here and written down, so a copy that is
+  -- never handed in can be found and removed (6d). Same type as Dink's file.
+  v_copy := v_prefix || gen_random_uuid() || '.'
+         || coalesce(lower(substring(w.storage_path from '\.([A-Za-z0-9]+)$')), 'png');
+  insert into plugin_waiting_copies (storage_path, waiting_id) values (v_copy, w.id);
   return jsonb_build_object(
-    'claim_id', v_claim, 'from_path', w.storage_path,
-    'path_prefix', w.game_id || '/' || w.team_id || '/' || v_claim || '/');
+    'claim_id', v_claim, 'from_path', w.storage_path, 'path_prefix', v_prefix, 'copy_path', v_copy);
 end;
 $$;
 
@@ -672,9 +713,10 @@ begin
   w := waiting_drop_check(p_waiting_id, p_tile_id, p_option_id);
   v_claim := plugin_open_tile(p_tile_id);
 
-  -- The copy must be the screenshot Dink sent: under this claim, with the
-  -- same size and eTag (Storage's MD5 of the bytes). Anyone on the team may
-  -- write a file there, so their own picture would otherwise pass for Dink's.
+  -- The copy must be the screenshot Dink sent: at a place waiting_drop_open
+  -- gave out for this drop, under this claim, with the same size and eTag
+  -- (Storage's MD5 of the bytes). Anyone on the team may write a file there,
+  -- so their own picture would otherwise pass for Dink's.
   select o.metadata into v_from from storage.objects o
    where o.bucket_id = 'evidence' and o.name = w.storage_path;
   select o.metadata into v_to from storage.objects o
@@ -682,7 +724,9 @@ begin
   if v_from ->> 'eTag' is null or v_from ->> 'size' is null
      or v_to ->> 'eTag' is distinct from v_from ->> 'eTag'
      or v_to ->> 'size' is distinct from v_from ->> 'size'
-     or position(w.game_id || '/' || w.team_id || '/' || v_claim || '/' in coalesce(p_storage_path, '')) <> 1 then
+     or position(w.game_id || '/' || w.team_id || '/' || v_claim || '/' in coalesce(p_storage_path, '')) <> 1
+     or not exists (select 1 from plugin_waiting_copies c
+                     where c.waiting_id = w.id and c.storage_path = p_storage_path) then
     raise exception 'That is not the screenshot Dink sent for this drop';
   end if;
 
@@ -712,9 +756,115 @@ begin
     from tile_evidence e
    where e.claim_id = v_claim and e.storage_path = p_storage_path;
   update plugin_waiting
-     set chosen_at = now(), chosen_by = v_chooser, evidence_id = v_ev
+     set chosen_at = now(), chosen_by = v_chooser, evidence_id = v_ev, chosen_path = p_storage_path
    where id = w.id;
   return v_result;
+end;
+$$;
+
+-- ============================================================
+-- 6d. Screenshots nobody needs any more
+-- ============================================================
+-- Asked for by Boris, 2026-11-21. A waiting drop leaves files behind: Dink's
+-- screenshot under waiting/, and a copy in a tile's folder for each try at
+-- choosing. Once the drop is handed in, the chosen copy is the evidence and
+-- the rest are not needed; once its hour is up, none of them are.
+--
+-- The intake removes them through Storage, a few at a time, whenever Dink
+-- sends it something: this project has no pg_cron, and a row deleted here
+-- would leave the file itself behind. Five minutes' grace after the hour, so
+-- a choice made in the last second meets "waited more than an hour" rather
+-- than a missing file.
+--
+-- Nothing else is ever listed: no evidence, no upload from the site, and
+-- never the copy that was handed in, whatever later happens to its row.
+
+-- Internal: every such file, and since when it has not been needed.
+create or replace function plugin_leftovers()
+returns table (storage_path text, since timestamptz)
+language sql stable security definer
+set search_path = public
+as $$
+  select w.storage_path, coalesce(w.chosen_at, w.expires_at)
+    from plugin_waiting w
+   where w.file_removed_at is null
+     and (w.chosen_at is not null or w.expires_at <= now() - interval '5 minutes')
+  union all
+  select c.storage_path, coalesce(w.chosen_at, w.expires_at)
+    from plugin_waiting_copies c
+    join plugin_waiting w on w.id = c.waiting_id
+   where c.removed_at is null
+     and c.storage_path is distinct from w.chosen_path
+     and (w.chosen_at is not null or w.expires_at <= now() - interval '5 minutes');
+$$;
+
+-- The intake: the next few to remove, oldest first.
+create or replace function plugin_leftover_files(p_limit int default 20)
+returns table (storage_path text)
+language sql stable security definer
+set search_path = public
+as $$
+  select l.storage_path
+    from plugin_leftovers() l
+   order by l.since, l.storage_path
+   limit least(greatest(coalesce(p_limit, 20), 1), 100);
+$$;
+
+-- The intake, once Storage has removed them. Only a file that is still a
+-- leftover is marked, so a path that is not one changes nothing.
+create or replace function plugin_leftovers_removed(p_paths text[])
+returns int
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_waiting int;
+  v_copies  int;
+begin
+  update plugin_waiting w
+     set file_removed_at = now()
+   where w.storage_path = any(p_paths)
+     and w.storage_path in (select l.storage_path from plugin_leftovers() l);
+  get diagnostics v_waiting = row_count;
+  update plugin_waiting_copies c
+     set removed_at = now()
+   where c.storage_path = any(p_paths)
+     and c.storage_path in (select l.storage_path from plugin_leftovers() l);
+  get diagnostics v_copies = row_count;
+  return v_waiting + v_copies;
+end;
+$$;
+
+-- ============================================================
+-- 6e. Dink on or off, per game
+-- ============================================================
+-- Decided by Boris, 2026-11-21 (plan, section 10, item 6): a switch on each
+-- game in the admin console, off until an organiser turns it on, and only
+-- for Region Bingo for now. Bingo is built and tested, but waits for his
+-- word; turning a game off works in every mode.
+--
+-- Off, the game is not read by plugin_wanted (section 3): Dink's drops get
+-- the answer junk gets, nothing new waits, and drops already waiting are no
+-- longer offered. Uploading on the site is not touched either way:
+-- add_evidence does not read the switch.
+
+create or replace function admin_set_plugin_drops(p_game_id uuid, p_on boolean)
+returns boolean
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_game games%rowtype;
+begin
+  if not may_manage_game(p_game_id) then raise exception 'Not your game'; end if;
+  select * into v_game from games where id = p_game_id;
+  if not found then raise exception 'No such game'; end if;
+  if p_on is null then raise exception 'Say on or off'; end if;
+  if p_on and v_game.mode <> 'regions' then
+    raise exception 'Drops from Dink are for Region Bingo only, for now';
+  end if;
+  update games set plugin_drops = p_on where id = p_game_id;
+  return p_on;
 end;
 $$;
 
@@ -739,6 +889,9 @@ revoke execute on function plugin_wait_choices(text)               from public, 
 revoke execute on function waiting_drop_check(uuid, uuid, uuid)    from public, anon, authenticated, service_role;
 revoke execute on function plugin_wait_open(text, text, text)      from public, anon, authenticated;
 revoke execute on function plugin_wait(text, text, text, text, jsonb) from public, anon, authenticated;
+revoke execute on function plugin_leftovers()                      from public, anon, authenticated, service_role;
+revoke execute on function plugin_leftover_files(int)              from public, anon, authenticated;
+revoke execute on function plugin_leftovers_removed(text[])        from public, anon, authenticated;
 
 -- A signed-in organiser's, like admin_list_evidence; the function itself
 -- refuses everyone else.
@@ -754,6 +907,10 @@ revoke execute on function waiting_drop_choose(uuid, uuid, uuid, text) from publ
 grant  execute on function waiting_drops(uuid)                     to authenticated;
 grant  execute on function waiting_drop_open(uuid, uuid, uuid)     to authenticated;
 grant  execute on function waiting_drop_choose(uuid, uuid, uuid, text) to authenticated;
+-- The switch: a signed-in organiser's, like admin_set_region_threshold; the
+-- function itself refuses everyone else.
+revoke execute on function admin_set_plugin_drops(uuid, boolean)   from public, anon, service_role;
+grant  execute on function admin_set_plugin_drops(uuid, boolean)   to authenticated;
 
 grant execute on function plugin_match(text, text, jsonb)          to service_role;
 grant execute on function plugin_open(text, text, uuid, uuid, text) to service_role;
@@ -761,3 +918,5 @@ grant execute on function plugin_submit(text, text, uuid, uuid, text, text, text
   to service_role;
 grant execute on function plugin_wait_open(text, text, text)       to service_role;
 grant execute on function plugin_wait(text, text, text, text, jsonb) to service_role;
+grant execute on function plugin_leftover_files(int)               to service_role;
+grant execute on function plugin_leftovers_removed(text[])         to service_role;

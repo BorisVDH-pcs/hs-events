@@ -7,17 +7,17 @@
 //   Asgarnia:  Locked secret tile (Dragon pickaxe)
 //   one filler tile in each of the other nine regions
 //
-// The game is started and every player has a plugin token. Nobody has picked
-// a region yet.
+// The game is started, Dink is switched on for it (unless `dink: false`),
+// and every player has a plugin token. Nobody has picked a region yet.
 
 import { readFileSync } from 'node:fs';
 import { replay } from './replay.mjs';
 
 export const J = (v) => JSON.stringify(v);
 
-export async function buildGame() {
+export async function buildGame({ dink = true } = {}) {
   const base = await buildPeople();
-  return { ...base, ...(await addRegionsGame(base)) };
+  return { ...base, ...(await addRegionsGame(base, { dink })) };
 }
 
 // The database with both drafts, the helpers, and the people with their
@@ -71,7 +71,7 @@ export async function buildPeople() {
 }
 
 // The small Region Bingo game of the header, started, nobody's region picked.
-async function addRegionsGame({ db, ids, site }) {
+async function addRegionsGame({ db, ids, site }, { dink = true } = {}) {
   const g = (await site(ids.org,
     `select admin_new_game('Plugin test', 'regions', array['Red','Blue'], 3::smallint, now() + interval '1 day') id`))[0].id;
   const team = {};
@@ -106,6 +106,8 @@ async function addRegionsGame({ db, ids, site }) {
   await site(ids.org, `select admin_set_member($1, $2, 'member')`, [team.Red, ids.mate]);
   await site(ids.org, `select admin_set_member($1, $2, 'captain')`, [team.Blue, ids.blue]);
   await site(ids.org, 'select start_game($1)', [g]);
+  // Through the console's own switch (draft 002, 6e): off until turned on.
+  if (dink) await site(ids.org, 'select admin_set_plugin_drops($1, true)', [g]);
 
   return { g, team, T, opt };
 }
@@ -120,7 +122,9 @@ async function addRegionsGame({ db, ids, site }) {
 //
 // Whip is also on Region Bingo's Misthalin, and Pickaxe on its Asgarnia, so a
 // drop can be wanted in both games at once. Left in preparation: the test
-// starts it.
+// starts it. Dink is switched on for it by hand: the console only lets an
+// organiser switch it on for Region Bingo for now (Boris, 2026-11-21), and
+// these tests keep proving Bingo works for when he says so.
 export async function addBingo({ db, ids, site }) {
   const userId = (await db.query(
     `insert into auth.users (instance_id, aud, role, email, encrypted_password, raw_user_meta_data)
@@ -161,6 +165,8 @@ export async function addBingo({ db, ids, site }) {
   await site(ids.org, `select admin_set_member($1, $2, 'member')`, [teamB.Red, ids.mate]);
   await site(ids.org, `select admin_set_member($1, $2, 'captain')`, [teamB.Blue, ids.blue]);
   await site(ids.org, `select admin_set_member($1, $2, 'member')`, [teamB.Blue, userId]);
+
+  await db.query('update games set plugin_drops = true where id = $1', [gb]);
 
   const solo = { id: userId, tok: (await site(userId, `select plugin_token_create('solo') t`))[0].t };
   return { gb, teamB, TB, optB, solo };

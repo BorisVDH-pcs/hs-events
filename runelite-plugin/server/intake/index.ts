@@ -12,7 +12,7 @@
 //   https://<project>.supabase.co/functions/v1/intake/dink?t=hse_...
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { handleDink } from './handle.mjs';
+import { handleDink, removeLeftovers } from './handle.mjs';
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -33,6 +33,12 @@ const deps = {
   },
   async remove(path: string) {
     await supabase.storage.from('evidence').remove([path]);
+  },
+  // For the cleanup: unlike remove, a failure is reported, so the files are
+  // not marked removed and are tried again next time.
+  async removeAll(paths: string[]) {
+    const { error } = await supabase.storage.from('evidence').remove(paths);
+    if (error) throw new Error(error.message);
   },
 };
 
@@ -67,8 +73,20 @@ Deno.serve(async (req) => {
 
   try {
     const result = await handleDink({ token: url.searchParams.get('t'), payloadText, image }, deps);
+    // Screenshots nobody needs any more, after a request from a real token.
+    // Never decides what Dink is told: a failure here is only logged.
+    let cleaned: number | undefined;
+    if (result.status === 200) {
+      try {
+        cleaned = (await removeLeftovers(deps)) || undefined;
+      } catch (e) {
+        console.error('cleanup failed:', (e as Error).message);
+      }
+    }
     // The log gets the outcome. Never the token, never the request URL.
-    console.log(JSON.stringify({ outcome: result.outcome, reason: result.reason, results: result.results, resized: result.resized }));
+    console.log(JSON.stringify({
+      outcome: result.outcome, reason: result.reason, results: result.results, resized: result.resized, cleaned,
+    }));
     return done(result.status);
   } catch (e) {
     console.error('intake failed:', (e as Error).message);

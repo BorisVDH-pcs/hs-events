@@ -170,3 +170,25 @@ export async function handleDink({ token, payloadText, image }, deps) {
     ...(resized ? { resized } : {}),
   };
 }
+
+/**
+ * Screenshots nobody needs any more (draft 002, section 6d; Boris,
+ * 2026-11-21): a waiting drop's file once it is handed in or its hour is up,
+ * and copies made for a choice that was never handed in. The database says
+ * which; Storage removes them; then the database marks them, so a removal
+ * that fails is tried again next time. Nothing the database does not list is
+ * ever touched.
+ *
+ * Run by index.ts after a request it understood: the project has no pg_cron,
+ * and Dink sends something whenever a player with it gets loot.
+ *
+ * @param {{rpc: Function, removeAll: (paths: string[]) => Promise<void>}} deps
+ * @returns {Promise<number>} how many files were removed
+ */
+export async function removeLeftovers(deps, limit = 20) {
+  const due = (await deps.rpc('plugin_leftover_files', { p_limit: limit })) ?? [];
+  const paths = due.map((d) => d.storage_path).filter((p) => typeof p === 'string' && p);
+  if (!paths.length) return 0;
+  await deps.removeAll(paths);
+  return deps.rpc('plugin_leftovers_removed', { p_paths: paths });
+}

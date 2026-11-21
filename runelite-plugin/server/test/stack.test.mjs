@@ -5,8 +5,10 @@
 // users through Supabase Auth, the game through PostgREST with real sign-ins,
 // screenshots through Storage, the plugin_* functions through PostgREST with
 // the service role, and at the end the intake Edge Function itself, called the
-// way Dink calls it. Only two things use SQL directly, as on the live project:
-// making the organiser an admin, and reading what was stored.
+// way Dink calls it. SQL is used directly for reading what was stored, and for
+// three things no screen does: making the organiser an admin (as on the live
+// project), switching Dink on for a Bingo game (the console will not, yet),
+// and moving a waiting drop's hour into the past, as the clock would.
 //
 // local/supabase/config.toml serves `intake` without JWT checks, as it will be
 // deployed, so `supabase start` alone is enough.
@@ -171,6 +173,17 @@ await must('admin_set_member', { p_team_id: team.Blue, p_profile_id: people.blue
 await must('start_game', { p_game_id: g }, org);
 ok('a Region Bingo game was built and started through PostgREST',
    sql(`select status || ' ' || mode from games where id = '${g}'`) === 'active regions');
+
+// Boris, 2026-11-21 (draft 002, section 6e): Dink is off for a new game until
+// an organiser switches it on in the console, with the console's own call.
+const dinkIs = (game) => sql(`select plugin_drops from games where id = '${game}'`);
+ok('Dink starts off for the new game', dinkIs(g) === 'f');
+for (const [who, as] of [['a captain', people.red.jwt], ['anon', ANON], ['the service role', SERVICE]]) {
+  const no = await rpc('admin_set_plugin_drops', { p_game_id: g, p_on: true }, as);
+  ok(`${who} cannot switch it on`, no.status >= 400 && dinkIs(g) === 'f', J(no));
+}
+const switchedOn = await rpc('admin_set_plugin_drops', { p_game_id: g, p_on: true }, org);
+ok('the organiser switches it on', switchedOn.status === 200 && switchedOn.body === true && dinkIs(g) === 't', J(switchedOn));
 
 // ------------------------------------------------------------------ tokens
 const tok = {};
@@ -545,24 +558,48 @@ ok("Red choosing the tile in Blue's region: the answer a tile that does not exis
 ok("Blue cannot read Red's waiting screenshot; Red Cap can",
    (await readAs(W.storage_path, people.blue.jwt)) >= 400 && (await readAs(W.storage_path, people.red.jwt)) === 200);
 
-const oW = await must('waiting_drop_open', { p_waiting_id: W.id, p_tile_id: T.helmet, p_option_id: opt['Dharoks helm'] }, people.red.jwt);
+// A second helm, on another world with its own screenshot: it waits beside
+// the first. Nobody chooses it; it shows the cleanup of a drop whose hour ran
+// out (below).
+const helm2Shot = makePng(16, 12, (x, y, k) => (k === 3 ? 255 : (x * 5 + y * 11 + k * 60) & 255)).bytes;
+d = await dink(tok.mate, lootFrom('Mate Iron', [["Dharok's helm", 4716, 1_200_000]], { world: 421 }), helm2Shot);
+const W2 = sqlJson(`select * from plugin_waiting where game_id = '${g}' and id <> '${W.id}'`)[0];
+ok('a second helm waits beside it, with its own file',
+   d.status === 200 && !!W2 && W2.storage_path !== W.storage_path && (await download(W2.storage_path)).status === 200, J([d, W2]));
+
+const openArgs = { p_waiting_id: W.id, p_tile_id: T.helmet, p_option_id: opt['Dharoks helm'] };
+const oW = await must('waiting_drop_open', openArgs, people.red.jwt);
 const claimW = sql(`select id from tile_claims where team_id = '${team.Red}' and tile_id = '${T.helmet}'`);
-ok('Red Cap chooses Any helmet: the tile is opened, and the copy goes in its claim\'s folder',
-   oW.claim_id === claimW && oW.from_path === W.storage_path && oW.path_prefix === `${g}/${team.Red}/${claimW}/`, J(oW));
+ok("Red Cap chooses Any helmet: the tile is opened, and the copy is given its place in the claim's folder, written down",
+   oW.claim_id === claimW && oW.from_path === W.storage_path && oW.path_prefix === `${g}/${team.Red}/${claimW}/`
+   && oW.copy_path.startsWith(oW.path_prefix) && oW.copy_path.endsWith('.png')
+   && sql(`select count(*) from plugin_waiting_copies where waiting_id = '${W.id}' and storage_path = '${oW.copy_path}'`) === '1',
+   J(oW));
 let cp = await copyObject(W.storage_path, `${g}/${team.Blue}/${randomUUID()}/${randomUUID()}.png`, people.blue.jwt);
 ok("Blue cannot copy Red's screenshot with Storage's copy", cp.status >= 400, J(cp));
-cp = await copyObject(W.storage_path, `${oW.path_prefix}${randomUUID()}.png`, people.blue.jwt);
+cp = await copyObject(W.storage_path, oW.copy_path, people.blue.jwt);
 ok("nor into Red's claim", cp.status >= 400, J(cp));
 
-const forgedPath = `${oW.path_prefix}${randomUUID()}.png`;
-up = await upload(forgedPath, PNG, 'image/png', people.red.jwt);
-const chooseW = (as, p) => rpc('waiting_drop_choose',
-  { p_waiting_id: W.id, p_tile_id: T.helmet, p_option_id: opt['Dharoks helm'], p_storage_path: p }, as);
-r = await chooseW(people.red.jwt, forgedPath);
-ok("Red Cap's own picture, uploaded into the claim's folder, is refused as not Dink's",
-   up.status === 200 && r.status === 400 && r.body?.message === 'That is not the screenshot Dink sent for this drop', J([up, r]));
+// Red Cap's own picture, put where the copy was to go: the place was given
+// out, but the bytes are not Dink's.
+up = await upload(oW.copy_path, PNG, 'image/png', people.red.jwt);
+const chooseW = (as, p) => rpc('waiting_drop_choose', { ...openArgs, p_storage_path: p }, as);
+const NOT_DINKS = 'That is not the screenshot Dink sent for this drop';
+r = await chooseW(people.red.jwt, oW.copy_path);
+ok("Red Cap's own picture, uploaded where the copy was to go, is refused as not Dink's",
+   up.status === 200 && r.status === 400 && r.body?.message === NOT_DINKS, J([up, r]));
+// Dink's own picture, copied to a place the site was never given.
+const strayPath = `${oW.path_prefix}${randomUUID()}.png`;
+cp = await copyObject(W.storage_path, strayPath, people.red.jwt);
+r = await chooseW(people.red.jwt, strayPath);
+ok("Dink's picture copied to a place nobody gave out is refused the same way",
+   cp.status === 200 && r.status === 400 && r.body?.message === NOT_DINKS, J([cp, r]));
 
-const copyPath = `${oW.path_prefix}${randomUUID()}.png`;
+// Trying again, as the box does: a new place.
+const oW2 = await must('waiting_drop_open', openArgs, people.red.jwt);
+ok('trying again gives a new place, in the same folder',
+   oW2.claim_id === claimW && oW2.copy_path !== oW.copy_path && oW2.copy_path.startsWith(oW.path_prefix), J(oW2));
+const copyPath = oW2.copy_path;
 cp = await copyObject(W.storage_path, copyPath, people.red.jwt);
 const mFrom = meta(W.storage_path), mTo = meta(copyPath);
 ok("Red Cap copies Dink's picture with Storage's copy, under their own sign-in", cp.status === 200, J(cp));
@@ -588,11 +625,75 @@ ok("the team's panel draws it with the drop, when it arrived and who chose",
 r = await chooseW(people.mate.jwt, copyPath);
 ok('choosing it again: already handed in', r.status === 400 && r.body?.message === 'That drop has already been handed in', J(r));
 r = await rpc('waiting_drops', { p_game_id: g }, people.mate.jwt);
-ok('and the list is empty again', r.status === 200 && J(r.body) === '[]', J(r));
+ok('and the list has only the second helm, now for Barrows chest alone',
+   r.status === 200 && r.body.length === 1 && r.body[0].id === W2.id
+   && J(r.body[0].choices.map((c) => c.tile)) === J(['Barrows chest']), J(r));
+
+// ------------------------------------------- the files nobody needs any more
+// Boris, 2026-11-21 (draft 002, section 6d). Nobody chooses the second helm;
+// its hour, and the five minutes' grace, are moved into the past here. The
+// next request from Dink -- any request from a real token -- has the intake
+// remove, through Storage: the first helm's file under waiting/ and the copy
+// holding Red Cap's own picture, now that the helm is handed in, and the
+// second helm's file. The copy that was handed in stays, and so does the
+// stray copy: only what the database lists is ever removed.
+const exists = (p) => sql(`select count(*) from storage.objects where bucket_id = 'evidence' and name = '${p}'`) === '1';
+const gone = [W.storage_path, oW.copy_path, W2.storage_path];
+ok('before: every one of those files is in Storage', [...gone, copyPath, strayPath].every(exists));
+sql(`update plugin_waiting set received_at = now() - interval '66 minutes', expires_at = now() - interval '6 minutes'
+      where id = '${W2.id}'`);
+r = await rpc('plugin_leftover_files', { p_limit: 100 }, SERVICE);
+ok("the intake's own question lists exactly those three",
+   r.status === 200 && J(r.body.map((x) => x.storage_path).sort()) === J([...gone].sort()), J(r));
+for (const [who, as] of [['anon', ANON], ['a signed-in player', people.red.jwt]]) {
+  const no = await rpc('plugin_leftover_files', { p_limit: 100 }, as);
+  const no2 = await rpc('plugin_leftovers_removed', { p_paths: [copyPath] }, as);
+  ok(`${who} can neither ask for them nor mark one removed`, no.status >= 400 && no2.status >= 400, J([no, no2]));
+}
+const logBeforeClean = fnLog().length;
+d = await dink(tok.mate, lootFrom('Mate Iron', [['Bones', 526, 100]], { world: 422 }), PNG);
+ok('the next request from Dink: 200 {ok:true}', d.status === 200 && d.body === '{"ok":true}', J(d));
+ok("the first helm's file and Red Cap's own picture are gone from Storage", !exists(W.storage_path) && !exists(oW.copy_path));
+ok("and the second helm's, its hour up", !exists(W2.storage_path));
+const kept = await download(copyPath);
+ok('the copy that was handed in is still there, byte for byte, and still the evidence',
+   kept.status === 200 && Buffer.compare(Buffer.from(kept.bytes), Buffer.from(helmShot)) === 0
+   && sqlJson(`select 1 from tile_evidence where storage_path = '${copyPath}'`).length === 1, kept.status);
+ok('the stray copy is not touched', exists(strayPath));
+r = await rpc('plugin_leftover_files', { p_limit: 100 }, SERVICE);
+ok('and the database knows: nothing is left to remove', r.status === 200 && J(r.body) === '[]', J(r));
+ok('the rows are kept, marked with when their files went',
+   sql(`select count(*) from plugin_waiting where id in ('${W.id}', '${W2.id}') and file_removed_at is not null`) === '2'
+   && sql(`select count(*) from plugin_waiting_copies where waiting_id = '${W.id}' and removed_at is not null`) === '1'
+   && sql(`select count(*) from plugin_waiting_copies where waiting_id = '${W.id}' and removed_at is null`) === '1');
 
 await new Promise((res) => setTimeout(res, 800));
 const waitOutcomes = [...fnLog().slice(logBeforeWait).matchAll(/\{"outcome":"([a-z_]+)"(?:,"reason":"([a-z_]+)")?/g)].map((x) => x[2] ?? x[1]);
-ok("the function's log: 'waiting', then the retry", J(waitOutcomes) === J(['waiting', 'nothing_submitted']), J(waitOutcomes));
+ok("the function's log: 'waiting', the retry, the second helm 'waiting', then the request that cleaned up",
+   J(waitOutcomes) === J(['waiting', 'nothing_submitted', 'waiting', 'nothing_submitted']), J(waitOutcomes));
+ok('whose line says it removed three files', /"cleaned":3\b/.test(fnLog().slice(logBeforeClean)));
+
+// ----------------------------------------------- Dink switched off, mid-game
+// The organiser switches it off in the console. Barrows chest, still open,
+// wants a Dharok's helm, and is the only tile that does now: with Dink on, the
+// helm would be handed in. Off, it is not; the site's upload still is.
+r = await rpc('admin_set_plugin_drops', { p_game_id: g, p_on: false }, org);
+ok('the organiser switches Dink off for the game, mid-game', r.status === 200 && r.body === false && dinkIs(g) === 'f', J(r));
+const barrowsRows = () => sqlJson(`select e.source from tile_evidence e join tile_claims c on c.id = e.claim_id
+  where c.tile_id = '${T.barrows}' order by e.created_at`).map((x) => x.source);
+d = await dink(tok.mate, lootFrom('Mate Iron', [["Dharok's helm", 4716, 1_200_000]], { world: 423 }), PNG);
+ok("off: Dink's helm is answered 200 {ok:true}, as always, and nothing is handed in or kept waiting",
+   d.status === 200 && d.body === '{"ok":true}' && J(barrowsRows()) === J(['web'])
+   && sql(`select count(*) from plugin_waiting where game_id = '${g}' and chosen_at is null and expires_at > now()`) === '0', J(d));
+r = await rpc('waiting_drops', { p_game_id: g }, people.red.jwt);
+ok('and the team has nothing to choose', r.status === 200 && J(r.body) === '[]', J(r));
+const offPath = `${g}/${team.Red}/${claim}/${randomUUID()}.png`;
+up = await upload(offPath, PNG, 'image/png', people.mate.jwt);
+r = await rpc('add_evidence', { p_claim_id: claim, p_storage_path: offPath, p_public_url: null,
+  p_option_id: opt["Dharok's helm"], p_amount: null }, people.mate.jwt);
+ok('off: uploading the helm on the site works as it always did, and completes Barrows chest',
+   up.status === 200 && r.status === 200 && J(barrowsRows()) === J(['web', 'web'])
+   && sql(`select status from tile_claims where id = '${claim}'`) === 'completed', J([up, r]));
 
 // --------------------------------------- Bingo, through the same doors
 // A Bingo game beside the Region Bingo one, with the same people. Dragon
@@ -612,6 +713,11 @@ for (const [i, label] of card.entries()) {
 await must('admin_set_member', { p_team_id: teamB.Red, p_profile_id: people.red.id, p_role: 'captain' }, org);
 await must('admin_set_member', { p_team_id: teamB.Red, p_profile_id: people.mate.id, p_role: 'member' }, org);
 await must('admin_set_member', { p_team_id: teamB.Blue, p_profile_id: people.blue.id, p_role: 'captain' }, org);
+r = await rpc('admin_set_plugin_drops', { p_game_id: gb, p_on: true }, org);
+ok('the console will not switch Dink on for Bingo yet',
+   r.status === 400 && r.body?.message === 'Drops from Dink are for Region Bingo only, for now' && dinkIs(gb) === 'f', J(r));
+// Bingo is built and tested, and waits for Boris's word: switched on here by SQL.
+sql(`update games set plugin_drops = true where id = '${gb}'`);
 const onCard = (label) => sqlJson(`select e.source, e.detail, e.uploaded_by, e.team_id, e.storage_path, c.status
   from tile_evidence e join tile_claims c on c.id = e.claim_id where c.tile_id = '${TB[label]}' order by e.created_at`);
 const fang = lootFrom('Mate Iron', [['Tanzanite fang', 12922, 3_000_000]], { world: 416 });
