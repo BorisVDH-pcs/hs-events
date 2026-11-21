@@ -16,6 +16,13 @@ import { replay } from './replay.mjs';
 export const J = (v) => JSON.stringify(v);
 
 export async function buildGame() {
+  const base = await buildPeople();
+  return { ...base, ...(await addRegionsGame(base)) };
+}
+
+// The database with both drafts, the helpers, and the people with their
+// in-game names and plugin tokens: no game yet.
+export async function buildPeople() {
   const db = await replay();
   for (const f of ['001_plugin_tokens.sql', '002_plugin_drops.sql']) {
     await db.exec(readFileSync(new URL(`../${f}`, import.meta.url), 'utf8'));
@@ -55,7 +62,16 @@ export async function buildGame() {
        select $1, $2, not exists (select 1 from profile_accounts where profile_id = $1)`, [ids[key], rsn]);
   }
 
-  // ------------------------------------------------------------------ the game
+  const tok = {};
+  for (const key of ['org', 'red', 'mate', 'blue', 'out']) {
+    tok[key] = (await site(ids[key], 'select plugin_token_create($1) t', [key]))[0].t;
+  }
+
+  return { db, ids, tok, site, plugin, trying };
+}
+
+// The small Region Bingo game of the header, started, nobody's region picked.
+async function addRegionsGame({ db, ids, site }) {
   const g = (await site(ids.org,
     `select admin_new_game('Plugin test', 'regions', array['Red','Blue'], 3::smallint, now() + interval '1 day') id`))[0].id;
   const team = {};
@@ -91,12 +107,7 @@ export async function buildGame() {
   await site(ids.org, `select admin_set_member($1, $2, 'captain')`, [team.Blue, ids.blue]);
   await site(ids.org, 'select start_game($1)', [g]);
 
-  const tok = {};
-  for (const key of ['org', 'red', 'mate', 'blue', 'out']) {
-    tok[key] = (await site(ids[key], 'select plugin_token_create($1) t', [key]))[0].t;
-  }
-
-  return { db, ids, g, team, T, opt, tok, site, plugin, trying };
+  return { g, team, T, opt };
 }
 
 // A Bingo game beside the Region Bingo one, 3 by 3, for bingo.test.mjs. Same
