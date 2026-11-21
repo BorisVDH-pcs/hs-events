@@ -12,7 +12,6 @@
 import { supabase, waitingDropChoose, waitingDropOpen } from './supabase.js';
 import { uploadToImgbb } from './imgbb.js';
 import { assertWritable } from './viewOnly.js';
-import { copyPathFor } from './waitingDrops.js';
 
 export const BUCKET = 'evidence';
 
@@ -172,7 +171,9 @@ export async function uploadEvidence({ gameId, teamId, claimId, file, optionId =
 export async function handInWaitingDrop({ waitingId, tileId, optionId }) {
   assertWritable();
   const opened = await waitingDropOpen(waitingId, tileId, optionId);
-  const to = copyPathFor(opened.path_prefix, opened.from_path, crypto.randomUUID());
+  // Where to copy it is the database's choice, written down there, so a copy
+  // that is never handed in is found and removed later (draft 002, 6d).
+  const to = opened.copy_path;
   const { error } = await supabase.storage.from(BUCKET).copy(opened.from_path, to);
   if (error) throw new Error(error.message);
   return waitingDropChoose(waitingId, tileId, optionId, to);

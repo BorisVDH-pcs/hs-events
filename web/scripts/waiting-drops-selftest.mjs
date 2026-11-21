@@ -10,7 +10,7 @@ process.env.TZ = 'UTC';
 
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { choiceLabel, clock, copyPathFor, minutesLeft, waitsUntil, WAIT_MINUTES } from '../src/lib/waitingDrops.js';
+import { choiceLabel, clock, minutesLeft, waitsUntil, WAIT_MINUTES } from '../src/lib/waitingDrops.js';
 import { evidenceSource } from '../src/lib/evidenceSource.js';
 
 // ---- Which tile a button names ----
@@ -35,14 +35,6 @@ assert.equal(waitsUntil('2026-11-21T17:12:00Z', now), 'Waits until 17:12 (42 min
 assert.equal(waitsUntil('2026-11-21T16:30:00Z', now), null, 'once the hour is up, nothing to say');
 assert.equal(clock('2026-11-21T16:57:22Z', true), '16:57:22');
 assert.equal(clock('nope'), null);
-
-// ---- Where the copy goes ----
-
-const prefix = 'g/t/c/';
-assert.equal(copyPathFor(prefix, 'g/t/waiting/a.png', 'id'), 'g/t/c/id.png');
-assert.equal(copyPathFor(prefix, 'g/t/waiting/a.JPG', 'id'), 'g/t/c/id.jpg', 'the same type as Dink sent');
-assert.equal(copyPathFor(prefix, 'g/t/waiting/a.webp', 'id'), 'g/t/c/id.webp');
-assert.equal(copyPathFor(prefix, 'g/t/waiting/a', 'id'), 'g/t/c/id.png');
 
 // ---- The line it leaves on the evidence ----
 //
@@ -86,10 +78,11 @@ for (const fn of ['waitingDropOpen', 'waitingDropChoose']) {
 
 const ev = src('../src/lib/evidence.js');
 const hand = ev.slice(ev.indexOf('export async function handInWaitingDrop'));
-const order = ['assertWritable()', 'await waitingDropOpen(', '.copy(opened.from_path, to)', 'return waitingDropChoose('];
+const order = ['assertWritable()', 'await waitingDropOpen(', 'const to = opened.copy_path;', '.copy(opened.from_path, to)',
+  'return waitingDropChoose('];
 const at = order.map((s) => hand.indexOf(s));
 assert.ok(at.every((i) => i >= 0) && at.every((i, k) => k === 0 || i > at[k - 1]),
-  'the tile is opened, Storage copies the file as the player, then it is handed in');
+  'the tile is opened, Storage copies the file as the player to where the database said, then it is handed in');
 assert.match(hand, /if \(error\) throw new Error\(error\.message\);/, 'a refused copy stops it there');
 
 const box = src('../src/components/WaitingDrops.jsx');

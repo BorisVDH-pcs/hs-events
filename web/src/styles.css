@@ -7355,3 +7355,12 @@ button.builder-cell.regions-unused.on { opacity: 1; }
 @media (prefers-reduced-motion: reduce) {
   .region-points-stepper { transition: none; }
 }
+
+/* Drops from Dink, per game, in the admin console's game card (draft 002,
+   6e). The site's own switch, as for Discord: it is a state that is on or
+   off right now, and the line beside it says what that state means. */
+.plugin-drops-switch {
+  margin-top: .9rem;
+  max-width: 46rem;
+}
+.plugin-drops-switch .muted { line-height: 1.45; }

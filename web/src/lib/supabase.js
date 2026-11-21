@@ -679,6 +679,14 @@ export const regionsStandings = (gameId) =>
 export const adminSetRegionThreshold = (gameId, threshold) =>
   rpc('admin_set_region_threshold', { p_game_id: gameId, p_threshold: threshold });
 
+/**
+ * Drops from Dink on or off for this game (draft 002, 6e; Boris, 2026-11-21).
+ * Region Bingo only for now; turning it off works in any mode. Uploading on
+ * the site is not affected either way.
+ */
+export const adminSetPluginDrops = (gameId, on) =>
+  rpc('admin_set_plugin_drops', { p_game_id: gameId, p_on: on });
+
 /** Region Bingo: what the tile on a square scores (1-100). Before the start only. */
 export const adminSetTileWorth = (gameId, position, worth) =>
   rpc('admin_set_tile_worth', { p_game_id: gameId, p_position: position, p_worth: worth });

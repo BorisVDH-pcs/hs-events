@@ -48,14 +48,3 @@ export function waitsUntil(expiresAt, now = Date.now()) {
   if (left <= 0) return null;
   return `Waits until ${clock(expiresAt)} (${left} min left)`;
 }
-
-/**
- * Where the site copies Dink's screenshot when the team has chosen: the
- * claim's own folder, which the database names (waiting_drop_open), under a
- * new name, keeping the file's type. The database then checks the copy is
- * Dink's file, byte for byte, by Storage's eTag and size.
- */
-export function copyPathFor(prefix, fromPath, id) {
-  const ext = /\.(png|jpe?g|webp)$/i.exec(fromPath ?? '')?.[1].toLowerCase() ?? 'png';
-  return `${prefix}${id}.${ext}`;
-}

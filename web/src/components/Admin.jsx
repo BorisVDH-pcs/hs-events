@@ -15,7 +15,7 @@ import {
   adminSaveBoardPreset, adminApplyBoardPreset, adminDeleteBoardPreset,
   adminNewGame, adminAddTeam, adminDeleteTeam, adminSetEndTime, adminEndGame,
   listBoardJumps, adminSetSnakes, adminSetTerritoryHomes, snakesStandings, adminSnakesEndGame,
-  territoryStandings, regionsStandings,
+  territoryStandings, regionsStandings, adminSetPluginDrops,
   adminListTileSubmissions, adminAcceptTileSubmission, adminRefuseTileSubmission,
   adminNewChallenge, adminChallengeEntries, adminChallengeSetFigure,
   adminChallengeVerify, adminChallengeSetTeam, adminChallengeWom,
@@ -1575,6 +1575,42 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
                     : regionsMode ? 'End time cleared — the game now runs until you end it.'
                       : 'End time cleared — the game now runs until a card is full.')}
               />
+            )}
+
+            {/* Drops from Dink, per game (draft 002, 6e; Boris, 2026-11-21).
+                Off until an organiser turns it on, Region Bingo only for now,
+                and changeable while the game runs. Uploading on the site
+                works either way. A database without the plugin drafts has
+                no such column, so nothing shows there. */}
+            {regionsMode && game.status !== 'finished' && typeof game.plugin_drops === 'boolean' && (
+              <div className="switch-row plugin-drops-switch">
+                <span className="switch-label">
+                  Drops from Dink
+                  <span className="muted">
+                    {game.plugin_drops
+                      ? 'On: a drop one open tile wants is handed in for the player, with Dink’s screenshot; a drop two tiles want waits an hour for the team to choose.'
+                      : 'Off: drops from Dink do not count in this game.'}
+                    {' '}Uploading on the site works either way.
+                  </span>
+                </span>
+                <label className="switch">
+                  <input
+                    type="checkbox"
+                    role="switch"
+                    checked={game.plugin_drops}
+                    disabled={busy}
+                    aria-label="Drops from Dink count in this game"
+                    onChange={(e) => {
+                      const on = e.target.checked;
+                      run(() => adminSetPluginDrops(game.id, on),
+                        on ? 'Drops from Dink now count in this game.'
+                          : 'Drops from Dink no longer count in this game. Uploading on the site works as before.',
+                        { refresh: ['games'] });
+                    }}
+                  />
+                  <span className="switch-track" aria-hidden="true" />
+                </label>
+              </div>
             )}
 
             {bingo && (game.status === 'active' || game.status === 'finished') && (
