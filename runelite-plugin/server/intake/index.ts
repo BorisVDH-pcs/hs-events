@@ -1,8 +1,9 @@
 // The `intake` Edge Function: the one door a plugin talks to (plan, 4.1).
 //
-// NOT RUN YET. Deno is not installed where this was written, so this file has
-// never executed. All of its logic is in handle.mjs and dink.mjs, which are
-// tested; what is left here is reading the request and the two clients.
+// All of its logic is in handle.mjs and dink.mjs, which are tested offline.
+// This shell -- reading the request, supabase-js for the database and Storage
+// -- is tested on the local stack by server/test/stack.test.mjs (Supabase's
+// edge runtime 1.77.8, Deno 2). It has not been deployed to a hosted project.
 //
 // Deploy without JWT verification (Dink sends no Authorization header):
 //   supabase functions deploy intake --no-verify-jwt

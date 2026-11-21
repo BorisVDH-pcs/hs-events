@@ -17,11 +17,11 @@ become migrations when they are moved there on purpose.
 | `server/002_plugin_drops.sql` | Evidence `source` and `detail`, the intake log, `plugin_watchlist`, `plugin_match`, `plugin_open`, `plugin_submit` | Tested offline against the real rules, and on a local Supabase stack |
 | `server/intake/dink.mjs` | Reads a Dink notification; makes the dedupe key | Tested; checked against Dink's source, not yet against a real client |
 | `server/intake/handle.mjs` | What happens to one notification: match, open, store, submit | Tested end to end, offline |
-| `server/intake/index.ts` | The Edge Function shell around `handle.mjs` | **Never run** (no Deno here) |
+| `server/intake/index.ts` | The Edge Function shell around `handle.mjs` | Tested on the local stack; not deployed anywhere |
 | `server/test/replay.mjs` | Replays all 129 migrations into an in-memory Postgres, with stand-ins for what Supabase provides | Works; the repo's own Region Bingo smoke test passes on it, 76 of 76 |
 | `server/test/*.test.mjs` | Three test files, 136 checks, run by `npm test` | All pass |
 | `server/local/` | A local Supabase stack: `config.toml`, and `prepare.mjs`, which copies the migrations, the two drafts and the intake function into it | Works with Supabase CLI 2.122.0 and Docker |
-| `server/test/stack.test.mjs` | 39 checks against that stack, run by `npm run test:stack` | All pass |
+| `server/test/stack.test.mjs` | 53 checks against that stack, the Edge Function included, run by `npm run test:stack` | All pass |
 | `plugin/.../core/` | `DropKey` and `WatchList`: the matching rule in plain Java | Tested, 16 checks |
 | `plugin/.../HsEvents*.java`, build files | The RuneLite plugin skeleton | **Never compiled** |
 
@@ -65,8 +65,8 @@ and `add_evidence` are the real ones:
 
 `stack.test.mjs` runs against the Supabase CLI's own local stack, which is the
 same software a hosted project runs: Postgres 17.11, PostgREST 16.5, Storage
-1.84.19, Auth 2.197.0. It is not the live project and never touches it. Tested
-2026-11-21, 39 of 39.
+1.84.19, Auth 2.197.0, edge runtime 1.77.8 (Deno 2). It is not the live
+project and never touches it. Tested 2026-11-21, 53 of 53.
 
 - **The migrations apply on real Supabase.** All 129, then the two drafts, by
   the CLI itself, with no errors.
@@ -107,11 +107,36 @@ same software a hosted project runs: Postgres 17.11, PostgREST 16.5, Storage
 - **Revoking works.** A revoked token, and a token nobody was given, get the
   same refusal and can hand nothing in.
 
+The Edge Function, called the way Dink calls it: a multipart request built as
+Dink's HTTP library writes it, `payload_json` with no content type and a
+`file` part named `lootImage.png`, to `/functions/v1/intake/dink?t=<token>`,
+with no sign-in.
+
+- **It runs.** `index.ts` reads the request, and supabase-js reaches the
+  database and Storage with the service role the runtime hands it. No secret
+  had to be set.
+- **A drop goes in.** Blue's loot, sent with the game's non-breaking space in
+  the name, is answered `200 {"ok":true}` and becomes one evidence row by that
+  player, source `dink`, with the name as the site spells it, the world and
+  the item id. The screenshot in Storage is the one that was sent, byte for
+  byte.
+- **Dink's retry is safe.** The same request again is answered the same, makes
+  no second row, and the second copy of the screenshot is removed, so Blue's
+  folder holds one file.
+- **The reply keeps the second secret.** Red's drop for a tile in Blue's
+  region, a drop of junk, and an item no tile has all get exactly
+  `200 {"ok":true}`. Nothing is handed in for Red.
+- **The other answers.** An unknown token is `401`, a body that is not JSON
+  is `400`, anything but a POST to `/dink` is `404`, all `{"ok":false}`. A
+  collection-log notification for a drop already counted is ignored.
+- **The log says what happened and nothing more.** One line per request with
+  its outcome, and never a token.
+
 ## What they do not prove
 
 - **A hosted Supabase project.** The local stack runs the same software, but
   the live project's settings, its Postgres version and its limits were not
-  compared, by design. The Edge Function has not yet run, locally or hosted.
+  compared, by design. The Edge Function has not been deployed.
 - **A real Dink message.** `dink.mjs` was checked field by field against
   Dink's `docs/json-examples.md` and against the Java classes that write the
   JSON (commit `ae769ad`, 2026-11-19). It has still never read a notification
@@ -181,8 +206,8 @@ the test. The test reads the stack's own development keys from
 
 ## Next
 
-1. The intake Edge Function on the local stack, with a Dink-shaped request.
-   After that, one real Dink client pointed at it.
+1. One real Dink client pointed at the local function, to see a message that
+   was not written by a test.
 2. Shrinking a screenshot that is over 3 MB.
 3. The My Account screen for tokens, and `source` in the review screen. These
    are the first changes to the website itself.

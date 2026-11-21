@@ -3,9 +3,13 @@
 //
 // Everything goes through the doors the site and the intake function use:
 // users through Supabase Auth, the game through PostgREST with real sign-ins,
-// screenshots through Storage, and the plugin_* functions through PostgREST
-// with the service role. Only two things use SQL directly, as on the live
-// project: making the organiser an admin, and reading what was stored.
+// screenshots through Storage, the plugin_* functions through PostgREST with
+// the service role, and at the end the intake Edge Function itself, called the
+// way Dink calls it. Only two things use SQL directly, as on the live project:
+// making the organiser an admin, and reading what was stored.
+//
+// local/supabase/config.toml serves `intake` without JWT checks, as it will be
+// deployed, so `supabase start` alone is enough.
 //
 // The stack's keys are read from `supabase status` while this runs. They are
 // the local stack's own development keys, held in memory and never printed.
@@ -15,7 +19,7 @@
 //
 // Not part of `npm test`, which needs nothing running.
 
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
@@ -279,6 +283,87 @@ ev = sqlJson(`select source, detail from tile_evidence where storage_path = '${s
 ok("an upload from the site is still 'web', with no detail", r.status === 200 && ev.length === 1 && ev[0].source === 'web' && ev[0].detail === null, J([r, ev]));
 up = await upload(`${g}/${team.Blue}/${claim}/${randomUUID()}.png`, PNG, 'image/png', people.red.jwt);
 ok("and cannot upload into the other team's folder", up.status >= 400 && /row-level security/i.test(up.body), J(up));
+
+// ------------------------------------- the intake Edge Function, as Dink calls it
+// The request is built the way Dink's OkHttp MultipartBody writes it: a
+// payload_json part with no content type, then a file part whose name ends in
+// .png, each with its own Content-Length.
+const FN = `${API}/functions/v1/intake/dink`;
+const EDGE = 'supabase_edge_runtime_hs-events-plugin-local';
+const fnLog = () => { const l = spawnSync(DOCKER, ['logs', EDGE], { encoding: 'utf8' }); return (l.stdout ?? '') + (l.stderr ?? ''); };
+const logBefore = fnLog().length;
+
+function multipart(payload, image, type = 'image/png') {
+  const b = `${randomUUID()}`;
+  const json = Buffer.from(J(payload), 'utf8');
+  const parts = [Buffer.from(`--${b}\r\nContent-Disposition: form-data; name="payload_json"\r\nContent-Length: ${json.length}\r\n\r\n`), json, Buffer.from('\r\n')];
+  if (image) parts.push(Buffer.from(`--${b}\r\nContent-Disposition: form-data; name="file"; filename="lootImage.png"\r\n`
+    + `Content-Type: ${type}\r\nContent-Length: ${image.length}\r\n\r\n`), Buffer.from(image), Buffer.from('\r\n'));
+  parts.push(Buffer.from(`--${b}--\r\n`));
+  return { body: Buffer.concat(parts), type: `multipart/form-data; boundary=${b}` };
+}
+async function dink(token, payload, image, type) {
+  const { body, type: ct } = multipart(payload, image, type);
+  const res = await fetch(`${FN}?t=${token}`, { method: 'POST', headers: { 'Content-Type': ct }, body });
+  return { status: res.status, body: await res.text() };
+}
+const lootFrom = (rsn, items, more = {}) => ({
+  content: '%USERNAME% has looted:', type: 'LOOT', playerName: rsn, accountType: 'NORMAL', seasonalWorld: false,
+  dinkAccountHash: `stack-${run}`, world: 302, regionId: 12850, embeds: [],
+  extra: { items: items.map(([name, id, priceEach]) => ({ id, quantity: 1, priceEach, name, criteria: ['VALUE'] })),
+           source: 'Chaos Elemental', category: 'NPC', killCount: 7 },
+  ...more,
+});
+const blueRows = () => sqlJson(`select e.source, e.detail, e.uploaded_by, e.team_id, e.storage_path
+  from tile_evidence e join tile_claims c on c.id = e.claim_id where c.tile_id = '${T.locked}' and e.team_id = '${team.Blue}'`);
+const blueObjects = () => Number(sql(`select count(*) from storage.objects where bucket_id = 'evidence' and name like '${g}/${team.Blue}/%'`));
+
+let d = await dink(`hse_${'0'.repeat(64)}`, lootFrom('Blue Main', [['Dragon pickaxe', 11920, 5_000_000]]), PNG);
+if (/UNAUTHORIZED_NO_AUTH_HEADER/.test(d.body)) {
+  throw new Error('intake is served with JWT checks on: run `supabase functions serve intake --no-verify-jwt` from server/local');
+}
+ok('the function runs without a sign-in, as Dink calls it, and refuses an unknown token: 401', d.status === 401 && d.body === '{"ok":false}', J(d));
+const got404 = await fetch(`${FN}?t=${tok.blue}`);
+ok('anything but a POST to /dink is a 404', got404.status === 404 && (await got404.text()) === '{"ok":false}');
+d = await fetch(`${FN}?t=${tok.blue}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: 'not json' });
+ok('a body that is not JSON is a 400', d.status === 400);
+
+const pick = lootFrom('Blue Main', [['Dragon pickaxe', 11920, 5_000_000], ['Bones', 526, 100]], { world: 330 });
+d = await dink(tok.blue, pick, PNG);
+ok("Blue's drop, sent the way Dink sends it, is answered 200 {ok:true}", d.status === 200 && d.body === '{"ok":true}', J(d));
+let rows = blueRows();
+ok('and is one evidence row: by that player, for Blue, source dink',
+   rows.length === 1 && rows[0].uploaded_by === people.blue.id && rows[0].source === 'dink', J(rows));
+ok("with what Dink reported, and the player's name as the site spells it",
+   rows[0]?.detail?.rsn === 'Blue Main' && rows[0]?.detail?.world === 330 && rows[0]?.detail?.dink_type === 'LOOT'
+   && rows[0]?.detail?.item_id === 11920 && rows[0]?.detail?.seasonal === false, J(rows[0]?.detail));
+const stored = rows[0] ? await download(rows[0].storage_path) : { status: 0 };
+ok('the screenshot went through supabase-js into Storage byte for byte',
+   stored.status === 200 && Buffer.compare(Buffer.from(stored.bytes), Buffer.from(PNG)) === 0, stored.status);
+d = await dink(tok.blue, pick, PNG);
+ok("Dink's retry of the same request: 200, still one row", d.status === 200 && blueRows().length === 1, J(d));
+ok("and the retry's copy of the screenshot was removed again: one file in Blue's folder", blueObjects() === 1, blueObjects());
+
+// The second secret, through the function: the reply never says what matched.
+const replies = [];
+for (const items of [[['Dragon pickaxe', 11920, 5_000_000]], [['Bones', 526, 100]], [['Twisted bow', 20997, 1_000_000_000]]]) {
+  replies.push(await dink(tok.mate, lootFrom('Mate Iron', items), PNG));
+}
+ok("Red's drop for a tile in Blue's region gets the same reply as junk and as an item no tile has",
+   replies.every((x) => J(x) === J({ status: 200, body: '{"ok":true}' })), J(replies));
+ok('and hands nothing in for Red', sqlJson(`select 1 from tile_evidence e join tile_claims c on c.id = e.claim_id
+   where c.tile_id = '${T.locked}' and e.team_id = '${team.Red}'`).length === 0);
+
+d = await dink(tok.blue, { ...pick, type: 'COLLECTION', extra: { itemName: 'Dragon pickaxe', itemId: 11920, price: 5_000_000 } }, PNG);
+ok('a collection-log notification for the same drop: 200, nothing new', d.status === 200 && blueRows().length === 1, J(d));
+
+await new Promise((res) => setTimeout(res, 800));
+const log = fnLog().slice(logBefore);
+const outcomes = [...log.matchAll(/\{"outcome":"([a-z_]+)"(?:,"reason":"([a-z_]+)")?/g)].map((x) => x[2] ?? x[1]);
+ok("the function's log has one line per request, with the outcome",
+   J(outcomes) === J(['bad_token', 'bad_json', 'submitted', 'nothing_submitted', 'nothing_submitted', 'nothing_submitted',
+                      'nothing_submitted', 'covered_by_loot']), J(outcomes));
+ok('and never a token', !/hse_/.test(log) && !Object.values(tok).some((t) => log.includes(t)));
 
 // ------------------------------------------------------------- revoking
 const list = await must('plugin_token_list', {}, people.mate.jwt);
