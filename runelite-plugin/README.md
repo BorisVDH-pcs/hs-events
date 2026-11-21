@@ -253,9 +253,6 @@ with no sign-in. Every request goes to a link made by the site's own
 
 ## What they do not prove
 
-- **A region opened by a pick, with a real Dink.** The tests prove it; a
-  real client has not done it yet. Boris's trial game is ready for it (see
-  "Region Bingo first" below).
 - **Bingo with a real Dink.** Only the tests so far. Its trial card was ended
   on 2026-11-21 so that one game runs at a time, Region Bingo first.
 - **The other modes.** Snakes and Ladders, Territory and Challenge are not
@@ -395,6 +392,21 @@ To play it, with Dink as it is:
 3. `node trial.mjs report` shows the points, the picks and the evidence.
 4. If wanted, as an organiser, revoke that Bones in the review screen and kill
    another cow: it is handed in again.
+
+**Played 2026-11-21, with Dink as it is.** From the intake's log and the
+game's own feed (times in UTC):
+
+| Time | What happened |
+|---|---|
+| 15:39 to 15:53 | Five kills that dropped Bones, before the pick: nothing handed in, each Bones a "none" |
+| 15:56:58 | Boris spent the pick on Asgarnia, on the site |
+| 15:57:22 | A Woman dropped Bones and Coins. Bones handed in on "Bones", the tile completed, and with it Asgarnia (4 of 4 points), which earned a new pick. Coins: no tile wants them |
+
+His team went from 7 to 11 points. So with a real client: a region's drops
+do not count until the team opens it, count from the first kill after the
+pick, and a drop that completes a region earns the next pick, all by the
+game's own rules. Not tried with the real client: the revoke in step 4 (the
+tests cover it).
 
 ## The token screen
 
@@ -659,10 +671,11 @@ a square, Edit, and type a drop.
 5. **Done 2026-11-21:** Bingo (see "Bingo"). Its trial card is ended for
    now: Region Bingo first.
 5a. **Region Bingo first (Boris, 2026-11-21).** A whole game through Dink is
-   tested (`regions-game.test.mjs`). Boris to play the pick on his trial game
-   with Dink (see "Region Bingo first: a region opened by a pick"). Then, for
-   the real event: its board's drop tiles checked against the item list, and
-   the steps to the live project, each Boris's call.
+   tested (`regions-game.test.mjs`), and Boris played a region opened by a
+   pick with a real Dink the same day (see "Region Bingo first: a region
+   opened by a pick"). Next, for the real event: its board's drop tiles
+   checked against the item list, and the steps to the live project, each
+   Boris's call.
 6. **Decided 2026-11-21:** one game at a time, so a drop is never wanted by
    two games; nothing is built for it. Still open: whether to build the switch
    per game (plan, section 10, item 6).
