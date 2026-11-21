@@ -24,6 +24,12 @@ only for the caller's own team or a game they run. Players are not asked to
 change any setting (decision 12). See the README's "Dink's report beside the
 picture".
 
+**Done 2026-11-21: a drop two tiles want.** It is no longer thrown away. The
+intake keeps it with its screenshot for an hour, and anyone on the team
+chooses the tile in a box above the board on the site; it is then handed in
+as the player who got it, through `add_evidence` (decision 5). See the
+README's "A drop two tiles want".
+
 First drafts of the server side, with their tests, are in `runelite-plugin/`;
 its README says what is tested and what is not. The drafts are ahead of the
 SQL sketches below where the two differ.
@@ -339,9 +345,10 @@ monster's name is a new rule and Boris's call.
 1. No open tile of the team's lists it: nothing is stored, nothing is kept.
 2. Exactly one open tile lists it, and `evidence_refusal` has no objection (a
    repeat cap, a set already taken): it is submitted.
-3. More than one tile lists it: the plugin does not guess. With Dink, the team
-   gets a private feed line asking the player to hand it in on the site. With
-   our own plugin, the side panel asks which tile and then submits.
+3. More than one tile lists it: the plugin does not guess. With Dink, the drop
+   and its screenshot wait an hour, and anyone on the team chooses the tile
+   on the site (decided 2026-11-21, decision 5). With our own plugin, the
+   side panel would have asked which tile and then submitted.
 4. The in-game name is not on the player's account list: refused, with a
    private line telling the player to add the account under My Account.
 5. One drop is one piece of evidence, whatever the quantity, as one screenshot
@@ -560,7 +567,9 @@ modes, one at a time.
    plugin never does. Since Bingo was added, this includes two tiles in two
    running games (a Bingo card and a Region Bingo board): an "ask", handed
    in nowhere by Dink. **Decided, 2026-11-21:** the clan runs one game at a
-   time, so this does not happen, and nothing is built for it.
+   time, so this does not happen, and nothing is built for it. **Decided,
+   2026-11-21:** two tiles in one game: the drop waits an hour, and anyone on
+   the team chooses the tile on the site. The plugin still never chooses.
 6. **Which modes, and the default of the per-game switch** (section 7).
 7. **Organiser announcements as in-game pop-ups.** Wanted, or noise?
 8. **May an organiser require plugin evidence for a tile?** Proposed: no.
