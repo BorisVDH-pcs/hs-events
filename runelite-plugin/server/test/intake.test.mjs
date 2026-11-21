@@ -162,10 +162,12 @@ await site(ids.blue, `select regions_pick($1, 'asgarnia')`, [g]);
 const store = new Map();
 let failUploads = 0;
 const rpcCalls = [];
+let matchedItems = null;
 const deps = {
   async rpc(fn, args) {
     if (!/^plugin_[a-z_]+$/.test(fn)) throw new Error('unexpected function ' + fn);
     rpcCalls.push(fn);
+    if (fn === 'plugin_match') matchedItems = args.p_items;
     const keys = Object.keys(args);
     const isJson = (v) => v !== null && typeof v === 'object';
     const sql = `select ${fn}(${keys.map((k, i) => `${k} => $${i + 1}${isJson(args[k]) ? '::jsonb' : ''}`).join(', ')}) j`;
@@ -197,6 +199,8 @@ ok('its screenshot is stored once, under the claim, where the row says',
    store.size === 1 && store.has(ev[0].storage_path)
    && ev[0].storage_path.startsWith(`${g}/${team.Red}/${ev[0].claim_id}/`) && ev[0].storage_path.endsWith('.png'), ev[0].storage_path);
 ok('the junk beside it was not', res.results.find((r) => r.item === 'Bones').verdict === 'none');
+ok('every item is matched with the monster Dink named, for a tile\'s "Only from"',
+   J(matchedItems) === J([{ name: "Karil's coif", from: 'Abyssal demon' }, { name: 'Bones', from: 'Abyssal demon' }]), J(matchedItems));
 
 // The same coif fills a new collection log slot, so Dink sends a second
 // notification for it, with a screenshot of its own.
@@ -239,6 +243,21 @@ res = await send('mate', loot('Mate Iron', ['Bones']), bigShot, countShrinks);
 const resBigLocked = await send('mate', loot('Mate Iron', ['Dragon pickaxe']), bigShot, countShrinks);
 ok('a big screenshot of a drop nobody wants, or of a locked tile, is never made smaller (no CPU spent on it)',
    res.outcome === 'nothing_submitted' && resBigLocked.outcome === 'nothing_submitted' && shrinkCalls === 0 && store.size === before, J(res));
+
+// "Only from": Blue's pickaxe tile counts only a pickaxe from the Kalphite
+// Queen. One from Callisto is a drop nobody wants: nothing kept, no CPU spent.
+await db.query('update tiles set drop_from = $2 where id = $1', [T.locked, ['Kalphite Queen']]);
+const fromCallisto = await send('blue', loot('Blue Main', ['Dragon pickaxe'], {}, { source: 'Callisto', npcId: 6609 }), bigShot, countShrinks);
+const fromCallistoJunk = await send('blue', loot('Blue Main', ['Bones'], {}, { source: 'Callisto', npcId: 6609 }), png(14));
+ok('"Only from": a pickaxe from Callisto for a Kalphite Queen tile is not handed in, stored or made smaller',
+   fromCallisto.outcome === 'nothing_submitted' && fromCallisto.results[0].verdict === 'none'
+   && (await evidence(team.Blue)).length === 0 && store.size === before && shrinkCalls === 0, J(fromCallisto));
+ok('and gets the same answer as a drop nobody wants',
+   J({ ...fromCallisto, results: fromCallisto.results.map((r) => r.verdict) })
+   === J({ ...fromCallistoJunk, results: fromCallistoJunk.results.map((r) => r.verdict) }), J([fromCallisto, fromCallistoJunk]));
+// An empty list is "from any monster" again: the pickaxe below comes from an
+// Abyssal demon, and counts.
+await db.query('update tiles set drop_from = $2 where id = $1', [T.locked, []]);
 
 // Blue's screenshot is the big one: over the bucket limit, under Dink's 8 MB.
 const bluePick = loot('Blue\u00a0Main', ['Dragon pickaxe']);
