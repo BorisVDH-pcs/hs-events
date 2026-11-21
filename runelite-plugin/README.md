@@ -1040,5 +1040,6 @@ a square, Edit, and type a drop.
     Decided with it: a matched drop counts at once (plan, item 3), only
     tiles open when it dropped (item 4), and an organiser cannot require
     Dink evidence for a tile (item 8). Boris merges the pull request on
-    GitHub; after it, the checks in "Going live". Still open: a line about
-    Dink in `docs/region-bingo-rules.md`, Boris's words.
+    GitHub; after it, the checks in "Going live". The rules sheet has a
+    "Drops from Dink" part, in Boris's words (`docs/region-bingo-rules.md`,
+    under Playing).

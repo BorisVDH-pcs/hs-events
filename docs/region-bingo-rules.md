@@ -80,6 +80,13 @@ picked so the game can be played. Each one is easy to change.
    over it as cards. "World map" (or Esc) zooms back out. A region the team
    hasn't opened stays on the world map, with the pick button beside it.
 
+### Drops from Dink
+
+If an organiser has switched on Drops from Dink for the game, players who run
+Dink can have drops handed in for them: a drop one open tile wants counts at
+once, with Dink's screenshot; a drop two tiles want waits an hour for anyone
+on the team to choose. Uploading on the site works as always.
+
 ### Unlocking a region
 
 8. A region is **complete** for a team when that team has at least **x% of the
