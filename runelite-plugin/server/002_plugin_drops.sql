@@ -2,10 +2,12 @@
 -- in. docs/runelite-plugin-plan.md, sections 4.4 and 4.5. Needs 001.
 --
 -- DRAFT. Not in supabase/migrations on purpose, so db-push cannot apply it.
--- It adds two columns to tile_evidence, one trigger on it, one table and new
--- functions, two of them for the site (admin_evidence_sources, the review
--- screen's "sent by plugin", and evidence_sources, the same lines under the
--- picture in a tile's panel). It rewrites no existing function:
+-- It adds two columns to tile_evidence, one trigger on it, two tables and new
+-- functions, five of them for the site: admin_evidence_sources (the review
+-- screen's "sent by plugin"), evidence_sources (the same lines under the
+-- picture in a tile's panel), and waiting_drops, waiting_drop_open and
+-- waiting_drop_choose (a drop two tiles want, chosen by the team, section
+-- 6c). It rewrites no existing function:
 -- tiles_for_team, regions_open_tile, bingo_open_tile and add_evidence are
 -- called exactly as they are, so every rule they hold applies to a plugin
 -- without being written down twice.
@@ -158,7 +160,8 @@ $$;
 -- 4. plugin_match: what would these drops count for?
 -- ============================================================
 -- For Dink, which knows nothing of the tiles and sends every drop: the
--- intake function asks this first, and stores a screenshot only for a 'one'.
+-- intake function asks this first, and stores a screenshot only for a 'one'
+-- (handed in) or an 'ask' (kept for the team to choose, section 6c).
 --
 -- p_items is [{"name": "Dharok's helm", ...}, ...]. For each: 'none', 'one' or
 -- 'ask' (more than one open tile lists it; the player chooses, never the
@@ -418,6 +421,304 @@ as $$
 $$;
 
 -- ============================================================
+-- 6c. A drop two tiles want: it waits, and the team chooses
+-- ============================================================
+-- Decided by Boris, 2026-11-21. Before, a drop more than one open tile wanted
+-- (an 'ask') was handed in nowhere and its screenshot thrown away. Now the
+-- intake keeps it, with the tiles that wanted it at that moment, and anyone
+-- on the team chooses one of them on the site within an hour.
+--
+--   plugin_wait_open     intake: checks, answers where the screenshot goes
+--   (the intake stores it in the team's folder, under waiting/)
+--   plugin_wait          intake: checks again and keeps the drop for an hour
+--   waiting_drops        site: the team's waiting drops and where each can go
+--   waiting_drop_open    site: opens the chosen tile, answers where the copy goes
+--   (the site copies the screenshot there, as the player, like an upload)
+--   waiting_drop_choose  site: checks the copy is Dink's picture, hands it in
+--
+-- No rule moves here. The choices are read from plugin_wanted, so only tiles
+-- the team can see and may still hand in to are ever offered; the tile is
+-- opened by plugin_open_tile and the drop handed in by add_evidence, as the
+-- player who got it. Only a tile that wanted the drop when it dropped can
+-- take it, so a region opened later cannot, and nothing is banked. One game
+-- at a time (Boris, 2026-11-21): a drop two games want is not kept.
+
+create table if not exists plugin_waiting (
+  id           uuid        primary key default gen_random_uuid(),
+  game_id      uuid        not null references games(id) on delete cascade,
+  team_id      uuid        not null references teams(id) on delete cascade,
+  -- Who got the drop. The evidence is theirs, whoever chooses.
+  profile_id   uuid        not null references profiles(id) on delete cascade,
+  item         text        not null,
+  detail       jsonb,
+  storage_path text        not null,
+  -- [{"tile_id": ..., "option_id": ...}]: the tiles that wanted it then.
+  choices      jsonb       not null,
+  received_at  timestamptz not null default now(),
+  expires_at   timestamptz not null default now() + interval '1 hour',
+  chosen_at    timestamptz,
+  chosen_by    uuid        references profiles(id) on delete set null,
+  evidence_id  uuid
+);
+
+create index if not exists plugin_waiting_open on plugin_waiting (team_id) where chosen_at is null;
+alter table plugin_waiting enable row level security;
+revoke all on plugin_waiting from public, anon, authenticated;
+
+-- Where a drop could go for the caller's team now, one row per tile. Internal.
+create or replace function plugin_wait_choices(p_item text)
+returns table (game_id uuid, team_id uuid, tile_id uuid, option_id uuid)
+language sql stable security definer
+set search_path = public
+as $$
+  select w.game_id, w.team_id, w.tile_id, w.option_id
+    from plugin_wanted() w
+   where w.drop = drop_key(p_item);
+$$;
+
+create or replace function plugin_wait_open(p_token text, p_rsn text, p_item text)
+returns jsonb
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_me    uuid := plugin_as(p_token);
+  v_n     int;
+  v_games int;
+  v_game  uuid;
+  v_team  uuid;
+begin
+  if not plugin_rsn_ok(p_rsn) then
+    raise exception 'That in-game name is not on your account list. Add it under My Account.';
+  end if;
+  select count(*), count(distinct c.game_id), min(c.game_id::text)::uuid, min(c.team_id::text)::uuid
+    into v_n, v_games, v_game, v_team
+    from plugin_wait_choices(p_item) c;
+  -- The answer a drop for no tile gets, for one tile (plugin_open's job) and
+  -- for two games.
+  if v_n < 2 or v_games <> 1 then
+    raise exception 'That drop does not count for an open tile';
+  end if;
+  return jsonb_build_object('game_id', v_game, 'team_id', v_team,
+    'path_prefix', v_game || '/' || v_team || '/waiting/');
+end;
+$$;
+
+create or replace function plugin_wait(
+  p_token text, p_rsn text, p_item text, p_storage_path text, p_detail jsonb)
+returns jsonb
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_me      uuid := plugin_as(p_token);
+  v_source  text := case when p_detail ->> 'source' = 'dink' then 'dink' else 'plugin' end;
+  v_dedupe  text := nullif(btrim(coalesce(p_detail ->> 'dedupe', '')), '');
+  v_result  jsonb;
+  v_n       int;
+  v_games   int;
+  v_game    uuid;
+  v_team    uuid;
+  v_choices jsonb;
+  v_id      uuid;
+begin
+  if v_dedupe is null then
+    raise exception 'A submission needs a dedupe key';
+  end if;
+
+  -- Sent twice: kept once. As in plugin_submit.
+  perform pg_advisory_xact_lock(hashtextextended(v_me::text || ':' || v_dedupe, 0));
+  select l.result into v_result
+    from plugin_intake_log l
+   where l.profile_id = v_me and l.dedupe_key = v_dedupe;
+  if found then
+    return coalesce(v_result, '{}'::jsonb) || jsonb_build_object('duplicate', true);
+  end if;
+
+  if not plugin_rsn_ok(p_rsn) then
+    raise exception 'That in-game name is not on your account list. Add it under My Account.';
+  end if;
+  select count(*), count(distinct c.game_id), min(c.game_id::text)::uuid, min(c.team_id::text)::uuid,
+         jsonb_agg(jsonb_build_object('tile_id', c.tile_id, 'option_id', c.option_id) order by c.tile_id)
+    into v_n, v_games, v_game, v_team, v_choices
+    from plugin_wait_choices(p_item) c;
+  if v_n < 2 or v_games <> 1 then
+    raise exception 'That drop does not count for an open tile';
+  end if;
+  -- In the team's own folder, so only the team can read it (0021's policy).
+  if position(v_game || '/' || v_team || '/waiting/' in coalesce(p_storage_path, '')) <> 1
+     or p_storage_path like '%..%' then
+    raise exception 'That screenshot path does not belong to this drop';
+  end if;
+
+  insert into plugin_waiting (game_id, team_id, profile_id, item, detail, storage_path, choices)
+  values (v_game, v_team, v_me, p_item, coalesce(p_detail, '{}'::jsonb) - 'dedupe', p_storage_path, v_choices)
+  returning id into v_id;
+
+  v_result := jsonb_build_object('waiting_id', v_id, 'choices', v_n);
+  insert into plugin_intake_log (profile_id, source, dedupe_key, result)
+  values (v_me, v_source, v_dedupe, v_result);
+  return v_result || jsonb_build_object('duplicate', false);
+end;
+$$;
+
+-- The caller's team's drops waiting in this game, and the tiles each can
+-- still go to. A choice that has stopped being one (the tile filled up, the
+-- game ended) is left out, and a drop with none left is not listed. Nothing
+-- for anyone not on a team in the game.
+create or replace function waiting_drops(p_game_id uuid)
+returns table (id uuid, item text, detail jsonb, storage_path text, dropped_by text,
+               received_at timestamptz, expires_at timestamptz, choices jsonb)
+language plpgsql stable security definer
+set search_path = public
+as $$
+declare
+  v_team uuid := my_team_in_game(p_game_id);
+begin
+  if v_team is null then
+    return;
+  end if;
+  return query
+    select w.id, w.item, w.detail, w.storage_path, p.display_name, w.received_at, w.expires_at,
+           jsonb_agg(jsonb_build_object(
+             'tile_id', n.tile_id, 'option_id', n.option_id, 'tile', n.tile_name,
+             'position', n.tile_position, 'region', n.region, 'label', n.label)
+             order by n.tile_position)
+      from plugin_waiting w
+      join profiles p on p.id = w.profile_id
+      cross join lateral jsonb_to_recordset(w.choices) as c(tile_id uuid, option_id uuid)
+      join plugin_wanted() n
+        on n.game_id = w.game_id and n.team_id = w.team_id
+       and n.tile_id = c.tile_id and n.option_id = c.option_id
+     where w.game_id = p_game_id
+       and w.team_id = v_team
+       and w.chosen_at is null
+       and w.expires_at > now()
+     group by w.id, p.display_name
+     order by w.received_at;
+end;
+$$;
+
+-- Everything a choice must pass, for waiting_drop_open and _choose. One
+-- message for a drop that does not exist, another team's drop, a tile that
+-- was never a choice and one that no longer is: the answer must not tell
+-- another team's drop, or a locked tile, from nothing at all. The other two
+-- messages only ever reach the team the drop belongs to.
+create or replace function waiting_drop_check(p_waiting_id uuid, p_tile_id uuid, p_option_id uuid)
+returns plugin_waiting
+language plpgsql stable security definer
+set search_path = public
+as $$
+declare
+  w plugin_waiting;
+begin
+  select * into w from plugin_waiting where id = p_waiting_id;
+  if w.id is null or w.team_id is distinct from my_team_in_game(w.game_id) then
+    raise exception 'That drop cannot be handed in there';
+  end if;
+  if w.chosen_at is not null then
+    raise exception 'That drop has already been handed in';
+  end if;
+  if w.expires_at <= now() then
+    raise exception 'That drop waited more than an hour, so it no longer counts';
+  end if;
+  if not (w.choices @> jsonb_build_array(jsonb_build_object('tile_id', p_tile_id, 'option_id', p_option_id)))
+     or not exists (select 1 from plugin_wanted() n
+                     where n.game_id = w.game_id and n.team_id = w.team_id
+                       and n.tile_id = p_tile_id and n.option_id = p_option_id) then
+    raise exception 'That drop cannot be handed in there';
+  end if;
+  return w;
+end;
+$$;
+
+create or replace function waiting_drop_open(p_waiting_id uuid, p_tile_id uuid, p_option_id uuid)
+returns jsonb
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  w       plugin_waiting := waiting_drop_check(p_waiting_id, p_tile_id, p_option_id);
+  v_claim uuid;
+begin
+  -- What the site's first screenshot on a tile does, as the one choosing.
+  v_claim := plugin_open_tile(p_tile_id);
+  return jsonb_build_object(
+    'claim_id', v_claim, 'from_path', w.storage_path,
+    'path_prefix', w.game_id || '/' || w.team_id || '/' || v_claim || '/');
+end;
+$$;
+
+create or replace function waiting_drop_choose(
+  p_waiting_id uuid, p_tile_id uuid, p_option_id uuid, p_storage_path text)
+returns jsonb
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  w         plugin_waiting;
+  v_chooser uuid := auth.uid();
+  v_claims  text := current_setting('request.jwt.claims', true);
+  v_sub     text := current_setting('request.jwt.claim.sub', true);
+  v_headers text := current_setting('request.headers', true);
+  v_claim   uuid;
+  v_from    jsonb;
+  v_to      jsonb;
+  v_result  jsonb;
+  v_ev      uuid;
+begin
+  -- Two clicks at once take turns, and the second finds it handed in.
+  perform 1 from plugin_waiting where id = p_waiting_id for update;
+  w := waiting_drop_check(p_waiting_id, p_tile_id, p_option_id);
+  v_claim := plugin_open_tile(p_tile_id);
+
+  -- The copy must be the screenshot Dink sent: under this claim, with the
+  -- same size and eTag (Storage's MD5 of the bytes). Anyone on the team may
+  -- write a file there, so their own picture would otherwise pass for Dink's.
+  select o.metadata into v_from from storage.objects o
+   where o.bucket_id = 'evidence' and o.name = w.storage_path;
+  select o.metadata into v_to from storage.objects o
+   where o.bucket_id = 'evidence' and o.name = p_storage_path;
+  if v_from ->> 'eTag' is null or v_from ->> 'size' is null
+     or v_to ->> 'eTag' is distinct from v_from ->> 'eTag'
+     or v_to ->> 'size' is distinct from v_from ->> 'size'
+     or position(w.game_id || '/' || w.team_id || '/' || v_claim || '/' in coalesce(p_storage_path, '')) <> 1 then
+    raise exception 'That is not the screenshot Dink sent for this drop';
+  end if;
+
+  -- Handed in as the player who got the drop, as Dink would have: the row is
+  -- theirs, and add_evidence checks they are on the team. Who chose, and when
+  -- the drop arrived, go beside what Dink reported.
+  perform set_config('request.jwt.claims',
+                     json_build_object('sub', w.profile_id, 'role', 'authenticated')::text, true);
+  perform set_config('request.jwt.claim.sub', w.profile_id::text, true);
+  perform set_config('request.headers', '{}', true);
+  perform set_config('hs.evidence_source',
+                     case when w.detail ->> 'source' = 'dink' then 'dink' else 'plugin' end, true);
+  perform set_config('hs.evidence_detail', (coalesce(w.detail, '{}'::jsonb) || jsonb_build_object(
+    'waited', jsonb_build_object(
+      'arrived_at', w.received_at,
+      'chosen_by', (select p.display_name from profiles p where p.id = v_chooser))))::text, true);
+
+  v_result := add_evidence(v_claim, p_storage_path, null, p_option_id, null);
+
+  perform set_config('hs.evidence_source', '', true);
+  perform set_config('hs.evidence_detail', '', true);
+  perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+  perform set_config('request.jwt.claim.sub', coalesce(v_sub, ''), true);
+  perform set_config('request.headers', coalesce(v_headers, ''), true);
+
+  select e.id into v_ev
+    from tile_evidence e
+   where e.claim_id = v_claim and e.storage_path = p_storage_path;
+  update plugin_waiting
+     set chosen_at = now(), chosen_by = v_chooser, evidence_id = v_ev
+   where id = w.id;
+  return v_result;
+end;
+$$;
+
+-- ============================================================
 -- 7. Grants
 -- ============================================================
 -- Internal ones to nobody; the token-taking ones to the service role only,
@@ -434,6 +735,10 @@ revoke execute on function plugin_match(text, text, jsonb)         from public, 
 revoke execute on function plugin_open(text, text, uuid, uuid, text) from public, anon, authenticated;
 revoke execute on function plugin_submit(text, text, uuid, uuid, text, text, text, jsonb)
   from public, anon, authenticated;
+revoke execute on function plugin_wait_choices(text)               from public, anon, authenticated, service_role;
+revoke execute on function waiting_drop_check(uuid, uuid, uuid)    from public, anon, authenticated, service_role;
+revoke execute on function plugin_wait_open(text, text, text)      from public, anon, authenticated;
+revoke execute on function plugin_wait(text, text, text, text, jsonb) from public, anon, authenticated;
 
 -- A signed-in organiser's, like admin_list_evidence; the function itself
 -- refuses everyone else.
@@ -442,8 +747,17 @@ grant  execute on function admin_evidence_sources(uuid)            to authentica
 -- Any signed-in player's; the function answers only for what they can see.
 revoke execute on function evidence_sources(uuid[])                from public, anon, service_role;
 grant  execute on function evidence_sources(uuid[])                to authenticated;
+-- The waiting box: any signed-in player's; each answers only for their team.
+revoke execute on function waiting_drops(uuid)                     from public, anon, service_role;
+revoke execute on function waiting_drop_open(uuid, uuid, uuid)     from public, anon, service_role;
+revoke execute on function waiting_drop_choose(uuid, uuid, uuid, text) from public, anon, service_role;
+grant  execute on function waiting_drops(uuid)                     to authenticated;
+grant  execute on function waiting_drop_open(uuid, uuid, uuid)     to authenticated;
+grant  execute on function waiting_drop_choose(uuid, uuid, uuid, text) to authenticated;
 
 grant execute on function plugin_match(text, text, jsonb)          to service_role;
 grant execute on function plugin_open(text, text, uuid, uuid, text) to service_role;
 grant execute on function plugin_submit(text, text, uuid, uuid, text, text, text, jsonb)
   to service_role;
+grant execute on function plugin_wait_open(text, text, text)       to service_role;
+grant execute on function plugin_wait(text, text, text, text, jsonb) to service_role;

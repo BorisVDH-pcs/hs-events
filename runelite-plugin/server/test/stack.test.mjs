@@ -475,6 +475,118 @@ const resizedLog = log.match(/"resized":(\{[^}]*\})/);
 console.log(`     (in the edge runtime: ${resizedLog ? resizedLog[1] : 'no resize logged'})`);
 ok('and never a token', !/hse_/.test(log) && !Object.values(tok).some((t) => log.includes(t)));
 
+// ------------------------------------------- a drop two tiles want waits
+// Boris, 2026-11-21 (draft 002, section 6c). Barrows chest and Any helmet both
+// still want a Dharok's helm. Dink sends it; the team chooses on the site,
+// whose three steps are taken here as WaitingDrops.jsx takes them: open the
+// tile, copy the screenshot with Storage's own copy (supabase-js's
+// storage.copy) under the player's sign-in, hand it in.
+const logBeforeWait = fnLog().length;
+async function copyObject(from, to, as) {
+  const res = await fetch(`${API}/storage/v1/object/copy`, {
+    method: 'POST',
+    headers: { apikey: ANON, Authorization: `Bearer ${as}`, 'Content-Type': 'application/json' },
+    body: J({ bucketId: 'evidence', sourceKey: from, destinationKey: to }),
+  });
+  return { status: res.status, body: await res.text() };
+}
+async function readAs(path, as) {
+  const res = await fetch(`${API}/storage/v1/object/authenticated/evidence/${path}`, {
+    headers: { apikey: ANON, Authorization: `Bearer ${as}` },
+  });
+  return res.status;
+}
+const meta = (path) => sqlJson(`select metadata ->> 'eTag' etag, metadata ->> 'size' size
+  from storage.objects where bucket_id = 'evidence' and name = '${path}'`)[0];
+
+// Its own picture, so the copy can be told from every other file.
+const helmShot = makePng(16, 12, (x, y, k) => (k === 3 ? 255 : (x * 13 + y * 7 + k * 40) & 255)).bytes;
+const helm = lootFrom('Mate Iron', [["Dharok's helm", 4716, 1_200_000]], { world: 420 });
+d = await dink(tok.mate, helm, helmShot);
+let waits = sqlJson(`select * from plugin_waiting where game_id = '${g}'`);
+const W = waits[0];
+ok("Dink's helm, wanted by two of Red's tiles: 200 {ok:true}, and it waits for the team",
+   d.status === 200 && d.body === '{"ok":true}' && waits.length === 1 && W.profile_id === people.mate.id
+   && W.team_id === team.Red && W.choices.length === 2 && W.chosen_at === null, J([d, waits]));
+const waitFile = W ? await download(W.storage_path) : { status: 0 };
+ok("its screenshot is in Red's folder under waiting/, byte for byte",
+   W?.storage_path.startsWith(`${g}/${team.Red}/waiting/`) && waitFile.status === 200
+   && Buffer.compare(Buffer.from(waitFile.bytes), Buffer.from(helmShot)) === 0, J([W?.storage_path, waitFile.status]));
+ok('nothing was handed in for it yet',
+   sqlJson(`select 1 from tile_evidence e join tile_claims c on c.id = e.claim_id
+             where c.tile_id in ('${T.barrows}', '${T.helmet}') and e.source <> 'web'`).length === 0);
+d = await dink(tok.mate, helm, helmShot);
+ok("Dink's retry: 200, still one waiting drop and one file",
+   d.status === 200 && sqlJson(`select 1 from plugin_waiting where game_id = '${g}'`).length === 1
+   && Number(sql(`select count(*) from storage.objects where name like '${g}/${team.Red}/waiting/%'`)) === 1, J(d));
+
+r = await rpc('waiting_drops', { p_game_id: g }, people.red.jwt);
+ok("Red Cap's site lists it, with both tiles in board order and who got it",
+   r.status === 200 && r.body.length === 1 && r.body[0].id === W.id && r.body[0].dropped_by === `Red Mate ${run}`
+   && J(r.body[0].choices.map((c) => [c.tile, c.region])) === J([['Barrows chest', 'misthalin'], ['Any helmet', 'misthalin']]), J(r));
+r = await rpc('waiting_drops', { p_game_id: g }, people.blue.jwt);
+ok('Blue\'s lists nothing', r.status === 200 && J(r.body) === '[]', J(r));
+for (const [who, as] of [['anon', ANON], ['the service role', SERVICE]]) {
+  r = await rpc('waiting_drops', { p_game_id: g }, as);
+  ok(`${who} cannot ask`, r.status >= 400 && !/helm/i.test(J(r)), J(r));
+}
+const openW = (as, id, tileId, optionId) =>
+  rpc('waiting_drop_open', { p_waiting_id: id, p_tile_id: tileId, p_option_id: optionId }, as);
+const shape = (x) => J([x.status, x.body?.code, x.body?.message, x.body?.details, x.body?.hint]);
+const blueTry = await openW(people.blue.jwt, W.id, T.helmet, opt['Dharoks helm']);
+const blueNone = await openW(people.blue.jwt, randomUUID(), T.helmet, opt['Dharoks helm']);
+ok("Blue with Red's drop gets the same status, code and words as for a drop that does not exist",
+   blueTry.status === 400 && blueTry.body?.message === 'That drop cannot be handed in there' && shape(blueTry) === shape(blueNone),
+   J([blueTry, blueNone]));
+const redLocked = await openW(people.red.jwt, W.id, T.locked, opt['Dragon pickaxe']);
+const redNone = await openW(people.red.jwt, W.id, randomUUID(), randomUUID());
+ok("Red choosing the tile in Blue's region: the answer a tile that does not exist gets", shape(redLocked) === shape(redNone),
+   J([redLocked, redNone]));
+ok("Blue cannot read Red's waiting screenshot; Red Cap can",
+   (await readAs(W.storage_path, people.blue.jwt)) >= 400 && (await readAs(W.storage_path, people.red.jwt)) === 200);
+
+const oW = await must('waiting_drop_open', { p_waiting_id: W.id, p_tile_id: T.helmet, p_option_id: opt['Dharoks helm'] }, people.red.jwt);
+const claimW = sql(`select id from tile_claims where team_id = '${team.Red}' and tile_id = '${T.helmet}'`);
+ok('Red Cap chooses Any helmet: the tile is opened, and the copy goes in its claim\'s folder',
+   oW.claim_id === claimW && oW.from_path === W.storage_path && oW.path_prefix === `${g}/${team.Red}/${claimW}/`, J(oW));
+let cp = await copyObject(W.storage_path, `${g}/${team.Blue}/${randomUUID()}/${randomUUID()}.png`, people.blue.jwt);
+ok("Blue cannot copy Red's screenshot with Storage's copy", cp.status >= 400, J(cp));
+cp = await copyObject(W.storage_path, `${oW.path_prefix}${randomUUID()}.png`, people.blue.jwt);
+ok("nor into Red's claim", cp.status >= 400, J(cp));
+
+const forgedPath = `${oW.path_prefix}${randomUUID()}.png`;
+up = await upload(forgedPath, PNG, 'image/png', people.red.jwt);
+const chooseW = (as, p) => rpc('waiting_drop_choose',
+  { p_waiting_id: W.id, p_tile_id: T.helmet, p_option_id: opt['Dharoks helm'], p_storage_path: p }, as);
+r = await chooseW(people.red.jwt, forgedPath);
+ok("Red Cap's own picture, uploaded into the claim's folder, is refused as not Dink's",
+   up.status === 200 && r.status === 400 && r.body?.message === 'That is not the screenshot Dink sent for this drop', J([up, r]));
+
+const copyPath = `${oW.path_prefix}${randomUUID()}.png`;
+cp = await copyObject(W.storage_path, copyPath, people.red.jwt);
+const mFrom = meta(W.storage_path), mTo = meta(copyPath);
+ok("Red Cap copies Dink's picture with Storage's copy, under their own sign-in", cp.status === 200, J(cp));
+ok("Storage gives the copy the same eTag and size, which is what the hand-in checks",
+   mFrom?.etag && mFrom.etag === mTo?.etag && mFrom.size === mTo?.size && Number(mTo.size) === helmShot.length, J([mFrom, mTo]));
+r = await chooseW(people.red.jwt, copyPath);
+ev = sqlJson(`select e.source, e.detail, e.uploaded_by, e.team_id, e.storage_path, c.status
+                from tile_evidence e join tile_claims c on c.id = e.claim_id where e.storage_path = '${copyPath}'`);
+ok('handed in: Any helmet completes, by its own rule', r.status === 200 && ev[0]?.status === 'completed', J([r, ev]));
+ok("the evidence is Red Mate's, who got the drop, 'dink', and says Red Cap chose",
+   ev[0]?.uploaded_by === people.mate.id && ev[0].source === 'dink' && ev[0].detail?.world === 420
+   && ev[0].detail?.waited?.chosen_by === `Red Cap ${run}` && !!ev[0].detail?.waited?.arrived_at, J(ev));
+const copied = await download(copyPath);
+ok('and its file is Dink\'s screenshot, byte for byte',
+   copied.status === 200 && Buffer.compare(Buffer.from(copied.bytes), Buffer.from(helmShot)) === 0, copied.status);
+r = await chooseW(people.mate.jwt, copyPath);
+ok('choosing it again: already handed in', r.status === 400 && r.body?.message === 'That drop has already been handed in', J(r));
+r = await rpc('waiting_drops', { p_game_id: g }, people.mate.jwt);
+ok('and the list is empty again', r.status === 200 && J(r.body) === '[]', J(r));
+
+await new Promise((res) => setTimeout(res, 800));
+const waitOutcomes = [...fnLog().slice(logBeforeWait).matchAll(/\{"outcome":"([a-z_]+)"(?:,"reason":"([a-z_]+)")?/g)].map((x) => x[2] ?? x[1]);
+ok("the function's log: 'waiting', then the retry", J(waitOutcomes) === J(['waiting', 'nothing_submitted']), J(waitOutcomes));
+
 // --------------------------------------- Bingo, through the same doors
 // A Bingo game beside the Region Bingo one, with the same people. Dragon
 // pickaxe is on the card and on the Region Bingo tile in Asgarnia, which Red

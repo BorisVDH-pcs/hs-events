@@ -258,8 +258,9 @@ const fns = (await db.query(`
   select p.proname from pg_proc p
    where p.pronamespace = 'public'::regnamespace and p.proname like 'plugin\\_%'
      and has_function_privilege('service_role', p.oid, 'execute') order by 1`)).rows.map((x) => x.proname);
-ok('the service role can call exactly the three the intake uses',
-   J(fns) === J(['plugin_match', 'plugin_open', 'plugin_submit']), J(fns));
+// plugin_wait_open and plugin_wait keep a drop two tiles want (waiting.test.mjs).
+ok('the service role can call exactly the five the intake uses',
+   J(fns) === J(['plugin_match', 'plugin_open', 'plugin_submit', 'plugin_wait', 'plugin_wait_open']), J(fns));
 ok('a token cannot spend a pick: no plugin function touches regions_pick',
    (await db.query(`select count(*)::int n from pg_proc where proname like 'plugin\\_%' and prosrc ilike '%regions_pick%'`)).rows[0].n === 0);
 

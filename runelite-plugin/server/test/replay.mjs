@@ -62,6 +62,8 @@ const STAND_INS = `
     name text, owner uuid, metadata jsonb,
     created_at timestamptz default now(), updated_at timestamptz default now());
   alter table storage.objects enable row level security;
+  -- Supabase's own grant: the policies (0021) do the narrowing.
+  grant select, insert, update, delete on storage.objects to anon, authenticated, service_role;
   create function storage.foldername(name text) returns text[] language sql immutable as $$
     select (string_to_array(name, '/'))[1 : array_length(string_to_array(name, '/'), 1) - 1] $$;
 

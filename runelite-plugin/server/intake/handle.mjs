@@ -78,10 +78,11 @@ export async function handleDink({ token, payloadText, image }, deps) {
   const uuid = deps.uuid ?? (() => crypto.randomUUID());
   const results = [];
 
-  // The shrinking costs CPU, so only for a drop that will be handed in.
+  // The shrinking costs CPU, so only for a drop that will be kept: handed in
+  // ('one'), or kept for the team to choose a tile ('ask').
   let stored = image;
   let resized;
-  if (tooBig && match.items.some((m) => m.verdict === 'one')) {
+  if (tooBig && match.items.some((m) => m.verdict === 'one' || m.verdict === 'ask')) {
     const started = performance.now();
     const small = await (deps.shrink ?? shrinkPng)(image.bytes, MAX_BYTES);
     if (!small) return { status: 200, outcome: 'ignored', reason: 'screenshot_too_large' };
@@ -92,58 +93,79 @@ export async function handleDink({ token, payloadText, image }, deps) {
     };
   }
 
-  for (let i = 0; i < match.items.length; i++) {
-    const verdict = match.items[i].verdict;
-    const item = drop.items[i];
-    // 'ask' is two tiles wanting the same drop. Dink cannot ask anybody, so the
-    // player hands that one in on the site. Never a guess.
-    if (verdict !== 'one') {
-      results.push({ item: item.name, verdict });
-      continue;
-    }
-    const hit = match.items[i].matches[0];
-    const args = {
-      p_token: token, p_rsn: drop.rsn,
-      p_tile_id: hit.tile_id, p_option_id: hit.option_id, p_item: item.name,
-    };
+  // What Dink reported, kept beside the evidence.
+  const report = (item, dedupe) => ({
+    source: 'dink',
+    dedupe,
+    rsn: drop.rsn, item: item.name, item_id: item.id, quantity: item.quantity,
+    price_each: item.priceEach, from: drop.from, category: drop.category,
+    world: drop.world, region_id: drop.regionId, dink_type: drop.type,
+    // So a reviewer knows the picture was made smaller here, and from what.
+    ...(resized ? { resized_from: resized.from } : {}),
+  });
+
+  // Ask where the screenshot goes, store it there, then hand it over. Either
+  // way, no screenshot is left behind without its row.
+  const store = async (openFn, openArgs, keepFn, keepArgs) => {
     let path = null;
     try {
-      const opened = await deps.rpc('plugin_open', args);
+      const opened = await deps.rpc(openFn, openArgs);
       path = `${opened.path_prefix}${uuid()}.${IMAGE_TYPES[stored.type]}`;
       await deps.upload(path, stored.bytes, stored.type);
-      const res = await deps.rpc('plugin_submit', {
-        ...args,
-        p_storage_path: path,
-        p_public_url: null,
-        p_detail: {
-          source: 'dink',
-          dedupe: `${base}:${hit.option_id}`,
-          rsn: drop.rsn, item: item.name, item_id: item.id, quantity: item.quantity,
-          price_each: item.priceEach, from: drop.from, category: drop.category,
-          world: drop.world, region_id: drop.regionId, dink_type: drop.type,
-          // So a reviewer knows the picture was made smaller here, and from what.
-          ...(resized ? { resized_from: resized.from } : {}),
-        },
-      });
-      // A retry of a drop already counted: the first screenshot is the one on
-      // the evidence row, so this copy is not kept.
+      const res = await deps.rpc(keepFn, { ...keepArgs, p_storage_path: path });
+      // A retry of a drop already kept: the first screenshot is the one on
+      // the row, so this copy is not.
       if (res.duplicate) await deps.remove(path);
-      results.push({ item: item.name, verdict, tile: hit.tile, submitted: !res.duplicate, duplicate: res.duplicate });
+      return { res };
     } catch (e) {
-      // Either way, no screenshot is left behind without its row.
       if (path) await deps.remove(path).catch(() => {});
       // P0001 is `raise exception`: a rule said no (the tile filled up a moment
       // ago, time ran out). Final, so not worth a retry. Anything else -- the
       // database or the storage being unreachable -- goes up, becomes a 500,
       // and Dink sends the drop again; the dedupe key keeps that safe.
       if (e.code !== RULE_REFUSAL) throw e;
-      results.push({ item: item.name, verdict, tile: hit.tile, submitted: false, refused: e.message });
+      return { refused: e.message };
     }
+  };
+
+  for (let i = 0; i < match.items.length; i++) {
+    const verdict = match.items[i].verdict;
+    const item = drop.items[i];
+
+    // 'ask' is two or more tiles wanting the same drop. Dink cannot ask
+    // anybody, and the server never guesses: the drop is kept for an hour and
+    // anyone on the team chooses the tile on the site (Boris, 2026-11-21;
+    // 002, section 6c).
+    if (verdict === 'ask') {
+      const who = { p_token: token, p_rsn: drop.rsn, p_item: item.name };
+      const { res, refused } = await store('plugin_wait_open', who, 'plugin_wait',
+        { ...who, p_detail: report(item, `${base}:wait:${i}`) });
+      results.push(refused
+        ? { item: item.name, verdict, waiting: false, refused }
+        : { item: item.name, verdict, waiting: !res.duplicate, duplicate: res.duplicate, choices: res.choices });
+      continue;
+    }
+    if (verdict !== 'one') {
+      results.push({ item: item.name, verdict });
+      continue;
+    }
+
+    const hit = match.items[i].matches[0];
+    const args = {
+      p_token: token, p_rsn: drop.rsn,
+      p_tile_id: hit.tile_id, p_option_id: hit.option_id, p_item: item.name,
+    };
+    const { res, refused } = await store('plugin_open', args, 'plugin_submit',
+      { ...args, p_public_url: null, p_detail: report(item, `${base}:${hit.option_id}`) });
+    results.push(refused
+      ? { item: item.name, verdict, tile: hit.tile, submitted: false, refused }
+      : { item: item.name, verdict, tile: hit.tile, submitted: !res.duplicate, duplicate: res.duplicate });
   }
 
   return {
     status: 200,
-    outcome: results.some((r) => r.submitted) ? 'submitted' : 'nothing_submitted',
+    outcome: results.some((r) => r.submitted) ? 'submitted'
+      : results.some((r) => r.waiting) ? 'waiting' : 'nothing_submitted',
     results,
     ...(resized ? { resized } : {}),
   };

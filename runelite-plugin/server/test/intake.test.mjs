@@ -210,10 +210,24 @@ ok('Dink retrying the same drop: counted once, and no second screenshot kept',
    res.status === 200 && res.results[0].duplicate === true && (await evidence(team.Red)).length === 1 && store.size === 1, J(res));
 
 // ------------------------------------------------------ what is not handed in
+// Two tiles want it: Dink does not choose. Since 2026-11-21 the drop is kept
+// for the team to choose on the site (waiting.test.mjs tests the choosing).
 let before = store.size;
 res = await send('mate', loot('Mate Iron', ["Dharok's helm"]), png(11));
-ok('two tiles want it: Dink does not choose, nothing is stored',
-   res.outcome === 'nothing_submitted' && res.results[0].verdict === 'ask' && store.size === before, J(res));
+const waitingPaths = () => [...store.keys()].filter((k) => k.startsWith(`${g}/${team.Red}/waiting/`));
+const waitingRows = async () => (await db.query('select * from plugin_waiting order by received_at')).rows;
+let waits = await waitingRows();
+ok('two tiles want it: Dink does not choose, nothing is handed in, the drop waits',
+   res.outcome === 'waiting' && res.results[0].verdict === 'ask' && res.results[0].waiting === true
+   && res.results[0].choices === 2 && (await evidence(team.Red)).length === 1, J(res));
+ok("its screenshot is kept once, in Red's folder under waiting/, beside one waiting row",
+   store.size === before + 1 && waitingPaths().length === 1 && waits.length === 1
+   && waits[0].storage_path === waitingPaths()[0] && waits[0].profile_id === ids.mate && waits[0].item === "Dharok's helm",
+   J([waitingPaths(), waits]));
+res = await send('mate', loot('Mate Iron', ["Dharok's helm"]), png(11));
+ok("Dink's retry of it: known, kept once",
+   res.results[0].duplicate === true && store.size === before + 1 && (await waitingRows()).length === 1, J(res));
+before = store.size;
 const resLocked = await send('mate', loot('Mate Iron', ['Dragon pickaxe']), png(12));
 const resJunk = await send('mate', loot('Mate Iron', ['Bones']), png(13));
 ok('a drop for a locked region: nothing stored, nothing counted',
@@ -318,8 +332,20 @@ ok('a rule saying no part-way: 200, refused, nothing stored',
 // ------------------------------------------- another player, another spelling
 // Barrows chest still wants Dharok's helm and so does Any helmet: still an ask,
 // whoever on the team gets it and however the label spells it.
+before = store.size;
 res = await send('red', loot('Red Main', ['Dharoks helm', 'Bones']), png(22));
-ok('still an ask while two tiles want it', res.results[0].verdict === 'ask', J(res));
+waits = await waitingRows();
+ok('still an ask while two tiles want it, and it waits, as Red Cap\'s',
+   res.results[0].verdict === 'ask' && res.outcome === 'waiting' && store.size === before + 1
+   && waits.length === 2 && waits[1].profile_id === ids.red && waits[1].item === 'Dharoks helm', J(res));
+
+const shrinksBefore = shrinkCalls;
+res = await send('mate', loot('Mate Iron', ["Dharok's helm"], { world: 330 }), bigShot, countShrinks);
+waits = await waitingRows();
+const keptWait = store.get(waits[2]?.storage_path);
+ok('a big screenshot of a drop that waits is made smaller too, and its row says so',
+   res.outcome === 'waiting' && shrinkCalls === shrinksBefore + 1 && keptWait?.type === 'image/png'
+   && keptWait.bytes.length <= MAX_BYTES && waits[2].detail.resized_from === '1200x900', J(res));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

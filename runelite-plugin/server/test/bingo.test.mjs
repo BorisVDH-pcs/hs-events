@@ -218,8 +218,8 @@ const fns = (await db.query(`
   select p.proname from pg_proc p
    where p.pronamespace = 'public'::regnamespace and p.proname like 'plugin\\_%'
      and has_function_privilege('service_role', p.oid, 'execute') order by 1`)).rows.map((x) => x.proname);
-ok('the service role still calls exactly the three the intake uses',
-   J(fns) === J(['plugin_match', 'plugin_open', 'plugin_submit']), J(fns));
+ok('the service role still calls exactly the five the intake uses',
+   J(fns) === J(['plugin_match', 'plugin_open', 'plugin_submit', 'plugin_wait', 'plugin_wait_open']), J(fns));
 // No second copy of a game rule: the plugin functions open tiles and hand in
 // evidence only through the site's functions.
 const copies = (await db.query(`
