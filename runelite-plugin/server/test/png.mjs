@@ -1,5 +1,5 @@
 // A PNG writer and reader for the tests only. Written apart from
-// intake/shrink.mjs and built on Node's own zlib, so the two check each other:
+// supabase/functions/intake/shrink.mjs and built on Node's own zlib, so the two check each other:
 // this writes every row filter PNG has and splits the data over several IDAT
 // chunks; the reader checks every chunk's CRC.
 

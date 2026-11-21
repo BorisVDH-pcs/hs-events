@@ -1,12 +1,12 @@
 // The Dink route, end to end and offline: a notification as Dink documents it
-// goes through intake/handle.mjs, whose database is the replay of every
+// goes through supabase/functions/intake/handle.mjs, whose database is the replay of every
 // migration, the plugin's among them, and whose storage is a Map.
 //
-// Also intake/shrink.mjs, which makes a screenshot over 3 MB smaller, checked
+// Also shrink.mjs, which makes a screenshot over 3 MB smaller, checked
 // against png.mjs (a separate PNG writer and reader on Node's zlib) and a PNG
 // written by Java's ImageIO, as Dink writes them.
 //
-// What this does not cover: intake/index.ts (the Deno shell that reads the
+// What this does not cover: index.ts (the Deno shell that reads the
 // HTTP request; stack.test.mjs runs it), and a message from a real Dink client.
 //
 //   node intake.test.mjs
@@ -14,9 +14,9 @@
 import { readFileSync } from 'node:fs';
 import { deflateSync } from 'node:zlib';
 import { buildGame, J } from './fixture.mjs';
-import { dedupeKey, parseDink } from '../intake/dink.mjs';
-import { handleDink, MAX_BYTES, MAX_SHRINK_INPUT } from '../intake/handle.mjs';
-import { canShrink, MAX_PIXELS, pngInfo, shrinkPng } from '../intake/shrink.mjs';
+import { dedupeKey, parseDink } from '../../../supabase/functions/intake/dink.mjs';
+import { handleDink, MAX_BYTES, MAX_SHRINK_INPUT } from '../../../supabase/functions/intake/handle.mjs';
+import { canShrink, MAX_PIXELS, pngInfo, shrinkPng } from '../../../supabase/functions/intake/shrink.mjs';
 import { chunk, expectedHalf, ihdr, makePng, rawPng, readPng, same } from './png.mjs';
 
 let pass = 0, fail = 0;

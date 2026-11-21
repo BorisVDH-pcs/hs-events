@@ -24,7 +24,7 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { pngInfo } from '../intake/shrink.mjs';
+import { pngInfo } from '../../../supabase/functions/intake/shrink.mjs';
 // The site's own helper for the My Account section: every Dink request below
 // goes to a link it built, the link a player is shown.
 import { dinkUrl, isMissingFunction } from '../../../web/src/lib/pluginTokens.js';

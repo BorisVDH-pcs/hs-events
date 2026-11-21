@@ -14,7 +14,7 @@
 export const MAX_TOKENS = 5;
 /** The check on plugin_tokens.label. */
 export const MAX_TOKEN_LABEL = 40;
-/** The intake Edge Function's one route (runelite-plugin/server/intake/index.ts). */
+/** The intake Edge Function's one route (supabase/functions/intake/index.ts). */
 export const INTAKE_PATH = '/functions/v1/intake/dink';
 
 const TOKEN = /^hse_[0-9a-f]{64}$/;

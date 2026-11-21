@@ -1,11 +1,13 @@
 // The `intake` Edge Function: the one door a plugin talks to (plan, 4.1).
 //
-// All of its logic is in handle.mjs and dink.mjs, which are tested offline.
-// This shell -- reading the request, supabase-js for the database and Storage
-// -- is tested on the local stack by server/test/stack.test.mjs (Supabase's
-// edge runtime 1.77.8, Deno 2). It has not been deployed to a hosted project.
+// All of its logic is in handle.mjs and dink.mjs, which are tested offline
+// by runelite-plugin/server/test/. This shell -- reading the request,
+// supabase-js for the database and Storage -- is tested on the local stack by
+// runelite-plugin/server/test/stack.test.mjs (Supabase's edge runtime 1.77.8,
+// Deno 2).
 //
-// Deploy without JWT verification (Dink sends no Authorization header):
+// Deployed by .github/workflows/functions-deploy.yml when main changes,
+// without JWT verification (Dink sends no Authorization header):
 //   supabase functions deploy intake --no-verify-jwt
 //
 // A player's Dink webhook URL is

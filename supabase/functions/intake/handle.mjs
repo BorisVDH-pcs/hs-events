@@ -1,7 +1,8 @@
 // What the intake function does with one Dink notification. Everything that
 // reaches outside comes in as `deps`, so this file runs unchanged in the Edge
-// Function (deps = PostgREST and Storage) and in server/test/intake.test.mjs
-// (deps = the replayed database and a Map).
+// Function (deps = PostgREST and Storage) and in
+// runelite-plugin/server/test/intake.test.mjs (deps = the replayed database
+// and a Map).
 //
 // It decides nothing about the game. The database says what a drop matches
 // (plugin_match), whether it may be handed in (plugin_open), and what it is

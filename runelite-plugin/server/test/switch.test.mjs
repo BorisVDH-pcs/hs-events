@@ -3,7 +3,7 @@
 // A switch on each game in the admin console: off until an organiser turns
 // it on, Region Bingo only for now, and changeable while the game runs.
 // Uploading on the site works either way. Offline, on the replay of every
-// migration, the plugin's among them, through intake/handle.mjs.
+// migration, the plugin's among them, through supabase/functions/intake/handle.mjs.
 //
 // The fixture's Region Bingo, built with Dink left off:
 //   Misthalin: Barrows chest (Dharok's helm, Karil's coif; needs 2),
@@ -14,7 +14,7 @@
 
 import { createHash } from 'node:crypto';
 import { buildGame, J } from './fixture.mjs';
-import { handleDink } from '../intake/handle.mjs';
+import { handleDink } from '../../../supabase/functions/intake/handle.mjs';
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra = '') => {

@@ -1,7 +1,7 @@
 // A drop two open tiles want: the intake keeps it for an hour and anyone on
 // the team chooses the tile on the site (Boris, 2026-11-21; plugin_drops.sql,
 // section 6c). Offline, on the replay of every migration, the plugin's too,
-// through intake/handle.mjs, with storage.objects standing in for the bucket.
+// through supabase/functions/intake/handle.mjs, with storage.objects standing in for the bucket.
 //
 // The Region Bingo board, threshold 50%:
 //   Misthalin   Whips (Abyssal whip; worth 2)   Boots (Dragon boots; worth 2)
@@ -24,7 +24,7 @@
 
 import { createHash, randomUUID } from 'node:crypto';
 import { buildPeople, J } from './fixture.mjs';
-import { handleDink, removeLeftovers } from '../intake/handle.mjs';
+import { handleDink, removeLeftovers } from '../../../supabase/functions/intake/handle.mjs';
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra = '') => {

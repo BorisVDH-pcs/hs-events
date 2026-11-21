@@ -25,6 +25,6 @@ for (const f of repo) copyFileSync(new URL(f, REPO_MIGRATIONS), new URL(f, migra
 const fn = here('supabase/functions/intake/');
 rmSync(here('supabase/functions/'), { recursive: true, force: true });
 mkdirSync(fn, { recursive: true });
-for (const f of FUNCTION_FILES) copyFileSync(here(`../intake/${f}`), new URL(f, fn));
+for (const f of FUNCTION_FILES) copyFileSync(here(`../../../supabase/functions/intake/${f}`), new URL(f, fn));
 
 console.log(`${repo.length} migrations and the intake function copied`);
