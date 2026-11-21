@@ -43,7 +43,7 @@ applies them on merge.
 |---|---|---|
 | `supabase/migrations/20261121120000_plugin_tokens.sql` | Plugin tokens, `drop_key`, `plugin_as` | Tested offline, and on a local Supabase stack |
 | `supabase/migrations/20261121120100_plugin_drops.sql` | Evidence `source` and `detail`, the intake log, `plugin_wanted`, `plugin_match`, `plugin_open`, `plugin_submit` (for Region Bingo and Bingo), `admin_evidence_sources` for the review screen, `evidence_sources` for a tile's panel, a drop two tiles want, kept for the team to choose (`plugin_wait_open`, `plugin_wait`, `waiting_drops`, `waiting_drop_open`, `waiting_drop_choose`), removing the screenshots nobody needs (`plugin_leftover_files`, `plugin_leftovers_removed`), and Dink on or off per game (`games.plugin_drops`, `admin_set_plugin_drops`) | Tested offline against the real rules, and on a local Supabase stack |
-| `supabase/migrations/20261121160000_only_from.sql` | "Only from" (Boris, 2026-11-21): `drop_from` on tiles and catalogue entries, a trigger that gives a square its entry's list, `admin_set_tile_with_from` and `admin_save_library_tile_with_from` around the existing saves, two readers for the organiser, and the check in `plugin_match`, `plugin_wait_choices` and `plugin_submit`. No existing function rewritten | Tested offline against the real rules, and on a local Supabase stack. Not live |
+| `supabase/migrations/20261121160000_only_from.sql` | "Only from" (Boris, 2026-11-21): `drop_from` on tiles and catalogue entries, a trigger that gives a square its entry's list, `admin_set_tile_with_from` and `admin_save_library_tile_with_from` around the existing saves, two readers for the organiser, and the check in `plugin_match`, `plugin_wait_choices` and `plugin_submit`. No existing function rewritten | Tested offline against the real rules, and on a local Supabase stack. Live since 2026-11-21 (pull request #86): `db-push.yml` applied this one migration |
 | `supabase/functions/intake/dink.mjs` | Reads a Dink notification; makes the dedupe key | Tested; checked against Dink's source, and read real loot from a real Dink client on 2026-11-21. Pets not yet from a client |
 | `supabase/functions/intake/handle.mjs` | What happens to one notification: match, open, store, submit, or keep it for the team to choose; and removing the screenshots nobody needs | Tested end to end, offline |
 | `supabase/functions/intake/shrink.mjs` | Makes a screenshot over 3 MB smaller: halves a PNG until it fits. No library, only what the runtime has | Tested offline and in the edge runtime |
@@ -65,7 +65,7 @@ applies them on merge.
 | `web/src/lib/waitingDrops.js` | The box's helpers: a tile's name with its region, the time left. Where the copy goes is now the database's answer | Tested by `web/scripts/waiting-drops-selftest.mjs` |
 | `web/src/components/Admin.jsx` | "Drops from Dink" on each Region Bingo game that has not finished: the site's own switch, as for Discord | Tried in the admin harness (`/preview-admin.html`) at desktop and phone width; its call tested through PostgREST on the local stack. On the live site since 2026-11-21 (pull request #83): switched on there by Boris for the hidden test game (see "On the live site") |
 | `web/src/components/TileForm.jsx` | The tile editor: "Not in the item list" under a drop, with names to click, and "Add a list…" | Tried in the admin harness (`/preview-admin.html`), at desktop and phone width. On the live site since 2026-11-21 (pull request #83); not used by Boris yet |
-| `web/src/components/TileForm.jsx`, `BoardBuilder.jsx`, `web/src/lib/tileDraft.js`, `supabase.js` | "Only from" in the organiser's tile form, for board squares and catalogue entries; not in a player's suggestion | Tested by `web/scripts/tile-draft-selftest.mjs`; tried in the admin harness. Not live |
+| `web/src/components/TileForm.jsx`, `BoardBuilder.jsx`, `web/src/lib/tileDraft.js`, `supabase.js` | "Only from" in the organiser's tile form, for board squares and catalogue entries; not in a player's suggestion | Tested by `web/scripts/tile-draft-selftest.mjs`; tried in the admin harness. On the live site since 2026-11-21 (pull request #86); not used there yet |
 | `web/src/lib/itemNames.js`, `itemNames.data.js` | `dropKey` (the server's `drop_key` in JS), the check, and 4,820 item names | Tested by `web/scripts/item-names-selftest.mjs`; `tokens.test.mjs` checks `dropKey` against `drop_key` on every name |
 | `web/scripts/build-item-names.mjs` | Makes `itemNames.data.js` from the OSRS Wiki's price list and a typed list of untradeables | Run once, 2026-11-21 |
 | `web/src/lib/dropLists.js` | The ready-made lists: 65 of them, for raids, groups of bosses, every boss in the collection log and pets | Every name is checked against the item list by the selftest, spelled exactly as the item is |
@@ -943,8 +943,10 @@ tile suggestions all use.
 Boris, 2026-11-21, after the live test: a Kalphite Queen "Dragon pickaxe"
 tile must not be completed by a Dragon pickaxe from Callisto. Decided the
 same evening: a list per tile, on catalogue entries too, and an empty list
-means a drop from any monster counts, as before. Built the same evening on
-the branch `claude/only-from`. Not live.
+means a drop from any monster counts, as before. Built the same evening, and
+live the same evening (pull request #86): the migration, the intake and the
+site went out at once, and the live site's code has the new calls. Not yet
+used there.
 
 - **What it is.** "Only from" in the organiser's tile form, under the drops:
   monsters or bosses, separated by commas. A drop sent by Dink counts for the
@@ -1218,8 +1220,8 @@ a square, Edit, and type a drop.
    from"). **Boris, 2026-11-21,** after the live test: he may want it to.
    A Kalphite Queen "Dragon pickaxe" tile should not be completed by a
    Dragon pickaxe from Callisto. **Decided** the same evening: a list per
-   tile and on catalogue tiles, empty for any monster. **Built** on
-   `claude/only-from` (see "Only from"); not live. Boris to try it in the
+   tile and on catalogue tiles, empty for any monster. **Live** the
+   same evening (pull request #86; see "Only from"). Boris to try it in the
    console, and to say whether the rules sheet should mention it.
 5. **Done 2026-11-21:** Bingo (see "Bingo"). Its trial card is ended for
    now: Region Bingo first.
