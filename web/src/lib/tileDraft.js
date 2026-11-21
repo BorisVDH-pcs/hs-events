@@ -6,6 +6,13 @@
 //             strings, so a half-typed target is a valid draft rather than NaN.
 //   payload — what `admin_set_tile` and `admin_save_library_tile` take.
 //
+// "Only from" (20261121160000_only_from.sql; Boris, 2026-11-21) travels the
+// same way, but only when the row brought it: `drop_from` on the row is
+// `dropFrom` in the draft (one line of names, as typed) and in the payload (a
+// list). A row without it -- a player's suggestion, or a database that has
+// not had the migration -- gives a draft and a payload without it, and a save
+// without `dropFrom` leaves a tile's list as it was.
+//
 // The conversions live here rather than in the components because the picker,
 // the square editor and the library editor all need them, and a second copy of
 // "what does amount mean under the `value` rule" is exactly the kind of drift
@@ -60,10 +67,22 @@ export const newDraft = () => ({ ...EMPTY_DRAFT, options: [] });
  */
 export const nameKey = (name) => (name ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
 
+/**
+ * "Only from", as typed, as a list: names split on commas or new lines,
+ * spaces tidied, blanks dropped. The database also drops a name given twice.
+ */
+export const dropFromList = (text) => String(text ?? '')
+  .split(/[,\n]/).map((name) => name.trim().replace(/\s+/g, ' ')).filter(Boolean);
+
+/** At most this many names, each at most this long: drop_from_clean() says the same. */
+export const DROP_FROM_MAX = 20;
+export const DROP_FROM_NAME_MAX = 80;
+
 /** A database row (board tile or library entry) as something the form can edit. */
 export function draftFromRow(row) {
   if (!row) return { ...EMPTY_DRAFT };
   return {
+    ...(Array.isArray(row.drop_from) ? { dropFrom: row.drop_from.join(', ') } : {}),
     name: row.name ?? '',
     icon: row.icon ?? '',
     description: row.description ?? '',
@@ -135,6 +154,7 @@ export function payloadFromDraft(draft, extra = {}) {
       : {}),
     ...(options.length ? { options } : {}),
     ...((draft.description ?? '').trim() ? { description: draft.description.trim() } : {}),
+    ...(draft.dropFrom != null ? { dropFrom: dropFromList(draft.dropFrom) } : {}),
     ...extra,
   };
 }
@@ -156,6 +176,11 @@ export function validateDraft(draft, at = 'This tile') {
 
   const payload = payloadFromDraft(draft);
   errors.push(...validateTileRow({ ...payload, rule: draft.rule ?? 'points' }, at));
+  // In the words drop_from_clean() refuses with, so the form says it first.
+  const from = payload.dropFrom ?? [];
+  const tooLong = from.find((name) => name.length > DROP_FROM_NAME_MAX);
+  if (tooLong) errors.push(`"${tooLong.slice(0, 40)}…" is too long for a monster name.`);
+  if (from.length > DROP_FROM_MAX) errors.push(`"Only from" takes at most ${DROP_FROM_MAX} monsters.`);
   return errors;
 }
 

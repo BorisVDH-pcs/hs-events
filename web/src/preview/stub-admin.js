@@ -47,10 +47,14 @@ const CATALOGUE = [
   ['Barrows: full Verac set', 'verac_the_defiled'], ['Prince black dragon pet', 'prince_black_dragon'],
 ];
 
+// Two entries with an "Only from", so the preview shows a filled box.
+const ONLY_FROM = { 'KQ head': ['Kalphite Queen'], 'Great Olm unique': ['Chambers of Xeric'] };
+
 const library = CATALOGUE.map(([name, icon], i) => ({
   id: uid(), name, icon, description: null,
   required_evidence: i % 4 === 0 ? 2 : 1, completion: 'points', per_set: null,
   times_used: (i * 7) % 11, last_used_at: null, options: [],
+  drop_from: ONLY_FROM[name] ?? [],
 }));
 
 const PLAYERS = [
@@ -85,6 +89,10 @@ function tileFromPayload(gameId, row, col, p, libraryId = null) {
     description: p.description ?? null,
     completion: p.rule ?? 'points', per_set: p.perSet ?? null,
     library_id: p.libraryId ?? libraryId, claimed: false,
+    // As the wrapper and the trigger do: the payload's list if it has one,
+    // else the catalogue entry's (only_from.sql).
+    drop_from: 'dropFrom' in p ? [...p.dropFrom]
+      : [...(library.find((e) => e.id === (p.libraryId ?? libraryId))?.drop_from ?? [])],
   };
 }
 
@@ -93,6 +101,7 @@ const fromLibrary = (entry, row, col) => ({
   name: entry.name, icon: entry.icon, required_evidence: entry.required_evidence,
   options: entry.options, description: entry.description, completion: entry.completion,
   per_set: entry.per_set, library_id: entry.id, claimed: false,
+  drop_from: [...(entry.drop_from ?? [])],
 });
 
 function addGame({ name, mode, grid, status, teamNames, startsAt = null, endsAt = null, fill = 0 }) {
@@ -756,7 +765,10 @@ export function adminRemoveMember(teamId, profileId) {
 // Without `worth`, as admin_list_tiles answers: the points come beside the
 // tiles (admin_tile_worths), and a console that read them off the row would
 // work here and nowhere else.
-export const adminListTiles = (id) => wait(structuredClone(tilesOf(id)).map(({ worth: _worth, ...t }) => t));
+// With `drop_from` on every row, as lib/supabase.js hands them over once it
+// has read the lists beside them.
+export const adminListTiles = (id) => wait(structuredClone(tilesOf(id))
+  .map(({ worth: _worth, ...t }) => ({ ...t, drop_from: t.drop_from ?? [] })));
 
 export function adminSetTile(gameId, row, col, payload) {
   const list = tilesOf(gameId);
@@ -765,6 +777,11 @@ export function adminSetTile(gameId, row, col, payload) {
   // admin_set_tile updates a filled square in place and leaves its worth
   // alone, so a replaced tile keeps the square's points.
   if (i >= 0 && list[i].worth != null) tile.worth = list[i].worth;
+  // And its "Only from", unless the payload brings one or the square now
+  // comes from another catalogue entry.
+  if (i >= 0 && !('dropFrom' in payload) && list[i].library_id === tile.library_id) {
+    tile.drop_from = list[i].drop_from ?? [];
+  }
   if (i >= 0) list[i] = tile; else list.push(tile);
   syncTerritory(gameId);
   return wait(tile.id);
@@ -957,13 +974,16 @@ export const adminTileWorths = (gameId) => wait(
 
 // ---- the catalogue -------------------------------------------------------
 
-export const adminListLibrary = () => wait(structuredClone(library));
+export const adminListLibrary = () => wait(structuredClone(library)
+  .map((e) => ({ ...e, drop_from: e.drop_from ?? [] })));
 
 export function adminSaveLibraryTile(id, p) {
   const row = {
     name: p.name, icon: p.icon || null, description: p.description ?? null,
     required_evidence: p.amount ?? null, completion: p.rule ?? 'points', per_set: p.perSet ?? null,
     options: (p.options ?? []).map((o) => ({ label: o.label, points: o.points ?? 1, grp: o.grp ?? null, max_times: o.maxTimes ?? null })),
+    // Without the key the list is left as it is, as on the server.
+    ...('dropFrom' in p ? { drop_from: [...p.dropFrom] } : {}),
   };
   if (id) { Object.assign(library.find((e) => e.id === id), row); return wait(id); }
   const entry = { id: uid(), times_used: 0, last_used_at: null, ...row };
