@@ -838,7 +838,7 @@ export default function App() {
       )}
 
       {/* A drop Dink sent that two of the team's tiles want, waiting for the
-          team to choose (runelite-plugin/server/002_plugin_drops.sql, 6c).
+          team to choose (supabase/migrations/20261121120100_plugin_drops.sql, 6c).
           Hidden while nothing waits, and on a database without the plugin. */}
       {game.game && !waitingScreen && (isBingo || isRegions) && isActive && myTeamId && (
         <WaitingDrops gameId={game.game.id} events={events} onHandedIn={game.refresh} />

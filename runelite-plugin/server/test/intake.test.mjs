@@ -1,6 +1,6 @@
 // The Dink route, end to end and offline: a notification as Dink documents it
 // goes through intake/handle.mjs, whose database is the replay of every
-// migration plus the plugin drafts, and whose storage is a Map.
+// migration, the plugin's among them, and whose storage is a Map.
 //
 // Also intake/shrink.mjs, which makes a screenshot over 3 MB smaller, checked
 // against png.mjs (a separate PNG writer and reader on Node's zlib) and a PNG
@@ -305,7 +305,7 @@ res = await handleDink({ token: tok.mate, payloadText: '{not json', image: png(1
 ok('a body that is not JSON: 400', res.status === 400, J(res));
 
 // index.ts removes the screenshots nobody needs only after a request whose
-// token the database accepted (draft 002, 6d), so it reads tokenChecked.
+// token the database accepted (plugin_drops.sql, 6d), so it reads tokenChecked.
 const notADrop = J({ type: 'DEATH', playerName: 'Mate Iron', extra: {} });
 res = await handleDink({ token: 'hse_' + 'b'.repeat(64), payloadText: notADrop, image: png(91) }, deps);
 ok('a made-up token with a notification that is not a drop: 200, as for anyone, and not marked checked',

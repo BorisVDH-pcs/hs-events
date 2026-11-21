@@ -1,4 +1,4 @@
-// Offline test of server/001_plugin_tokens.sql in PGlite (real Postgres, in
+// Offline test of supabase/migrations/20261121120000_plugin_tokens.sql in PGlite (real Postgres, in
 // memory). Stand-ins replace what Supabase provides: auth.uid(), the roles,
 // profiles, profile_accounts and is_admin(). It proves the token and identity
 // mechanics. It does NOT prove the PostgREST + service-role path; that needs a
@@ -39,7 +39,7 @@ await db.exec(`
   create function is_admin() returns boolean language sql stable as $$
     select coalesce((select is_admin from profiles where id = auth.uid()), false) $$;
 `);
-await db.exec(readFileSync(new URL('../001_plugin_tokens.sql', import.meta.url), 'utf8'));
+await db.exec(readFileSync(new URL('../../../supabase/migrations/20261121120000_plugin_tokens.sql', import.meta.url), 'utf8'));
 
 const A = '00000000-0000-0000-0000-00000000000a';
 const B = '00000000-0000-0000-0000-00000000000b';

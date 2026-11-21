@@ -1,4 +1,4 @@
-# Local Supabase stack for proving the RuneLite plugin drafts (runelite-plugin/README.md).
+# Local Supabase stack for proving the Dink intake and its migrations (runelite-plugin/README.md).
 # NOT the live project and never linked to it. Made by `supabase init` (CLI 2.122.0,
 # the version db-push.yml pins), with the services the tests do not use switched off.
 # supabase/migrations and supabase/functions here are copies made by ../prepare.mjs.

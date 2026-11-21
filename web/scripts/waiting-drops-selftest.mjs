@@ -98,9 +98,9 @@ for (const name of ['waitingDrops', 'waitingDropOpen', 'waitingDropChoose', 'han
     `every harness that renders the app has ${name} to stand in`);
 }
 
-// ---- The draft says the same ----
+// ---- The migration says the same ----
 
-const sql = src('../../runelite-plugin/server/002_plugin_drops.sql');
+const sql = src('../../supabase/migrations/20261121120100_plugin_drops.sql');
 assert.match(sql, /expires_at\s+timestamptz not null default now\(\) \+ interval '1 hour'/,
   `the database waits ${WAIT_MINUTES} minutes too`);
 for (const sig of ['waiting_drops\\(uuid\\)', 'waiting_drop_open\\(uuid, uuid, uuid\\)', 'waiting_drop_choose\\(uuid, uuid, uuid, text\\)']) {

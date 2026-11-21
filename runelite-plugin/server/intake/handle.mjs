@@ -177,7 +177,7 @@ export async function handleDink({ token, payloadText, image }, deps) {
 }
 
 /**
- * Screenshots nobody needs any more (draft 002, section 6d; Boris,
+ * Screenshots nobody needs any more (plugin_drops.sql, section 6d; Boris,
  * 2026-11-21): a waiting drop's file once it is handed in or its hour is up,
  * and copies made for a choice that was never handed in. The database says
  * which; Storage removes them; then the database marks them, so a removal

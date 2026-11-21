@@ -1,13 +1,14 @@
 -- RuneLite plugin, server part 1: plugin tokens, drop_key, and "act as the
 -- player". docs/runelite-plugin-plan.md, sections 4.2 to 4.4.
 --
--- DRAFT. Not in supabase/migrations on purpose, so db-push cannot apply it.
--- Purely additive: one new table and new functions. It changes no existing
--- table, function, policy or grant.
+-- Moved here from runelite-plugin/server/, where it was a draft, to go live
+-- for Region Bingo (Boris, 2026-11-21). Purely additive: one new table and
+-- new functions. It changes no existing table, function, policy or grant.
 --
--- Tested offline by server/test/tokens.test.mjs (PGlite, with stand-ins for
--- auth.uid(), profiles and is_admin()), and through PostgREST on a local
--- Supabase stack by server/test/stack.test.mjs. Not applied anywhere else.
+-- Tested offline by runelite-plugin/server/test/tokens.test.mjs (PGlite,
+-- with stand-ins for auth.uid(), profiles and is_admin()), and through
+-- PostgREST on a local Supabase stack by
+-- runelite-plugin/server/test/stack.test.mjs.
 
 -- ============================================================
 -- 1. drop_key: one spelling for a drop's name
@@ -19,7 +20,7 @@
 -- space; spacing is collapsed. Null for nothing-left, so '' never equals ''.
 --
 -- The tile editor's twin is dropKey in web/src/lib/itemNames.js, and the two
--- must never disagree: server/test/tokens.test.mjs runs both over every item
+-- must never disagree: runelite-plugin/server/test/tokens.test.mjs runs both over every item
 -- name the editor knows.
 
 create or replace function drop_key(p_text text)
@@ -186,5 +187,5 @@ revoke execute on function plugin_token_revoke(uuid)     from public, anon, serv
 grant execute on function plugin_token_create(text)      to authenticated;
 grant execute on function plugin_token_list()            to authenticated;
 grant execute on function plugin_token_revoke(uuid)      to authenticated;
--- The functions that take a token are in 002, and only the service role (the
+-- The functions that take a token are in 20261121120100_plugin_drops.sql, and only the service role (the
 -- intake Edge Function) may call them.

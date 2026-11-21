@@ -18,7 +18,7 @@
  */
 
 /**
- * The server's `drop_key` (runelite-plugin/server/001_plugin_tokens.sql), here
+ * The server's `drop_key` (supabase/migrations/20261121120000_plugin_tokens.sql), here
  * so the editor's answer is the server's answer. Lowercase; apostrophes of
  * every kind removed; anything else that is not a letter or digit becomes a
  * space; spacing collapsed. Null when nothing is left.

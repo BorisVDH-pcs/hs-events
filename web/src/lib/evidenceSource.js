@@ -7,7 +7,7 @@
  * them. The database marks those rows 'dink' or 'plugin', and tells the
  * screens which rows they are and what the plugin reported: the review screen
  * through admin_evidence_sources(), the panel through evidence_sources()
- * (runelite-plugin/server/002_plugin_drops.sql).
+ * (supabase/migrations/20261121120100_plugin_drops.sql).
  *
  * WHY THE PANEL SHOWS IT TOO (Boris, 2026-11-21). Dink's screenshot does not
  * always show the drop: the chat box may be closed, and a small item on the

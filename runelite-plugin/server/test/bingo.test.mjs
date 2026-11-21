@@ -1,4 +1,4 @@
-// The plugin drafts (001, 002) against the real Bingo rules, with a Region
+// The plugin migrations (plugin_tokens.sql, plugin_drops.sql) against the real Bingo rules, with a Region
 // Bingo game running at the same time: every migration in supabase/migrations
 // is replayed into PGlite first, so tiles_for_team, bingo_open_tile,
 // regions_open_tile and add_evidence here are the real ones.

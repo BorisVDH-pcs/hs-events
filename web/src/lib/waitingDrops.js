@@ -4,7 +4,7 @@
  * Dink knows nothing of the board, and the server never guesses. When a drop
  * Dink sends is wanted by more than one of the team's open tiles, the
  * screenshot is kept for an hour with the tiles that wanted it then
- * (runelite-plugin/server/002_plugin_drops.sql, section 6c), and anyone on
+ * (supabase/migrations/20261121120100_plugin_drops.sql, section 6c), and anyone on
  * the team picks the tile on the site (components/WaitingDrops.jsx).
  *
  * The pure parts of that box, so scripts/waiting-drops-selftest.mjs can run

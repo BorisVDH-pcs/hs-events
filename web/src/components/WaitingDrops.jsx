@@ -13,7 +13,7 @@ import { useConfirm } from './ConfirmDialog.jsx';
  * The database decides everything: which drops are listed (the caller's own
  * team's, for an hour), which tiles each can still go to (only ones that
  * wanted it when it dropped and still do), and the hand-in itself
- * (runelite-plugin/server/002_plugin_drops.sql, section 6c). This only shows
+ * (supabase/migrations/20261121120100_plugin_drops.sql, section 6c). This only shows
  * the list and passes on the choice.
  *
  * Hidden while there is nothing waiting, and on a database without the

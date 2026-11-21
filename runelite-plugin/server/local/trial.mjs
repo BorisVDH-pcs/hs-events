@@ -145,7 +145,7 @@ if (mode === 'build') {
   await must('admin_set_member', { p_team_id: team.Rivals, p_profile_id: rival.id, p_role: 'captain' }, org.jwt);
   await must('start_game', { p_game_id: g }, org.jwt);
   // Dink is off for a new game until an organiser switches it on in the
-  // console (draft 002, 6e); this is the console's own call.
+  // console (plugin_drops.sql, 6e); this is the console's own call.
   await must('admin_set_plugin_drops', { p_game_id: g, p_on: true }, org.jwt);
   await must('regions_pick', { p_game_id: g, p_region: 'asgarnia' }, rival.jwt);
 
@@ -216,7 +216,7 @@ if (mode === 'build') {
         + (e.source === 'web' ? '' : `  ${d.item} x${d.quantity} from ${d.from} (${d.category}), ${d.rsn}, world ${d.world}, region ${d.region_id}, ${d.dink_type}`
           + (d.resized_from ? `, made smaller from ${d.resized_from}` : '')));
     }
-    // A drop two tiles wanted, kept for the team to choose (draft 002, 6c).
+    // A drop two tiles wanted, kept for the team to choose (plugin_drops.sql, 6c).
     const waits = sqlJson(`select w.item, w.received_at, w.expires_at, w.chosen_at, jsonb_array_length(w.choices) n,
         p.display_name chosen_by, t.name tile
         from plugin_waiting w left join profiles p on p.id = w.chosen_by

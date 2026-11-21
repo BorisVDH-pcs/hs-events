@@ -1,4 +1,4 @@
-// The plugin drafts on a real Supabase stack: the CLI's local one, started
+// The plugin's migrations and function on a real Supabase stack: the CLI's local one, started
 // from server/local (see that folder's prepare.mjs). Not the live project.
 //
 // Everything goes through the doors the site and the intake function use:
@@ -103,7 +103,8 @@ const PNG = Uint8Array.from(Buffer.from(
 
 // ------------------------------------------------------- the database itself
 const applied = sql(`select count(*) || ' ' || max(version) from supabase_migrations.schema_migrations`).split(' ');
-ok('every migration and both drafts were applied by the CLI', Number(applied[0]) === 131 && applied[1] === '99990101000002', J(applied));
+ok("every migration, the plugin's two the last, was applied by the CLI",
+   Number(applied[0]) === 131 && applied[1] === '20261121120100', J(applied));
 const pg = sql(`select current_setting('server_version') || ' | ' || datcollate from pg_database where datname = current_database()`);
 console.log(`     (Postgres ${pg})`);
 const nbsp = sql(`select rsn_key(E'Mate\\u00a0Iron') = rsn_key('Mate Iron')`);
@@ -174,7 +175,7 @@ await must('start_game', { p_game_id: g }, org);
 ok('a Region Bingo game was built and started through PostgREST',
    sql(`select status || ' ' || mode from games where id = '${g}'`) === 'active regions');
 
-// Boris, 2026-11-21 (draft 002, section 6e): Dink is off for a new game until
+// Boris, 2026-11-21 (plugin_drops.sql, section 6e): Dink is off for a new game until
 // an organiser switches it on in the console, with the console's own call.
 const dinkIs = (game) => sql(`select plugin_drops from games where id = '${game}'`);
 ok('Dink starts off for the new game', dinkIs(g) === 'f');
@@ -489,7 +490,7 @@ console.log(`     (in the edge runtime: ${resizedLog ? resizedLog[1] : 'no resiz
 ok('and never a token', !/hse_/.test(log) && !Object.values(tok).some((t) => log.includes(t)));
 
 // ------------------------------------------- a drop two tiles want waits
-// Boris, 2026-11-21 (draft 002, section 6c). Barrows chest and Any helmet both
+// Boris, 2026-11-21 (plugin_drops.sql, section 6c). Barrows chest and Any helmet both
 // still want a Dharok's helm. Dink sends it; the team chooses on the site,
 // whose three steps are taken here as WaitingDrops.jsx takes them: open the
 // tile, copy the screenshot with Storage's own copy (supabase-js's
@@ -630,7 +631,7 @@ ok('and the list has only the second helm, now for Barrows chest alone',
    && J(r.body[0].choices.map((c) => c.tile)) === J(['Barrows chest']), J(r));
 
 // ------------------------------------------- the files nobody needs any more
-// Boris, 2026-11-21 (draft 002, section 6d). Nobody chooses the second helm;
+// Boris, 2026-11-21 (plugin_drops.sql, section 6d). Nobody chooses the second helm;
 // its hour, and the five minutes' grace, are moved into the past here. The
 // next request from Dink -- any request from a real token -- has the intake
 // remove, through Storage: the first helm's file under waiting/ and the copy

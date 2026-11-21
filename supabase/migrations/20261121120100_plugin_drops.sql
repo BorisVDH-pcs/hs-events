@@ -1,8 +1,9 @@
 -- RuneLite plugin, server part 2: which drops a team wants, and handing one
--- in. docs/runelite-plugin-plan.md, sections 4.4 and 4.5. Needs 001.
+-- in. docs/runelite-plugin-plan.md, sections 4.4 and 4.5. Needs
+-- 20261121120000_plugin_tokens.sql.
 --
--- DRAFT. Not in supabase/migrations on purpose, so db-push cannot apply it.
--- It adds two columns to tile_evidence, one trigger on it, one column to
+-- Moved here from runelite-plugin/server/, where it was a draft, to go live
+-- for Region Bingo (Boris, 2026-11-21). It adds two columns to tile_evidence, one trigger on it, one column to
 -- games (Dink on or off, section 6e), three tables and new functions, six of
 -- them for the site: admin_evidence_sources (the review screen's "sent by
 -- plugin"), evidence_sources (the same lines under the picture in a tile's
@@ -13,9 +14,9 @@
 -- called exactly as they are, so every rule they hold applies to a plugin
 -- without being written down twice.
 --
--- Tested offline by server/test/regions.test.mjs and bingo.test.mjs, against
--- a replay of every migration in supabase/migrations, and on a local Supabase
--- stack by server/test/stack.test.mjs.
+-- Tested offline by runelite-plugin/server/test/ (regions, regions-game,
+-- bingo, intake, waiting and switch), against a replay of every migration in
+-- supabase/migrations, and on a local Supabase stack by stack.test.mjs.
 --
 -- Region Bingo and Bingo, for now. Each mode is one line in plugin_wanted and
 -- one branch in plugin_open_tile, added one at a time (plan, section 7);
@@ -473,7 +474,8 @@ create table if not exists plugin_waiting (
   -- When the intake removed storage_path from Storage (section 6d).
   file_removed_at timestamptz
 );
--- For a database that ran an earlier draft of this table.
+-- For a database that ran an earlier version of this file (the local test
+-- stack). On any other these change nothing.
 alter table plugin_waiting add column if not exists chosen_path text;
 alter table plugin_waiting add column if not exists file_removed_at timestamptz;
 

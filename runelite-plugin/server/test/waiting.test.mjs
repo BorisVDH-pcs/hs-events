@@ -1,6 +1,6 @@
 // A drop two open tiles want: the intake keeps it for an hour and anyone on
-// the team chooses the tile on the site (Boris, 2026-11-21; draft 002,
-// section 6c). Offline, on the replay of every migration plus the drafts,
+// the team chooses the tile on the site (Boris, 2026-11-21; plugin_drops.sql,
+// section 6c). Offline, on the replay of every migration, the plugin's too,
 // through intake/handle.mjs, with storage.objects standing in for the bucket.
 //
 // The Region Bingo board, threshold 50%:

@@ -1577,10 +1577,10 @@ export default function Admin({ onViewAs, isAdmin = true, modes = NO_MODES } = {
               />
             )}
 
-            {/* Drops from Dink, per game (draft 002, 6e; Boris, 2026-11-21).
+            {/* Drops from Dink, per game (plugin_drops.sql, 6e; Boris, 2026-11-21).
                 Off until an organiser turns it on, Region Bingo only for now,
                 and changeable while the game runs. Uploading on the site
-                works either way. A database without the plugin drafts has
+                works either way. A database without the plugin migrations has
                 no such column, so nothing shows there. */}
             {regionsMode && game.status !== 'finished' && typeof game.plugin_drops === 'boolean' && (
               <div className="switch-row plugin-drops-switch">

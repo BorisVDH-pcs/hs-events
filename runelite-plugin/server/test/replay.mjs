@@ -1,5 +1,5 @@
 // Replays every file in supabase/migrations, in order, into PGlite (real
-// Postgres, in memory), so the plugin drafts can be tested against the real
+// Postgres, in memory), so the plugin's migrations can be tested against the real
 // rules -- tiles_for_team, regions_open_tile, add_evidence -- with nothing
 // touching the live project.
 //

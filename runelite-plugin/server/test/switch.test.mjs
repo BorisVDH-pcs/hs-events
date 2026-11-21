@@ -1,9 +1,9 @@
-// Dink on or off, per game (Boris, 2026-11-21; draft 002, section 6e).
+// Dink on or off, per game (Boris, 2026-11-21; plugin_drops.sql, section 6e).
 //
 // A switch on each game in the admin console: off until an organiser turns
 // it on, Region Bingo only for now, and changeable while the game runs.
 // Uploading on the site works either way. Offline, on the replay of every
-// migration plus the drafts, through intake/handle.mjs.
+// migration, the plugin's among them, through intake/handle.mjs.
 //
 // The fixture's Region Bingo, built with Dink left off:
 //   Misthalin: Barrows chest (Dharok's helm, Karil's coif; needs 2),

@@ -172,7 +172,7 @@ export async function handInWaitingDrop({ waitingId, tileId, optionId }) {
   assertWritable();
   const opened = await waitingDropOpen(waitingId, tileId, optionId);
   // Where to copy it is the database's choice, written down there, so a copy
-  // that is never handed in is found and removed later (draft 002, 6d).
+  // that is never handed in is found and removed later (plugin_drops.sql, 6d).
   const to = opened.copy_path;
   const { error } = await supabase.storage.from(BUCKET).copy(opened.from_path, to);
   if (error) throw new Error(error.message);

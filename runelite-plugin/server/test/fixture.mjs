@@ -10,7 +10,6 @@
 // The game is started, Dink is switched on for it (unless `dink: false`),
 // and every player has a plugin token. Nobody has picked a region yet.
 
-import { readFileSync } from 'node:fs';
 import { replay } from './replay.mjs';
 
 export const J = (v) => JSON.stringify(v);
@@ -20,13 +19,10 @@ export async function buildGame({ dink = true } = {}) {
   return { ...base, ...(await addRegionsGame(base, { dink })) };
 }
 
-// The database with both drafts, the helpers, and the people with their
-// in-game names and plugin tokens: no game yet.
+// The database (every migration, the plugin's two among them), the helpers,
+// and the people with their in-game names and plugin tokens: no game yet.
 export async function buildPeople() {
   const db = await replay();
-  for (const f of ['001_plugin_tokens.sql', '002_plugin_drops.sql']) {
-    await db.exec(readFileSync(new URL(`../${f}`, import.meta.url), 'utf8'));
-  }
 
   // The site: one transaction, signed in as `who`, with the authenticated role.
   const site = async (who, sql, params = []) => db.transaction(async (tx) => {
@@ -106,7 +102,7 @@ async function addRegionsGame({ db, ids, site }, { dink = true } = {}) {
   await site(ids.org, `select admin_set_member($1, $2, 'member')`, [team.Red, ids.mate]);
   await site(ids.org, `select admin_set_member($1, $2, 'captain')`, [team.Blue, ids.blue]);
   await site(ids.org, 'select start_game($1)', [g]);
-  // Through the console's own switch (draft 002, 6e): off until turned on.
+  // Through the console's own switch (plugin_drops.sql, 6e): off until turned on.
   if (dink) await site(ids.org, 'select admin_set_plugin_drops($1, true)', [g]);
 
   return { g, team, T, opt };

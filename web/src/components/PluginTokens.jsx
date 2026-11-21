@@ -19,7 +19,7 @@ import {
  * Closing the dialog loses it for good; the way back is a new token.
  *
  * HIDDEN, NOT BROKEN, while the database has no plugin tokens: pluginTokens()
- * answers null until the draft migration is applied, and then this renders
+ * answers null until the plugin migrations are applied, and then this renders
  * nothing at all.
  */
 export default function PluginTokens() {

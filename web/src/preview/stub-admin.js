@@ -104,7 +104,7 @@ function addGame({ name, mode, grid, status, teamNames, startsAt = null, endsAt 
     max_active_tiles: mode === 'battleships' ? 3 : 1,
     // Every game row has it (default 50); only Region Bingo reads it.
     region_threshold: 50,
-    // Dink on or off (draft 002, 6e): off until an organiser turns it on.
+    // Dink on or off (plugin_drops.sql, 6e): off until an organiser turns it on.
     plugin_drops: false,
     created_at: now(),
   });

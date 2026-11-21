@@ -344,7 +344,7 @@ export async function removeAccount(id) {
   if (error) throw new Error(error.message);
 }
 
-// ---- Plugin tokens (runelite-plugin/server/001_plugin_tokens.sql) ----------
+// ---- Plugin tokens (supabase/migrations/20261121120000_plugin_tokens.sql) ----------
 //
 // A DRAFT on the database side: until it is applied, these functions do not
 // exist and pluginTokens() answers null, which hides the section. No
@@ -401,7 +401,7 @@ export async function evidenceSourcesFor(ids) {
   return data ?? [];
 }
 
-// ---- A drop two tiles want (runelite-plugin/server/002_plugin_drops.sql, 6c)
+// ---- A drop two tiles want (supabase/migrations/20261121120100_plugin_drops.sql, 6c)
 //
 // Dink sent a drop more than one of the team's open tiles wants; it waits an
 // hour for anyone on the team to choose. components/WaitingDrops.jsx; the
@@ -680,7 +680,7 @@ export const adminSetRegionThreshold = (gameId, threshold) =>
   rpc('admin_set_region_threshold', { p_game_id: gameId, p_threshold: threshold });
 
 /**
- * Drops from Dink on or off for this game (draft 002, 6e; Boris, 2026-11-21).
+ * Drops from Dink on or off for this game (plugin_drops.sql, 6e; Boris, 2026-11-21).
  * Region Bingo only for now; turning it off works in any mode. Uploading on
  * the site is not affected either way.
  */

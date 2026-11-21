@@ -208,7 +208,7 @@ export const DEMO = [
  * admin_evidence_sources, for the "Sent by plugin" label: which DEMO rows Dink
  * handed in, and what it reported. The harness switches `mode`:
  *   'some'    two rows from Dink, one with a picture made smaller;
- *   'missing' the live project before the plugin's draft (null: no labels);
+ *   'missing' a database without the plugin's migrations (null: no labels);
  *   'failed'  the call fails, and the screen says it cannot tell.
  * The other four rows are uploads from the site, as most evidence is.
  */
@@ -276,7 +276,7 @@ export const evidenceSourcesFor = (ids) => new Promise((resolve, reject) => setT
  * Dink sent that two tiles want. The harness switches `mode`:
  *   'some'    two drops, one in two regions and one with three tiles;
  *   'none'    nothing waiting (the box hides);
- *   'missing' the live project before the plugin's draft (null: it hides);
+ *   'missing' a database without the plugin's migrations (null: it hides);
  *   'failed'  the call fails.
  * stub-evidence.js's handInWaitingDrop takes a drop off `waitingLive`.
  */

@@ -1,8 +1,8 @@
 // Plugin tokens: the My Account section that lets Dink hand in a player's
 // drops (components/PluginTokens.jsx).
 //
-// The database side is runelite-plugin/server/001_plugin_tokens.sql, which is
-// still a DRAFT, outside supabase/migrations. Until it is applied, the live
+// The database side is supabase/migrations/20261121120000_plugin_tokens.sql,
+// applied to the live project on merge. Until it is applied, the live
 // project has no plugin_token_* functions, and the section hides itself rather
 // than showing an error (isMissingFunction below).
 //

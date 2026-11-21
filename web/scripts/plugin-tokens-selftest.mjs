@@ -46,16 +46,16 @@ assert.equal(tokenLabelError('x'.repeat(40)), null);
 assert.equal(tokenLabelError(`  ${'x'.repeat(40)}  `), null, 'padding does not count against the limit');
 assert.match(tokenLabelError('x'.repeat(41)), /At most 40/);
 
-// The draft's own limits, read from the draft, so the two cannot drift apart.
-const sql = readFileSync(new URL('../../runelite-plugin/server/001_plugin_tokens.sql', import.meta.url), 'utf8');
-assert.match(sql, /char_length\(label\) <= 40/, 'the label check in the draft is still 40');
-assert.match(sql, />= 5 then/, 'the draft still allows 5 live tokens');
+// The migration's own limits, read from the migration, so the two cannot drift apart.
+const sql = readFileSync(new URL('../../supabase/migrations/20261121120000_plugin_tokens.sql', import.meta.url), 'utf8');
+assert.match(sql, /char_length\(label\) <= 40/, 'the label check in the migration is still 40');
+assert.match(sql, />= 5 then/, 'the migration still allows 5 live tokens');
 assert.match(sql, /'hse_' \|\| encode\(extensions\.gen_random_bytes\(32\), 'hex'\)/,
   'tokens are still hse_ and 64 hex digits, which is what dinkUrl takes');
 
 // ---- A database without plugin tokens ----
 //
-// The live project until the draft is applied. PostgREST says PGRST202 for a
+// A database without the plugin migrations. PostgREST says PGRST202 for a
 // function that is not there; the section hides on that and only that. A
 // refusal from a function that IS there (P0001) is a message for the player.
 

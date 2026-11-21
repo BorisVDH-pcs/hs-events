@@ -126,12 +126,12 @@ assert.match(lib,
   /export async function evidenceSourcesFor\(ids\) \{\s*const \{ data, error \} = await supabase\.rpc\('evidence_sources', \{ p_ids: ids \}\);\s*if \(isMissingFunction\(error\)\) return null;/,
   'and so does evidenceSourcesFor(), so the panel is what it was on a database without the plugin');
 
-// The draft's function, read from the draft, so the two cannot drift apart.
-const sql = readFileSync(new URL('../../runelite-plugin/server/002_plugin_drops.sql', import.meta.url), 'utf8');
+// The migration's function, read from the migration, so the two cannot drift apart.
+const sql = readFileSync(new URL('../../supabase/migrations/20261121120100_plugin_drops.sql', import.meta.url), 'utf8');
 assert.match(sql, /create or replace function admin_evidence_sources\(p_game_id uuid\)\s*returns table \(id uuid, source text, detail jsonb\)/,
-  'the draft answers id, source and detail');
+  'the migration answers id, source and detail');
 assert.match(sql, /if not may_manage_game\(p_game_id\) then\s*raise exception 'Not your game';/,
-  "the draft asks admin_list_evidence's own question");
+  "the migration asks admin_list_evidence's own question");
 assert.match(sql, /and e\.source <> 'web'/, 'and lists only what did not come from the site');
 // The panel's: by id, for the caller's own team's evidence or a game they run.
 // runelite-plugin/server/test/regions.test.mjs proves what it answers.
@@ -146,7 +146,7 @@ assert.match(sql, /revoke execute on function evidence_sources\(uuid\[\]\)\s+fro
 
 // ---- The site's own upload is untouched ----
 //
-// A manual upload sends no source; draft 002's trigger stamps it 'web'.
+// A manual upload sends no source; plugin_drops.sql's trigger stamps it 'web'.
 
 const upload = readFileSync(new URL('../src/lib/evidence.js', import.meta.url), 'utf8');
 const call = upload.slice(upload.indexOf("supabase.rpc('add_evidence'"), upload.indexOf('});', upload.indexOf("supabase.rpc('add_evidence'")));
