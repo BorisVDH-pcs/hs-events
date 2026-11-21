@@ -5,6 +5,8 @@
 //
 //   node trial.mjs              build it; you are captain of "Your team"
 //   node trial.mjs bingo        build a Bingo card beside it (see below)
+//   node trial.mjs bingo-end    end the Bingo card, as its organiser would: the
+//                               clan runs one game at a time
 //   node trial.mjs report       what came in: the intake's log and the evidence
 //   node trial.mjs organiser    make you an organiser, to see the review screen
 //
@@ -166,6 +168,21 @@ if (mode === 'build') {
   console.log(`"${BINGO}" is built and started. ${me.display_name} is captain of "Your team".`);
   console.log('Your plugin token and Dink link stay as they are: every drop is matched against both games.');
   console.log('Kill chickens and cows. Bones count for the card, never for the locked Region Bingo tile.');
+} else if (mode === 'bingo-end') {
+  if (!bingo) throw new Error(`No "${BINGO}" to end`);
+  // admin_end_game as the organiser `bingo` made, signed in the way the site
+  // signs in: the function checks the caller itself.
+  const out = sql(`begin;
+    select set_config('request.jwt.claims', json_build_object('sub', p.id, 'role', 'authenticated')::text, true)
+      from profiles p join auth.users u on u.id = p.id
+     where u.email like 'organiser-%@plugin-trial.invalid' and p.is_admin
+     order by u.created_at desc limit 1;
+    set local role authenticated;
+    select admin_end_game(${lit(bingo.id)});
+    commit;`);
+  const now = sql(`select status from games where id = ${lit(bingo.id)}`);
+  if (now !== 'finished') throw new Error(`"${BINGO}" did not end: ${out}`);
+  console.log(`"${BINGO}" is ended. Only "${NAME}" is running for you now.`);
 } else if (mode === 'report') {
   if (!game && !bingo) throw new Error(`No "${NAME}" yet: node trial.mjs`);
   const since = [game, bingo].filter(Boolean).map((x) => x.created_at).sort()[0];
@@ -192,8 +209,17 @@ if (mode === 'build') {
         join teams tm on tm.id = c.team_id where t.game_id = ${lit(x.id)} and tm.name = 'Your team' order by t.position`);
     console.log(`Your team's opened tiles: ${claims.map((c) => `${c.tile} (${c.status})`).join(', ') || 'none'}`);
     if (name === NAME) {
+      const s = sqlJson(`select s.points, s.picks, s.regions_open, s.regions_complete
+          from regions_standings(${lit(x.id)}) s join teams tm on tm.id = s.team_id where tm.name = 'Your team'`)[0];
+      if (s) {
+        console.log(`Your team: ${s.points} points, ${s.picks} pick(s) to spend, open: ${s.regions_open.join(', ') || 'none'},`
+          + ` complete: ${s.regions_complete.join(', ') || 'none'}`);
+      }
       const bones = ev.filter((e) => e.team === 'Your team' && e.tile === 'Bones').length;
-      console.log(`Bones handed in for you (the locked tile; must be 0): ${bones}`);
+      const asgarnia = s?.regions_open.includes('asgarnia');
+      console.log(asgarnia
+        ? `Bones handed in for you, now that you have opened Asgarnia: ${bones}`
+        : `Bones handed in for you (the locked tile; must be 0): ${bones}`);
     }
   }
 } else if (mode === 'organiser') {
