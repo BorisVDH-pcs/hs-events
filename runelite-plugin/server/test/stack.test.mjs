@@ -448,6 +448,71 @@ const resizedLog = log.match(/"resized":(\{[^}]*\})/);
 console.log(`     (in the edge runtime: ${resizedLog ? resizedLog[1] : 'no resize logged'})`);
 ok('and never a token', !/hse_/.test(log) && !Object.values(tok).some((t) => log.includes(t)));
 
+// --------------------------------------- Bingo, through the same doors
+// A Bingo game beside the Region Bingo one, with the same people. Dragon
+// pickaxe is on the card and on the Region Bingo tile in Asgarnia, which Red
+// has not opened.
+const logBeforeBingo = fnLog().length;
+const gb = await must('admin_new_game', { p_name: `Plugin stack bingo ${run}`, p_mode: 'bingo', p_teams: ['Red', 'Blue'],
+  p_grid_size: 3, p_ends_at: new Date(Date.now() + 86400e3).toISOString() }, org);
+const teamB = Object.fromEntries(sqlJson(`select name, id from teams where game_id = '${gb}'`).map((r) => [r.name, r.id]));
+const card = ['Tanzanite fang', 'Dragon pickaxe', 'Granite maul', 'Rune scimitar', 'Dragon bones',
+              'Draconic visage', 'Bandos chestplate', 'Dragon med helm', 'Magic fang'];
+const TB = {};
+for (const [i, label] of card.entries()) {
+  TB[label] = await must('admin_set_tile', { p_game_id: gb, p_row: Math.floor(i / 3) + 1, p_col: (i % 3) + 1,
+    p_tile: { name: label, rule: 'points', amount: 1, options: [{ label, points: 1 }] } }, org);
+}
+await must('admin_set_member', { p_team_id: teamB.Red, p_profile_id: people.red.id, p_role: 'captain' }, org);
+await must('admin_set_member', { p_team_id: teamB.Red, p_profile_id: people.mate.id, p_role: 'member' }, org);
+await must('admin_set_member', { p_team_id: teamB.Blue, p_profile_id: people.blue.id, p_role: 'captain' }, org);
+const onCard = (label) => sqlJson(`select e.source, e.detail, e.uploaded_by, e.team_id, e.storage_path, c.status
+  from tile_evidence e join tile_claims c on c.id = e.claim_id where c.tile_id = '${TB[label]}' order by e.created_at`);
+const fang = lootFrom('Mate Iron', [['Tanzanite fang', 12922, 3_000_000]], { world: 416 });
+
+d = await dink(tok.mate, fang, PNG);
+ok('Bingo before the start: a drop on the card is answered 200 {ok:true}, and nothing is handed in',
+   d.status === 200 && d.body === '{"ok":true}' && onCard('Tanzanite fang').length === 0, J(d));
+
+await must('start_game', { p_game_id: gb }, org);
+ok('a Bingo game was built and started through PostgREST',
+   sql(`select status || ' ' || mode from games where id = '${gb}'`) === 'active bingo');
+d = await dink(tok.mate, fang, PNG);
+rows = onCard('Tanzanite fang');
+ok("after the start the same drop is handed in: one row, by that player, for Red's Bingo team, source dink",
+   d.status === 200 && rows.length === 1 && rows[0].uploaded_by === people.mate.id && rows[0].team_id === teamB.Red
+   && rows[0].source === 'dink' && rows[0].detail?.world === 416, J([d, rows]));
+ok("in the Bingo game's folder, and the tile completed by its own rule",
+   rows[0]?.storage_path.startsWith(`${gb}/${teamB.Red}/`) && rows[0]?.status === 'completed', J(rows[0]));
+const fangFile = rows[0] ? await download(rows[0].storage_path) : { status: 0 };
+ok('the screenshot is in Storage, byte for byte',
+   fangFile.status === 200 && Buffer.compare(Buffer.from(fangFile.bytes), Buffer.from(PNG)) === 0, fangFile.status);
+
+d = await dink(tok.blue, lootFrom('Blue Main', [['Tanzanite fang', 12922, 3_000_000]]), PNG);
+rows = onCard('Tanzanite fang');
+ok("Blue's drop on the same tile is Blue's own, and Red's is untouched",
+   d.status === 200 && rows.length === 2 && rows.filter((x) => x.team_id === teamB.Blue).length === 1
+   && rows.filter((x) => x.team_id === teamB.Red).length === 1, J(rows));
+
+// The second secret across two games: Red's pickaxe counts for the card, and
+// nothing about the locked region tile changes.
+d = await dink(tok.mate, lootFrom('Mate Iron', [['Dragon pickaxe', 11920, 5_000_000]], { world: 417 }), PNG);
+rows = onCard('Dragon pickaxe');
+ok("Red's Dragon pickaxe is handed in on the card, not on the tile in the region Red has not opened",
+   d.status === 200 && rows.length === 1 && rows[0].team_id === teamB.Red
+   && sqlJson(`select 1 from tile_evidence e join tile_claims c on c.id = e.claim_id
+               where c.tile_id = '${T.locked}' and e.team_id = '${team.Red}'`).length === 0, J([d, rows]));
+
+r = await rpc('admin_evidence_sources', { p_game_id: gb }, org);
+ok('the review screen of the Bingo game labels all three as sent by plugin',
+   r.status === 200 && r.body.length === 3 && r.body.every((x) => x.source === 'dink'), J(r).slice(0, 300));
+
+await new Promise((res) => setTimeout(res, 800));
+const bingoLog = fnLog().slice(logBeforeBingo);
+const bingoOutcomes = [...bingoLog.matchAll(/\{"outcome":"([a-z_]+)"(?:,"reason":"([a-z_]+)")?/g)].map((x) => x[2] ?? x[1]);
+ok("the function's log for the Bingo requests: nothing before the start, then three handed in",
+   J(bingoOutcomes) === J(['nothing_submitted', 'submitted', 'submitted', 'submitted']), J(bingoOutcomes));
+
 // ------------------------------------------------------------- revoking
 const list = await must('plugin_token_list', {}, people.mate.jwt);
 await must('plugin_token_revoke', { p_id: list[0].id }, people.mate.jwt);
