@@ -304,6 +304,17 @@ ok('a token nobody was given: 401', res.status === 401, J(res));
 res = await handleDink({ token: tok.mate, payloadText: '{not json', image: png(19) }, deps);
 ok('a body that is not JSON: 400', res.status === 400, J(res));
 
+// index.ts removes the screenshots nobody needs only after a request whose
+// token the database accepted (draft 002, 6d), so it reads tokenChecked.
+const notADrop = J({ type: 'DEATH', playerName: 'Mate Iron', extra: {} });
+res = await handleDink({ token: 'hse_' + 'b'.repeat(64), payloadText: notADrop, image: png(91) }, deps);
+ok('a made-up token with a notification that is not a drop: 200, as for anyone, and not marked checked',
+   res.status === 200 && res.outcome === 'ignored' && res.tokenChecked !== true, J(res));
+res = await send('mate', loot('Zezima', ['Abyssal whip']), png(92));
+ok("a real token with somebody else's name: marked checked, the database said so", res.tokenChecked === true, J(res));
+res = await send('mate', loot('Mate Iron', ['Coins']), png(93));
+ok('a real token with a drop nobody wants: marked checked', res.outcome === 'nothing_submitted' && res.tokenChecked === true, J(res));
+
 // -------------------------------------------------- failures part-way through
 failUploads = 1;
 before = store.size;

@@ -29,9 +29,12 @@ const RULE_REFUSAL = 'P0001';
  *   uuid?: () => string,
  *   shrink?: typeof shrinkPng,   // only the tests replace it
  * }} deps
- * @returns {Promise<{status: number, outcome: string, reason?: string, results?: object[], resized?: object}>}
+ * @returns {Promise<{status: number, outcome: string, reason?: string, results?: object[], resized?: object,
+ *   tokenChecked?: boolean}>}
  *   `status` is what Dink is told. Everything else is for the log only: the
- *   HTTP answer never says what matched (see index.ts).
+ *   HTTP answer never says what matched (see index.ts). `tokenChecked` is true
+ *   once the database has accepted the token; some answers come before it is
+ *   asked (a notification that is not a drop, a screenshot of the wrong type).
  */
 export async function handleDink({ token, payloadText, image }, deps) {
   if (!TOKEN.test(token ?? '')) return { status: 401, outcome: 'bad_token' };
@@ -70,7 +73,8 @@ export async function handleDink({ token, payloadText, image }, deps) {
     if (/Unknown or revoked plugin token/.test(e.message)) return { status: 401, outcome: 'bad_token' };
     throw e;
   }
-  if (!match.account_ok) return { status: 200, outcome: 'ignored', reason: 'unknown_account' };
+  // From here on the database has accepted the token.
+  if (!match.account_ok) return { status: 200, outcome: 'ignored', reason: 'unknown_account', tokenChecked: true };
 
   // The key is made from the screenshot as Dink sent it, so a retry is known
   // whatever the shrinking does.
@@ -85,7 +89,7 @@ export async function handleDink({ token, payloadText, image }, deps) {
   if (tooBig && match.items.some((m) => m.verdict === 'one' || m.verdict === 'ask')) {
     const started = performance.now();
     const small = await (deps.shrink ?? shrinkPng)(image.bytes, MAX_BYTES);
-    if (!small) return { status: 200, outcome: 'ignored', reason: 'screenshot_too_large' };
+    if (!small) return { status: 200, outcome: 'ignored', reason: 'screenshot_too_large', tokenChecked: true };
     stored = { bytes: small.bytes, type: 'image/png' };
     resized = {
       from: `${small.fromWidth}x${small.fromHeight}`, to: `${small.width}x${small.height}`,
@@ -164,6 +168,7 @@ export async function handleDink({ token, payloadText, image }, deps) {
 
   return {
     status: 200,
+    tokenChecked: true,
     outcome: results.some((r) => r.submitted) ? 'submitted'
       : results.some((r) => r.waiting) ? 'waiting' : 'nothing_submitted',
     results,

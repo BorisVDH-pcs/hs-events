@@ -650,6 +650,11 @@ for (const [who, as] of [['anon', ANON], ['a signed-in player', people.red.jwt]]
   const no2 = await rpc('plugin_leftovers_removed', { p_paths: [copyPath] }, as);
   ok(`${who} can neither ask for them nor mark one removed`, no.status >= 400 && no2.status >= 400, J([no, no2]));
 }
+// A made-up token sets nothing off: Dink's answer to a notification that is
+// not a drop comes before the token is checked.
+d = await dink(`hse_${'c'.repeat(64)}`, { type: 'DEATH', playerName: 'Mate Iron', extra: {} }, PNG);
+ok('a made-up token with a notification that is not a drop: 200, and nothing is removed',
+   d.status === 200 && gone.every(exists), J(d));
 const logBeforeClean = fnLog().length;
 d = await dink(tok.mate, lootFrom('Mate Iron', [['Bones', 526, 100]], { world: 422 }), PNG);
 ok('the next request from Dink: 200 {ok:true}', d.status === 200 && d.body === '{"ok":true}', J(d));
@@ -669,8 +674,8 @@ ok('the rows are kept, marked with when their files went',
 
 await new Promise((res) => setTimeout(res, 800));
 const waitOutcomes = [...fnLog().slice(logBeforeWait).matchAll(/\{"outcome":"([a-z_]+)"(?:,"reason":"([a-z_]+)")?/g)].map((x) => x[2] ?? x[1]);
-ok("the function's log: 'waiting', the retry, the second helm 'waiting', then the request that cleaned up",
-   J(waitOutcomes) === J(['waiting', 'nothing_submitted', 'waiting', 'nothing_submitted']), J(waitOutcomes));
+ok("the function's log: 'waiting', the retry, the second helm 'waiting', the made-up token, then the request that cleaned up",
+   J(waitOutcomes) === J(['waiting', 'nothing_submitted', 'waiting', 'not_a_drop', 'nothing_submitted']), J(waitOutcomes));
 ok('whose line says it removed three files', /"cleaned":3\b/.test(fnLog().slice(logBeforeClean)));
 
 // ----------------------------------------------- Dink switched off, mid-game

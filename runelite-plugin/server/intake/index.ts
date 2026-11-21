@@ -73,10 +73,11 @@ Deno.serve(async (req) => {
 
   try {
     const result = await handleDink({ token: url.searchParams.get('t'), payloadText, image }, deps);
-    // Screenshots nobody needs any more, after a request from a real token.
-    // Never decides what Dink is told: a failure here is only logged.
+    // Screenshots nobody needs any more, after a request whose token the
+    // database accepted, so a made-up token sets nothing off. Never decides
+    // what Dink is told: a failure here is only logged.
     let cleaned: number | undefined;
-    if (result.status === 200) {
+    if (result.tokenChecked) {
       try {
         cleaned = (await removeLeftovers(deps)) || undefined;
       } catch (e) {
