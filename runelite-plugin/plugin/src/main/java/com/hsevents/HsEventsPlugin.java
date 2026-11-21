@@ -14,9 +14,9 @@ import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.plugins.loottracker.LootReceived;
 
 /**
- * FIRST SKELETON. Not compiled yet: RuneLite's repository could not be reached
- * from where this was written, so every RuneLite name below is from the API
- * documentation (November 2026) and must be checked on the first real build.
+ * FIRST SKELETON. Compiles against RuneLite 1.13.7 with no warnings
+ * (gradle build, 2026-11-21), so every RuneLite name below exists. It has
+ * never been loaded in a client.
  *
  * What it does today: on loot, asks the watch list for a verdict and logs it.
  * It sends nothing anywhere. The watch list stays empty until the server's

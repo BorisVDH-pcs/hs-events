@@ -24,8 +24,8 @@ become migrations when they are moved there on purpose.
 | `server/test/png.mjs`, `fixtures/` | A PNG writer and reader for the tests only, and one small PNG written by Java's ImageIO | |
 | `server/local/` | A local Supabase stack: `config.toml`, and `prepare.mjs`, which copies the migrations, the two drafts and the intake function into it | Works with Supabase CLI 2.122.0 and Docker |
 | `server/test/stack.test.mjs` | 56 checks against that stack, the Edge Function included, run by `npm run test:stack` | All pass |
-| `plugin/.../core/` | `DropKey` and `WatchList`: the matching rule in plain Java | Tested, 16 checks |
-| `plugin/.../HsEvents*.java`, build files | The RuneLite plugin skeleton | **Never compiled** |
+| `plugin/.../core/` | `DropKey` and `WatchList`: the matching rule in plain Java | Tested, 16 checks, also run by `gradle test` |
+| `plugin/.../HsEvents*.java`, build files | The RuneLite plugin skeleton, built the template's way | Builds against RuneLite 1.13.7; **never loaded in a client** |
 
 ## What the tests prove
 
@@ -193,7 +193,40 @@ with no sign-in.
   case uses about a sixth of the 2 seconds. The log line's `ms` will show it.
 - **A JPEG over 3 MB** is still ignored. Dink only makes a JPEG for a
   screenshot over 8 MB, so this needs a screen bigger than 4K.
-- **The RuneLite classes**, which have never been compiled.
+- **The plugin in a client.** It builds, but it has never been loaded in
+  RuneLite, and it does nothing visible yet: its watch list is still empty.
+
+## The RuneLite build
+
+`plugin/` now has the shape of RuneLite's plugin template
+(`runelite/example-plugin` at commit `46e14f2`, 2026-10-01), which the Plugin
+Hub asks for: the same `build.gradle` with only the names changed, a
+`settings.gradle`, the Gradle 8.10 wrapper with the template's checksum, the
+`run` and `shadowJar` tasks, and a test class that starts RuneLite with the
+plugin loaded. `runelite-plugin.properties` gained the template's `build` and
+`version` lines.
+
+Built 2026-11-21 with JDK 17 and Gradle 8.10: `latest.release` is RuneLite
+1.13.7. Everything compiles. With every compiler warning turned on there is
+one, the same one the template's own test class gives. Nothing needed fixing.
+`gradle test` runs the 16 core checks through JUnit.
+
+The template's notes list the Plugin Hub's rules. Four touch this plugin and
+are not decided here:
+
+- **The warning text.** A setting that talks to a third-party server must be
+  off by default, which "Hand in matching drops" is, and carry one exact
+  warning: "This feature submits your IP address to a 3rd-party server not
+  controlled or verified by RuneLite developers". Ours is longer and says
+  more.
+- **Event pop-ups are on by default.** If they come from the site, they talk
+  to a third-party server too, and must be off by default.
+- **"No plugins that use player-provided IDs for their entire
+  functionality."** The plugin does nothing without a token from the site.
+  Whether the reviewers read a token as such an ID is worth asking them.
+- **Where it lives.** The Hub builds a plugin from a repository and a commit,
+  with `build.gradle` at the top, under a permissive licence such as BSD-2.
+  This one sits in `runelite-plugin/plugin/` of the site's repository.
 
 ## Found along the way
 
@@ -250,7 +283,12 @@ the test. The test reads the stack's own development keys from
 `supabase status` while it runs; they are never printed or saved.
 
     cd runelite-plugin/plugin
-    javac -d out src/main/java/com/hsevents/core/*.java src/test/java/com/hsevents/core/*.java
+    gradle build            (JDK 11 or later; or ./gradlew build)
+    gradle run              (starts RuneLite with the plugin, to try in game)
+
+or, with nothing but a JDK:
+
+    javac -d out src/main/java/com/hsevents/core/*.java src/test/java/com/hsevents/core/CoreSelfTest.java
     java -cp out com.hsevents.core.CoreSelfTest
 
 ## Next
@@ -259,4 +297,5 @@ the test. The test reads the stack's own development keys from
    was not written by a test.
 2. The My Account screen for tokens, and `source` in the review screen. These
    are the first changes to the website itself.
-4. Build the RuneLite plugin once on a machine that can reach RuneLite.
+3. Load the plugin in RuneLite once (`gradle run`) to see it start and show
+   its settings; then the four Plugin Hub points above.

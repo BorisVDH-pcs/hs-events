@@ -5,7 +5,7 @@ import java.util.Objects;
 /**
  * Plain-Java self-test, no test library, so it runs with nothing but a JDK:
  *
- *   javac -d out src/main/java/com/hsevents/core/*.java src/test/java/com/hsevents/core/*.java
+ *   javac -d out src/main/java/com/hsevents/core/*.java src/test/java/com/hsevents/core/CoreSelfTest.java
  *   java -cp out com.hsevents.core.CoreSelfTest
  *
  * The drop_key cases are the same ones as server/test/tokens.test.mjs.
@@ -35,6 +35,14 @@ public final class CoreSelfTest
 
 	public static void main(String[] args)
 	{
+		System.exit(run() == 0 ? 0 : 1);
+	}
+
+	/** Runs every check, prints each, and returns how many failed. CoreTest runs it under JUnit. */
+	public static int run()
+	{
+		pass = 0;
+		fail = 0;
 		key("Dharok's helm", "dharoks helm");
 		key("Dharok\u2019s  Helm ", "dharoks helm");
 		key("dharoks helm", "dharoks helm");
@@ -62,6 +70,6 @@ public final class CoreSelfTest
 		ok("an empty list matches nothing", new WatchList().verdict("Dharok's helm") == WatchList.Verdict.NONE);
 
 		System.out.println("\n" + pass + " passed, " + fail + " failed");
-		System.exit(fail == 0 ? 0 : 1);
+		return fail;
 	}
 }
