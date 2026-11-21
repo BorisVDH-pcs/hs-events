@@ -16,6 +16,14 @@ through the site's own `bingo_open_tile` and `add_evidence`. Tested offline
 and on a local stack; see the README's "Bingo". The switch per game below is
 not built: it waits on decision 6.
 
+**Done 2026-11-21: Dink's report beside the picture.** A Dink screenshot does
+not always show the drop. Every tile's panel, a team's own as well as an
+organiser's, now shows what Dink reported beside it ("Bones ×1 from Woman",
+the time it arrived, the world), through a new `evidence_sources` that answers
+only for the caller's own team or a game they run. Players are not asked to
+change any setting (decision 12). See the README's "Dink's report beside the
+picture".
+
 First drafts of the server side, with their tests, are in `runelite-plugin/`;
 its README says what is tested and what is not. The drafts are ahead of the
 SQL sketches below where the two differ.
@@ -566,6 +574,12 @@ modes, one at a time.
     A collection log or clue notification often repeats a drop already sent
     as loot, so reading it could count one drop twice. Any other evidence is
     handed in on the site.
+12. **A Dink screenshot that does not show the drop.** **Decided,
+    2026-11-21:** players are not asked to change game or RuneLite settings;
+    Dink's report is shown beside every Dink picture instead. Still open: what
+    an organiser does when the picture does not show the drop: (a) accept it
+    on Dink's report, (b) accept it, except that valuable tiles need the drop
+    in the picture, or (c) always need it in the picture. Proposed: (b).
 
 ---
 

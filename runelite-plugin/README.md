@@ -11,15 +11,17 @@ removed the same day; it is in the branch's history at commit `dcceb68` if it
 is ever wanted again. The folder keeps its name until the drafts and the
 function move into `supabase/` on merge.
 
-Three changes to the website itself were made with Boris's go-ahead on
+Four changes to the website itself were made with Boris's go-ahead on
 2026-11-21: the **Plugin tokens** section of My Account (see "The token
 screen" below), **"Sent by plugin"** in the organiser's evidence review
-(see "The review screen's label"), and a **check on drop names** with
+(see "The review screen's label"), a **check on drop names** with
 ready-made lists of drops in the tile editor (see "The tile editor's name
-check"). All three are on this branch only. The first two hide themselves on
-a database without the drafts, so the live site would show nothing new even
-if they were merged before the drafts are applied. The name check needs no
-database and would show at once; it only warns.
+check"), and **Dink's report beside every Dink screenshot** in a tile's
+panel, the team's own included (see "Dink's report beside the picture"). All
+four are on this branch only. The token screen, the label and the report
+hide themselves on a database without the drafts, so the live site would show
+nothing new even if they were merged before the drafts are applied. The name
+check needs no database and would show at once; it only warns.
 
 Uploading evidence on the site is unchanged and stays the normal way in. Dink
 is an extra way to hand in a drop, for players who run it.
@@ -33,21 +35,22 @@ become migrations when they are moved there on purpose.
 | Path | What | State |
 |---|---|---|
 | `server/001_plugin_tokens.sql` | Plugin tokens, `drop_key`, `plugin_as` | Tested offline, and on a local Supabase stack |
-| `server/002_plugin_drops.sql` | Evidence `source` and `detail`, the intake log, `plugin_wanted`, `plugin_match`, `plugin_open`, `plugin_submit` (for Region Bingo and Bingo), and `admin_evidence_sources` for the review screen | Tested offline against the real rules, and on a local Supabase stack |
+| `server/002_plugin_drops.sql` | Evidence `source` and `detail`, the intake log, `plugin_wanted`, `plugin_match`, `plugin_open`, `plugin_submit` (for Region Bingo and Bingo), `admin_evidence_sources` for the review screen, and `evidence_sources` for a tile's panel | Tested offline against the real rules, and on a local Supabase stack |
 | `server/intake/dink.mjs` | Reads a Dink notification; makes the dedupe key | Tested; checked against Dink's source, and read real loot from a real Dink client on 2026-11-21. Pets not yet from a client |
 | `server/intake/handle.mjs` | What happens to one notification: match, open, store, submit | Tested end to end, offline |
 | `server/intake/shrink.mjs` | Makes a screenshot over 3 MB smaller: halves a PNG until it fits. No library, only what the runtime has | Tested offline and in the edge runtime |
 | `server/intake/index.ts` | The Edge Function shell around `handle.mjs` | Tested on the local stack; not deployed anywhere |
 | `server/test/replay.mjs` | Replays all 129 migrations into an in-memory Postgres, with stand-ins for what Supabase provides | Works; the repo's own Region Bingo smoke test passes on it, 76 of 76 |
-| `server/test/*.test.mjs` | Five test files, 239 checks, run by `npm test` | All pass |
+| `server/test/*.test.mjs` | Five test files, 249 checks, run by `npm test` | All pass |
 | `server/test/png.mjs`, `fixtures/` | A PNG writer and reader for the tests only, and one small PNG written by Java's ImageIO | |
 | `server/local/` | A local Supabase stack: `config.toml`, and `prepare.mjs`, which copies the migrations, the two drafts and the intake function into it | Works with Supabase CLI 2.122.0 and Docker |
-| `server/test/stack.test.mjs` | 73 checks against that stack, the Edge Function included, run by `npm run test:stack` | All pass |
+| `server/test/stack.test.mjs` | 78 checks against that stack, the Edge Function included, run by `npm run test:stack` | All pass |
 | `web/src/components/PluginTokens.jsx` | The Plugin tokens section of My Account: make a token, see its Dink link once, revoke | Tried in the preview harness, and used by Boris on the local stack to set up a real Dink (2026-11-21). Not on the live project |
 | `web/src/lib/pluginTokens.js` | The Dink link, the name check, "last used" in words | Tested by `web/scripts/plugin-tokens-selftest.mjs`, and used by `stack.test.mjs` |
 | `web/preview-account.html` | A harness for My Account with fixture tokens | |
 | `web/src/components/EvidenceReview.jsx` | The organiser's evidence review: "Sent by plugin" on a row a plugin handed in, with what it reported | Tried in the preview harness, and seen by Boris on the local stack with his own drops (2026-11-21). Not on the live project |
-| `web/src/lib/evidenceSource.js` | The label and the lines under it, from `source` and `detail` | Tested by `web/scripts/evidence-source-selftest.mjs`, and used by `stack.test.mjs` |
+| `web/src/components/EvidencePanel.jsx` | Every tile's panel, a team's and an organiser's: Dink's report beside each Dink screenshot ("Bones ×1 from Woman", the time, the world) | Tried in the preview harness at desktop and phone width; its call tested through PostgREST on the local stack, and Boris's own Bones row read through it. Not yet opened by Boris on the local site. Not on the live project |
+| `web/src/lib/evidenceSource.js` | The label, the drop line and the lines under it, from `source` and `detail` | Tested by `web/scripts/evidence-source-selftest.mjs`, and used by `stack.test.mjs` |
 | `web/src/components/TileForm.jsx` | The tile editor: "Not in the item list" under a drop, with names to click, and "Add a list…" | Tried in the admin harness (`/preview-admin.html`), at desktop and phone width. Not on the live project, not used by Boris yet |
 | `web/src/lib/itemNames.js`, `itemNames.data.js` | `dropKey` (the server's `drop_key` in JS), the check, and 4,820 item names | Tested by `web/scripts/item-names-selftest.mjs`; `tokens.test.mjs` checks `dropKey` against `drop_key` on every name |
 | `web/scripts/build-item-names.mjs` | Makes `itemNames.data.js` from the OSRS Wiki's price list and a typed list of untradeables | Run once, 2026-11-21 |
@@ -114,6 +117,13 @@ Against a replay of every migration, so `tiles_for_team`, `regions_open_tile`,
   lists. A moderator of another mode, and a player on either team, get "Not
   your game", the evidence list's own words, and so does a game that does not
   exist. Only a signed-in caller may ask: not anon, not the service role.
+- **A tile's panel is told what Dink reported for the caller's own team's
+  drops, and nothing else.** `evidence_sources` is asked by evidence id. A
+  player gets the plugin's rows of their own team; an organiser gets both
+  teams'. Red asking for Blue's drop on the tile in Asgarnia, a region Red has
+  not opened, gets nothing, the same answer, with no error, as for evidence
+  that does not exist; an upload from the site and someone on no team get
+  nothing too. Not anon, not the service role.
 
 ## Screenshots over 3 MB
 
@@ -160,7 +170,7 @@ keeps it under 3 MB.
 `stack.test.mjs` runs against the Supabase CLI's own local stack, which is the
 same software a hosted project runs: Postgres 17.11, PostgREST 16.5, Storage
 1.84.19, Auth 2.197.0, edge runtime 1.77.8 (Deno 2). It is not the live
-project and never touches it. Tested 2026-11-21, 73 of 73.
+project and never touches it. Tested 2026-11-21, 78 of 78.
 
 - **The migrations apply on real Supabase.** All 129, then the two drafts, by
   the CLI itself, with no errors.
@@ -208,10 +218,15 @@ project and never touches it. Tested 2026-11-21, 73 of 73.
   organiser's sign-in, `admin_evidence_sources` names every row a plugin
   sent in this run and nothing else. Laid onto `admin_list_evidence` by the
   site's own `withSources`, the chainbody reads "Sent by plugin", "Dragon
-  chainbody from Chaos Elemental", "as Mate Iron · world 302" and "Picture
+  chainbody ×1 from Chaos Elemental", "World 302 · as Mate Iron" and "Picture
   made smaller from 3840×2400", and the site's own upload has no label. A
   player is refused with "Not your game" and learns nothing; anon and the
   service role cannot call it.
+- **What a tile's panel asks for works.** Through PostgREST with each
+  player's sign-in, `evidence_sources`, asked for every row in the game, names
+  exactly the rows a plugin sent for that player's own team. Laid onto the
+  player's own `my_evidence` the chainbody reads as it does on the review
+  screen. Blue learns nothing of Red's; anon and the service role cannot ask.
 
 The Edge Function, called the way Dink calls it: a multipart request built as
 Dink's HTTP library writes it, `payload_json` with no content type and a
@@ -271,8 +286,12 @@ with no sign-in. Every request goes to a link made by the site's own
   case uses about a sixth of the 2 seconds. The log line's `ms` will show it.
 - **A JPEG over 3 MB** is still ignored. Dink only makes a JPEG for a
   screenshot over 8 MB, so this needs a screen bigger than 4K.
-- **The live project.** The token screen and the review screen's label have
-  run against the local stack only.
+- **The live project.** The token screen, the review screen's label and
+  Dink's report in a tile's panel have run against the local stack only.
+- **The panel in a signed-in browser.** Its call is tested through PostgREST,
+  the harness draws it, and Boris's own Bones row reads "Bones ×1 from Woman",
+  16:57:22, "World 308 · as Soft Papi" when asked as his account. Nobody has
+  yet opened that tile on the local site to see it there.
 - **Raid loot from a real Dink.** Dink sends a raid chest as loot with the
   category "EVENT" (its own docs show one for Tombs of Amascut), and the
   intake does not look at the category, so it should be matched like a cow's
@@ -441,10 +460,12 @@ in draft 002 stamps it `web`, and the screen shows it exactly as before.
 - **"Sent by plugin", never "verified".** A grey, dashed pill beside the gold
   one that names the drop it was filed as. Its tooltip says the plugin runs on
   the player's own computer, so the picture is checked as any upload is.
-- **Under it, what the plugin reported**: the item and what dropped it ("Pet:"
-  for a pet), the in-game name and world, and "Picture made smaller from
-  3840×2400" when the intake shrank it. These are the client's words, shown as
-  text, cut at 60 characters, and only when they have the right shape.
+- **Under it, what the plugin reported**: first, in bold, the drop, how many
+  and what dropped it ("Bones ×1 from Woman"; "Pet:" for a pet), then the
+  world and the in-game name ("World 308 · as Soft Papi"), and "Picture made
+  smaller from 3840×2400" when the intake shrank it. These are the client's
+  words, shown as text, cut at 60 characters, and only when they have the
+  right shape.
 - **Its own function, not two more columns on `admin_list_evidence`.**
   Changing what that returns means dropping and re-creating it, and its live
   body has been rewritten in place since, so a copy in the draft could drift
@@ -454,6 +475,36 @@ in draft 002 stamps it `web`, and the screen shows it exactly as before.
   answers `PGRST202` and no row has a label. **If the call fails** any other
   way, the rows still load and a line says the screen cannot tell which
   evidence a plugin sent, rather than pass plugin evidence off as uploads.
+
+## Dink's report beside the picture
+
+Asked for by Boris on 2026-11-21. A Woman's Bones were handed in on a
+screenshot that showed neither the Bones nor a chat line: the camera was
+zoomed out, RuneLite hides Bones on the ground by default, and the game only
+prints a drop in the chat when its loot notification is on. Boris decided not
+to ask players to change any game or RuneLite setting. Instead the site shows
+what Dink reported beside every Dink screenshot, for the team as well as the
+organiser.
+
+- **Where:** every tile's panel (`EvidencePanel`), on a team's own board and
+  an organiser's, in every mode; and the review screen, as above.
+- **What:** the "Sent by plugin" pill, then in bold the drop, how many and
+  from what ("Bones ×1 from Woman"), the player and the time it arrived, and
+  the world and in-game name ("World 308 · as Soft Papi"). An upload from the
+  site looks exactly as before.
+- **The time** is the evidence row's own: our server's clock when Dink's
+  message arrived, a few seconds after the kill, not the player's.
+- **Asked for the open tile only**, by evidence id, through
+  `evidence_sources` in draft 002. It answers for the caller's own team's
+  evidence, or a game they run, and gives the same empty answer for anything
+  else, so the second secret holds (see "What the tests prove").
+- **Still what the player's client said.** The line tells anyone looking what
+  the picture is for; it is not proof, and the label still says "Sent by
+  plugin", never "verified". What an organiser does with a Dink picture that
+  does not show the drop is Boris's call (see "Next").
+- **A database without the function** (the live project today): the panel is
+  what it was. **If the call fails** any other way, the pictures still show
+  and a line says the panel cannot tell which screenshots a plugin sent.
 
 ## The tile editor's name check
 
@@ -641,8 +692,9 @@ The token screen, with fixture data and no database:
     cd web && npm run preview:evidence      then open /preview-account.html
     cd web && npm run test:plugin-tokens
 
-The review screen's label, the same way (rows 4 and 5 came in through Dink; a
-switch shows the live project's case and a failed call):
+The review screen's label and a tile's panel, the same way (rows 4 and 5 and
+the panel's first picture came in through Dink; a switch shows the live
+project's case and a failed call):
 
     cd web && npm run preview:evidence      then open /preview-evidence.html
     cd web && npm run test:evidence-source
@@ -681,3 +733,9 @@ a square, Edit, and type a drop.
    per game (plan, section 10, item 6).
 7. Snakes & Ladders next. And whether to go through the tile catalogue so its
    drop tiles list real items (see "The tile editor's name check").
+8. **Done 2026-11-21:** Dink's report beside every Dink screenshot (see
+   "Dink's report beside the picture"). **Decided** the same day: players are
+   not asked to change game or RuneLite settings. Still open: what an
+   organiser does when a Dink picture does not show the drop: (a) accept it on
+   Dink's report, (b) accept it, except that valuable tiles need the drop in
+   the picture, or (c) always need it in the picture. Proposed: (b).
