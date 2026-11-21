@@ -774,8 +774,30 @@ export const adminSetStartTime = (gameId, startsAt) =>
 export const adminSetFeaturedGame = (gameId) =>
   rpc('admin_set_featured_game', { p_game_id: gameId });
 
-export const adminListTiles = (gameId) =>
-  rpc('admin_list_tiles', { p_game_id: gameId });
+export const adminListTiles = async (gameId) =>
+  withDropFrom(await rpc('admin_list_tiles', { p_game_id: gameId }), 'id',
+    () => rpc('admin_tiles_drop_from', { p_game_id: gameId }), 'tile_id');
+
+/**
+ * "Only from" on each row (20261121160000_only_from.sql; Boris, 2026-11-21):
+ * the monsters a drop sent by Dink must come from, [] for any monster. Read
+ * beside the list rather than in it, so admin_list_tiles and
+ * admin_list_library stay as they are.
+ *
+ * Fails soft. A database without the migration has no reader, and its rows
+ * then come back without `drop_from`: the form shows no "Only from", and the
+ * saves below go to the old functions, exactly as before.
+ */
+async function withDropFrom(rows, idKey, read, readKey) {
+  if (!Array.isArray(rows) || rows.length === 0) return rows;
+  let lists;
+  try {
+    lists = new Map(((await read()) ?? []).map((r) => [r[readKey], r.drop_from ?? []]));
+  } catch {
+    return rows;
+  }
+  return rows.map((row) => ({ ...row, drop_from: lists.get(row[idKey]) ?? [] }));
+}
 
 export const adminListShipCells = (gameId) =>
   rpc('admin_list_ship_cells', { p_game_id: gameId });
@@ -879,15 +901,21 @@ export const adminRefuseTileSubmission = (id, reason) =>
  * Every catalogued tile, most-used first. The rows come back in the same shape
  * `admin_list_tiles` returns a board in, so one renderer serves both.
  */
-export const adminListLibrary = () => rpc('admin_list_library');
+export const adminListLibrary = async () =>
+  withDropFrom(await rpc('admin_list_library'), 'id',
+    () => rpc('admin_library_drop_from'), 'library_id');
 
 /**
  * Insert (`id` null) or update one catalogue entry. `tile` is the shape the
  * board builder's form emits — name, icon, amount, rule, perSet, description,
- * options[]. Returns the entry's id.
+ * options[], and `dropFrom` when the form has an "Only from". Returns the
+ * entry's id. With `dropFrom`, the save goes through
+ * admin_save_library_tile_with_from, which calls the old save and then stores
+ * the list; without it, a list already stored is left alone.
  */
 export const adminSaveLibraryTile = (id, tile) =>
-  rpc('admin_save_library_tile', { p_id: id ?? null, p_tile: tile });
+  rpc('dropFrom' in (tile ?? {}) ? 'admin_save_library_tile_with_from' : 'admin_save_library_tile',
+    { p_id: id ?? null, p_tile: tile });
 
 export const adminDeleteLibraryTile = (id) =>
   rpc('admin_delete_library_tile', { p_id: id });
@@ -895,9 +923,12 @@ export const adminDeleteLibraryTile = (id) =>
 /**
  * Fill one square. Same payload shape as `adminSaveLibraryTile`, plus
  * `libraryId` when it came from the catalogue. Overwrites whatever was there.
+ * `dropFrom` goes the same way as there, through admin_set_tile_with_from. A
+ * square filled from the catalogue without it takes the entry's list.
  */
 export const adminSetTile = (gameId, row, col, tile) =>
-  rpc('admin_set_tile', { p_game_id: gameId, p_row: row, p_col: col, p_tile: tile });
+  rpc('dropFrom' in (tile ?? {}) ? 'admin_set_tile_with_from' : 'admin_set_tile',
+    { p_game_id: gameId, p_row: row, p_col: col, p_tile: tile });
 
 export const adminClearTile = (gameId, row, col) =>
   rpc('admin_clear_tile', { p_game_id: gameId, p_row: row, p_col: col });

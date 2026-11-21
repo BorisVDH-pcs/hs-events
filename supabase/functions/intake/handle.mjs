@@ -68,7 +68,7 @@ export async function handleDink({ token, payloadText, image }, deps) {
   let match;
   try {
     match = await deps.rpc('plugin_match', {
-      p_token: token, p_rsn: drop.rsn, p_items: drop.items.map(({ name }) => ({ name })),
+      p_token: token, p_rsn: drop.rsn, p_items: drop.items.map(({ name }) => ({ name, from: drop.from })),
     });
   } catch (e) {
     if (/Unknown or revoked plugin token/.test(e.message)) return { status: 401, outcome: 'bad_token' };

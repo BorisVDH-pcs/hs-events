@@ -444,8 +444,9 @@ ok('the site may call the three waiting_drop functions; anon and the intake may 
    J(await can('waiting_drops(uuid)')) === J(['authenticated'])
    && J(await can('waiting_drop_open(uuid, uuid, uuid)')) === J(['authenticated'])
    && J(await can('waiting_drop_choose(uuid, uuid, uuid, text)')) === J(['authenticated']));
+// plugin_wait_choices takes the monster as well since only_from.sql.
 ok('the three internal ones: nobody',
-   (await can('plugin_wait_choices(text)')).length === 0 && (await can('waiting_drop_check(uuid, uuid, uuid)')).length === 0
+   (await can('plugin_wait_choices(text, text)')).length === 0 && (await can('waiting_drop_check(uuid, uuid, uuid)')).length === 0
    && (await can('plugin_leftovers()')).length === 0);
 ok('the cleanup: the intake only',
    J(await can('plugin_leftover_files(integer)')) === J(['service_role'])

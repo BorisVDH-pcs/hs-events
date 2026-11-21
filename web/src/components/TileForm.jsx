@@ -34,7 +34,7 @@ function useItemNames() {
 export default function TileForm({
   draft, onChange, at = 'This tile',
   busy = false, saveLabel = 'Save', onSave, onCancel, extraActions = null,
-  extraErrors = [], extraFields = null,
+  extraErrors = [], extraFields = null, showDropFrom = false,
 }) {
   const set = (patch) => onChange({ ...draft, ...patch });
   // `extraErrors` is for what only the caller can know — a catalogue name
@@ -385,6 +385,31 @@ export default function TileForm({
           </>
         )}
       </div>
+
+      {/* "Only from" (Boris, 2026-11-21): for organisers only, so the caller
+          asks for it. A player suggesting a tile never sees it, and a team
+          never reads it: say it in the name or the explanation as well. */}
+      {showDropFrom && (
+        <>
+          <label className="field">
+            <span>Only from <em className="muted">optional, drops sent by Dink</em></span>
+            <input
+              value={draft.dropFrom ?? ''}
+              onChange={(e) => set({ dropFrom: e.target.value })}
+              placeholder="Any monster or boss"
+              maxLength={1700}
+            />
+          </label>
+          <p className="muted tile-form-hint">
+            Monsters or bosses, separated by commas, e.g. <b>Kalphite Queen</b>. A drop
+            sent by Dink then counts only if it came from one of them. Empty: from any
+            monster. A name covers what starts with it, so <b>Tombs of Amascut</b> covers
+            every mode. A pet always counts (Dink does not say where it came from), and
+            an upload on the site is not checked. Players do not see this list, so name
+            the monster in the tile too.
+          </p>
+        </>
+      )}
 
       {/* What only the caller asks for — a player's note to the organisers on a
           suggestion, say. Above the errors and the save, so it reads as part

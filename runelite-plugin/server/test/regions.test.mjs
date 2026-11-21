@@ -77,6 +77,47 @@ ok("the game's non-breaking space in a name is a space",
 m = await match('mate', 'Blue Main', ['Abyssal whip']);
 ok("somebody else's in-game name is not accepted", m.account_ok === false && m.items.length === 0, J(m));
 
+// ------------------------------------------ "Only from" keeps the secret too
+// A tile's "Only from" list is part of the tile. A drop from the monster on a
+// locked tile's list must get the answer a drop for no tile gets, and a drop
+// from a monster an open tile's list leaves out the answer junk gets.
+const matchFrom = async (key, rsn, items) =>
+  (await plugin('select plugin_match($1, $2, $3::jsonb) j', [tok[key], rsn, J(items)])).j;
+const setFrom = (tile, list) => db.query('update tiles set drop_from = $2 where id = $1', [tile, list]);
+await setFrom(T.locked, ['Kalphite Queen']);
+await setFrom(T.whip, ['Abyssal demon']);
+m = await matchFrom('mate', 'Mate Iron', [
+  { name: 'Dragon pickaxe', from: 'Kalphite Queen' },
+  { name: 'Not an item', from: 'Kalphite Queen' },
+  { name: 'Abyssal whip', from: 'Cow' },
+  { name: 'Bones', from: 'Cow' },
+  { name: 'Abyssal whip', from: 'Abyssal demon' },
+]);
+ok("Only from: a locked tile's own monster: none. Another monster on an open tile: none. Its own: one",
+   verdicts(m) === 'none,none,none,none,one', J(m).slice(0, 300));
+ok("a drop from the monster on a locked tile's list gets the answer no tile gets",
+   J({ ...m.items[0], name: 0 }) === J({ ...m.items[1], name: 0 }), J(m.items.slice(0, 2)));
+ok("a drop from a monster an open tile's list leaves out gets the answer junk gets",
+   J({ ...m.items[2], name: 0 }) === J({ ...m.items[3], name: 0 }), J(m.items.slice(2, 4)));
+ok("no monster's name is in what a drop is matched against",
+   !/Kalphite|Abyssal demon/.test(J(await wanted('mate'))) && !/Kalphite/.test(J(await wanted('blue'))));
+m = await matchFrom('blue', 'Blue Main', [
+  { name: 'Dragon pickaxe', from: 'Kalphite Queen' },
+  { name: 'Dragon pickaxe', from: 'Callisto' },
+]);
+ok('for the team that opened it, the list works: Kalphite Queen one, Callisto none',
+   verdicts(m) === 'one,none', J(m).slice(0, 300));
+const fromLocked = await trying(plugin, 'select plugin_submit($1,$2,$3,$4,$5,$6,null,$7::jsonb)',
+  [tok.mate, 'Mate Iron', T.locked, opt['Dragon pickaxe'], 'Dragon pickaxe',
+   `${g}/${team.Red}/x/kq.jpg`, J({ dedupe: 'only-from-1', from: 'Kalphite Queen' })]);
+const fromNoSuch = await trying(plugin, 'select plugin_submit($1,$2,$3,$4,$5,$6,null,$7::jsonb)',
+  [tok.mate, 'Mate Iron', '00000000-0000-0000-0000-000000000001', opt['Dragon pickaxe'], 'Dragon pickaxe',
+   `${g}/${team.Red}/x/kq.jpg`, J({ dedupe: 'only-from-2', from: 'Kalphite Queen' })]);
+ok("handing in a locked tile from its own monster is refused, in the words a tile that does not exist gets",
+   /does not count for an open tile/.test(fromLocked ?? '') && fromLocked === fromNoSuch, J([fromLocked, fromNoSuch]));
+await setFrom(T.locked, null);
+await setFrom(T.whip, null);
+
 // ------------------------------------------------------------ handing in
 const open = (key, rsn, tileId, optionId, item) =>
   plugin('select plugin_open($1, $2, $3, $4, $5) j', [tok[key], rsn, tileId, optionId, item]);

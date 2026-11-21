@@ -43,27 +43,29 @@ applies them on merge.
 |---|---|---|
 | `supabase/migrations/20261121120000_plugin_tokens.sql` | Plugin tokens, `drop_key`, `plugin_as` | Tested offline, and on a local Supabase stack |
 | `supabase/migrations/20261121120100_plugin_drops.sql` | Evidence `source` and `detail`, the intake log, `plugin_wanted`, `plugin_match`, `plugin_open`, `plugin_submit` (for Region Bingo and Bingo), `admin_evidence_sources` for the review screen, `evidence_sources` for a tile's panel, a drop two tiles want, kept for the team to choose (`plugin_wait_open`, `plugin_wait`, `waiting_drops`, `waiting_drop_open`, `waiting_drop_choose`), removing the screenshots nobody needs (`plugin_leftover_files`, `plugin_leftovers_removed`), and Dink on or off per game (`games.plugin_drops`, `admin_set_plugin_drops`) | Tested offline against the real rules, and on a local Supabase stack |
+| `supabase/migrations/20261121160000_only_from.sql` | "Only from" (Boris, 2026-11-21): `drop_from` on tiles and catalogue entries, a trigger that gives a square its entry's list, `admin_set_tile_with_from` and `admin_save_library_tile_with_from` around the existing saves, two readers for the organiser, and the check in `plugin_match`, `plugin_wait_choices` and `plugin_submit`. No existing function rewritten | Tested offline against the real rules, and on a local Supabase stack. Not live |
 | `supabase/functions/intake/dink.mjs` | Reads a Dink notification; makes the dedupe key | Tested; checked against Dink's source, and read real loot from a real Dink client on 2026-11-21. Pets not yet from a client |
 | `supabase/functions/intake/handle.mjs` | What happens to one notification: match, open, store, submit, or keep it for the team to choose; and removing the screenshots nobody needs | Tested end to end, offline |
 | `supabase/functions/intake/shrink.mjs` | Makes a screenshot over 3 MB smaller: halves a PNG until it fits. No library, only what the runtime has | Tested offline and in the edge runtime |
-| `supabase/functions/intake/index.ts` | The Edge Function shell around `handle.mjs`; cleans up after each request whose token the database accepted | Tested on the local stack. Deployed to the live project on 2026-11-21 (pull request #83); not yet called there by a real Dink |
+| `supabase/functions/intake/index.ts` | The Edge Function shell around `handle.mjs`; cleans up after each request whose token the database accepted | Tested on the local stack. Deployed to the live project on 2026-11-21 (pull request #83), and called there by Boris's real Dink the same evening (see "On the live site") |
 | `.github/workflows/functions-deploy.yml` | Deploys `intake` when `supabase/functions` changes on `main`, with the secrets `db-push.yml` has | Ran on the merge of pull request #83 (2026-11-21): refused at first, since the deploy token could only read, then deployed `intake` once Boris gave it Edge Functions read-write |
-| `server/test/replay.mjs` | Replays all 132 migrations into an in-memory Postgres, with stand-ins for what Supabase provides | Works; the repo's own Region Bingo smoke test passes on it, 76 of 76 |
-| `server/test/*.test.mjs` | Eight test files, 383 checks, run by `npm test` | All pass |
+| `server/test/replay.mjs` | Replays all 133 migrations into an in-memory Postgres, with stand-ins for what Supabase provides | Works; the repo's own Region Bingo smoke test passes on it, 76 of 76 |
+| `server/test/*.test.mjs` | Nine test files, 446 checks, run by `npm test` | All pass |
 | `server/test/png.mjs`, `fixtures/` | A PNG writer and reader for the tests only, and one small PNG written by Java's ImageIO | |
 | `server/local/` | A local Supabase stack: `config.toml`, and `prepare.mjs`, which copies the migrations and the intake function into it | Works with Supabase CLI 2.122.0 and Docker |
-| `server/test/stack.test.mjs` | 134 checks against that stack, the Edge Function included, run by `npm run test:stack` | All pass |
+| `server/test/stack.test.mjs` | 142 checks against that stack, the Edge Function included, run by `npm run test:stack` | All pass |
 | `server/test/load.mjs` | A load test of the intake on that stack: 1,830 requests shaped like Dink's, with heavy screenshots, at 60, 300 and 1,000 a minute and 200 at once, sent again as Dink does. Run by `npm run load:stack`, about 6 minutes | Run on 2026-11-21: nothing lost, nothing counted twice (see "Many drops at once") |
-| `web/src/components/PluginTokens.jsx` | The Plugin tokens section of My Account: make a token, see its Dink link once, revoke | Tried in the preview harness, and used by Boris on the local stack to set up a real Dink (2026-11-21). On the live site since 2026-11-21 (pull request #83); not used there yet |
+| `web/src/components/PluginTokens.jsx` | The Plugin tokens section of My Account: make a token, see its Dink link once, revoke | Tried in the preview harness, and used by Boris on the local stack to set up a real Dink (2026-11-21). On the live site since 2026-11-21 (pull request #83), where Boris made the token his real Dink used (see "On the live site") |
 | `web/src/lib/pluginTokens.js` | The Dink link, the name check, "last used" in words | Tested by `web/scripts/plugin-tokens-selftest.mjs`, and used by `stack.test.mjs` |
 | `web/preview-account.html` | A harness for My Account with fixture tokens | |
-| `web/src/components/EvidenceReview.jsx` | The organiser's evidence review: "Sent by plugin" on a row a plugin handed in, with what it reported | Tried in the preview harness, and seen by Boris on the local stack with his own drops (2026-11-21). On the live site since 2026-11-21 (pull request #83); not used there yet |
+| `web/src/components/EvidenceReview.jsx` | The organiser's evidence review: "Sent by plugin" on a row a plugin handed in, with what it reported | Tried in the preview harness, and seen by Boris on the local stack with his own drops (2026-11-21). On the live site since 2026-11-21 (pull request #83); read there for Boris's five live drops, each "Sent by plugin" with Dink's report (see "On the live site") |
 | `web/src/components/EvidencePanel.jsx` | Every tile's panel, a team's and an organiser's: Dink's report beside each Dink screenshot ("Bones ×1 from Woman", the time, the world) | Tried in the preview harness at desktop and phone width; its call tested through PostgREST on the local stack, and Boris's own Bones row read through it. Not yet opened by Boris on the local site. On the live site since 2026-11-21 (pull request #83); not used there yet |
 | `web/src/lib/evidenceSource.js` | The label, the drop line and the lines under it, from `source` and `detail` | Tested by `web/scripts/evidence-source-selftest.mjs`, and used by `stack.test.mjs` |
 | `web/src/components/WaitingDrops.jsx` | The box above a team's board: a drop two tiles want, its screenshot and Dink's report, and a button for each tile | Tried in the preview harness at desktop and phone width; the calls behind it tested through PostgREST and Storage on the local stack; used by Boris on the local site for a real Dink cow (2026-11-21). On the live site since 2026-11-21 (pull request #83); not used there yet |
 | `web/src/lib/waitingDrops.js` | The box's helpers: a tile's name with its region, the time left. Where the copy goes is now the database's answer | Tested by `web/scripts/waiting-drops-selftest.mjs` |
-| `web/src/components/Admin.jsx` | "Drops from Dink" on each Region Bingo game that has not finished: the site's own switch, as for Discord | Tried in the admin harness (`/preview-admin.html`) at desktop and phone width; its call tested through PostgREST on the local stack. On the live site since 2026-11-21 (pull request #83): seen there, off, on the hidden test game; not switched yet |
+| `web/src/components/Admin.jsx` | "Drops from Dink" on each Region Bingo game that has not finished: the site's own switch, as for Discord | Tried in the admin harness (`/preview-admin.html`) at desktop and phone width; its call tested through PostgREST on the local stack. On the live site since 2026-11-21 (pull request #83): switched on there by Boris for the hidden test game (see "On the live site") |
 | `web/src/components/TileForm.jsx` | The tile editor: "Not in the item list" under a drop, with names to click, and "Add a list…" | Tried in the admin harness (`/preview-admin.html`), at desktop and phone width. On the live site since 2026-11-21 (pull request #83); not used by Boris yet |
+| `web/src/components/TileForm.jsx`, `BoardBuilder.jsx`, `web/src/lib/tileDraft.js`, `supabase.js` | "Only from" in the organiser's tile form, for board squares and catalogue entries; not in a player's suggestion | Tested by `web/scripts/tile-draft-selftest.mjs`; tried in the admin harness. Not live |
 | `web/src/lib/itemNames.js`, `itemNames.data.js` | `dropKey` (the server's `drop_key` in JS), the check, and 4,820 item names | Tested by `web/scripts/item-names-selftest.mjs`; `tokens.test.mjs` checks `dropKey` against `drop_key` on every name |
 | `web/scripts/build-item-names.mjs` | Makes `itemNames.data.js` from the OSRS Wiki's price list and a typed list of untradeables | Run once, 2026-11-21 |
 | `web/src/lib/dropLists.js` | The ready-made lists: 65 of them, for raids, groups of bosses, every boss in the collection log and pets | Every name is checked against the item list by the selftest, spelled exactly as the item is |
@@ -100,6 +102,9 @@ site works as before, on or off.
 4. On a game switched on, one drop from a real Dink, and the function's log
    in the Supabase dashboard: one line, with the outcome.
 
+**Done 2026-11-21:** checks 1 to 3, and check 4's drop, on the hidden test
+game (see "On the live site"). The function's log has not been looked at yet.
+
 **If something is wrong:** switch the game off in the console. Dink's drops
 then count nowhere, and the site works as before. A player can revoke their
 token in My Account. A revert does not take the migrations back out
@@ -116,7 +121,8 @@ token in My Account. A revert does not take the migrations back out
   local stack did the same. If the live project has turned its older keys
   off, the first request fails in the log, and the key has to be set under
   Edge Functions, Secrets. Until then nothing counts: Dink tries three more
-  times, then gives up.
+  times, then gives up. **It works:** Boris's drops were handed in on
+  2026-11-21 (see "On the live site").
 - **A hosted CPU** for a big screenshot (see "What they do not prove").
 
 ## What the tests prove
@@ -411,8 +417,8 @@ with no sign-in. Every request goes to a link made by the site's own
 
 - **A hosted Supabase project.** The local stack runs the same software, but
   the live project's settings, its Postgres version and its limits were not
-  compared, by design. The Edge Function is deployed there, but no real
-  Dink has called it yet; see "Going live", checks 2 to 4.
+  compared, by design. The Edge Function is deployed there and answered
+  Boris's real Dink on 2026-11-21 (see "On the live site").
 - **A pet from a real Dink.** Loot from a real client has been read (see "A
   real Dink client" below). A pet notification has only been checked against
   Dink's source, and a real screenshot over 3 MB has not come in yet: the
@@ -587,6 +593,42 @@ do not count until the team opens it, count from the first kill after the
 pick, and a drop that completes a region earns the next pick, all by the
 game's own rules. Not tried with the real client: the revoke in step 4 (the
 tests cover it).
+
+### On the live site
+
+"Going live", checks 2 to 4, done by Boris on 2026-11-21 on the hidden test
+game "Dink test (hidden)": his own account (Soft Papi), a token made in My
+Account on the live site, and Dink switched on in the console. Read back
+afterwards in the console's Track pages, as an organiser; nothing was asked
+of the database by hand. Times are Amsterdam time, as the site shows them.
+
+| Time | What happened |
+|---|---|
+| 20:00:02 | The game started |
+| 20:01:01 | The captain picked Misthalin |
+| 20:01:16 | A cow dropped Bones: handed in on Misthalin's "Bones". The tile completed, and with it Misthalin (50%), which earned a pick |
+| 20:01:17 | Cowhide from a cow: handed in on Misthalin's "Cowhide", 1 of 3 |
+| 20:01:32, 20:01:35 | Two more cowhides: 2 of 3, then 3 of 3, and the tile completed. The Bones of those kills counted nowhere: Misthalin's was done, and the other Bones tiles were in regions not open |
+| 20:30:16 | The captain spent the pick on Wilderness |
+| 20:30:40 | A Man dropped Bones: handed in on Wilderness's "Bones", and Wilderness reached 50%, which earned a new pick |
+
+So on the live project: the deployed function works with the key Supabase
+gives it; every row says "Sent by plugin", with Dink's report ("Bones ×1
+from Man", World 308, as Soft Papi); a drop counts at once; a done tile takes
+no more; a region not opened takes nothing; a pick counts from the next kill;
+and a hidden game plays like any other. The team has 3 points.
+
+Two things it showed:
+
+- **A drop counts wherever it dropped.** Wilderness's "Bones" took Bones from
+  a Man. Matching is by name only; that is the open question in Next,
+  item 4.
+- **A tile that needs more than one drop collects them across kills.**
+  Boris set Misthalin's "Cowhide" to need three, to see how it acts: 1 of 3,
+  2 of 3, 3 of 3, and then it was complete and took no more.
+
+Not checked: the function's log in the Supabase dashboard (the rest of check
+4). Not tried on the live site: a pet, a drop two tiles want, a revoke.
 
 ## The token screen
 
@@ -896,6 +938,64 @@ tile suggestions all use.
   can answer what the server would. `tokens.test.mjs` runs both over every
   name in the list and every ready-made drop: they agree on all 5,317.
 
+## Only from
+
+Boris, 2026-11-21, after the live test: a Kalphite Queen "Dragon pickaxe"
+tile must not be completed by a Dragon pickaxe from Callisto. Decided the
+same evening: a list per tile, on catalogue entries too, and an empty list
+means a drop from any monster counts, as before. Built the same evening on
+the branch `claude/only-from`. Not live.
+
+- **What it is.** "Only from" in the organiser's tile form, under the drops:
+  monsters or bosses, separated by commas. A drop sent by Dink counts for the
+  tile only if the monster Dink names is on the list. Every tile starts with
+  an empty list, so nothing changes until an organiser fills one in.
+- **Spelling is forgiven as for drops** (`drop_key`: capitals, apostrophes,
+  spacing). "Vetion" is "Vet'ion".
+- **A name covers what starts with it, in whole words.** "Tombs of Amascut"
+  covers "Tombs of Amascut: Expert Mode", and "Clue Scroll" every casket.
+  "Tombs" alone covers nothing. It also means "Dagannoth" would cover all
+  three Dagannoth Kings; a tile for one of them names it in full.
+- **A pet always counts.** Dink's pet notification does not say where the pet
+  came from, so a list cannot stop one.
+- **Only Dink is checked.** An upload on the site is not; the organiser
+  reviews it as before. `add_evidence` was not touched.
+- **Players do not see the list.** What a team's board shows comes from
+  `tiles_for_team`, and changing that would be rewriting a game rule. So an
+  organiser names the monster in the tile too: "Dragon pickaxe (Kalphite
+  Queen)", or a line in its explanation.
+- **A square has its own list.** Filled from the catalogue, a square takes the
+  entry's list, also by autofill or a saved board. Changing the list on the
+  board leaves the entry alone, and the other way round. A saved board keeps
+  which entry each square came from, not the square's own list: a list
+  changed on the board alone becomes the entry's again when that board is
+  loaded.
+- **Mid-game.** A list can be changed while a game runs, except on a square a
+  team has locked in (`admin_set_tile`'s own rule). A drop already waiting
+  for its team to choose keeps the choices it had when it came.
+- **The second secret holds.** A drop from the right monster for a tile in a
+  region not opened gets the answer a drop for no tile gets; a drop from the
+  wrong monster for an open tile gets the answer junk gets.
+- **How it is built.** One new migration, and no existing function rewritten:
+  a `drop_from` list on tiles and catalogue entries; a trigger that gives a
+  square its entry's list when it is filled from the catalogue; two save
+  functions that call the existing saves and then store the list; two readers
+  for the organiser; and the check in the plugin's own `plugin_match`,
+  `plugin_wait_choices` and `plugin_submit`. The intake sends each item with
+  Dink's `source`. At most 20 names, each up to 80 letters.
+- **Before the migration is there,** the site reads no lists and saves as it
+  always did, so the site and the database can go live in either order.
+
+Tested: `onlyfrom.test.mjs` (54 checks), new checks in `regions.test.mjs`
+(the second secret), `intake.test.mjs` (the items carry the monster) and
+`waiting.test.mjs`; `tile-draft-selftest.mjs` for the form; and on the local
+stack, an organiser setting a list through PostgREST mid-game, then a
+Granite maul from Callisto (nothing) and one from the Kalphite Queen (handed
+in, through the real intake function). The form was tried in the admin
+harness: an entry's list shown, changed and saved, placed on a square, and
+changed on the square alone. Not tried: a real Dink with a list, or the
+form on the local site.
+
 ## Many drops at once
 
 Asked by Boris on 2026-11-21: during an event, tens or hundreds of drops can
@@ -1094,8 +1194,12 @@ The console's "Drops from Dink" switch: open the admin harness, Manage on
 The tile editor's name check: open a game's board in the admin harness, pick
 a square, Edit, and type a drop.
 
+"Only from" is in the same form, under the drops. In the admin harness,
+"KQ head" and "Great Olm unique" in the catalogue have a list.
+
     cd web && npm run preview:evidence      then open /preview-admin.html
     cd web && npm run test:item-names
+    cd web && npm run test:tile-draft
     cd web && npm run items:names           fetches the wiki's price list again
 
 ## Next
@@ -1111,7 +1215,12 @@ a square, Edit, and type a drop.
    added or split.
 4. Boris to say whether a drop should count only from the boss its tile
    names, or from anywhere, as now (see "A drop counts wherever it came
-   from").
+   from"). **Boris, 2026-11-21,** after the live test: he may want it to.
+   A Kalphite Queen "Dragon pickaxe" tile should not be completed by a
+   Dragon pickaxe from Callisto. **Decided** the same evening: a list per
+   tile and on catalogue tiles, empty for any monster. **Built** on
+   `claude/only-from` (see "Only from"); not live. Boris to try it in the
+   console, and to say whether the rules sheet should mention it.
 5. **Done 2026-11-21:** Bingo (see "Bingo"). Its trial card is ended for
    now: Region Bingo first.
 5a. **Region Bingo first (Boris, 2026-11-21).** A whole game through Dink is
@@ -1144,13 +1253,15 @@ a square, Edit, and type a drop.
     (plan, item 3), only tiles open when it dropped (item 4), and an
     organiser cannot require Dink evidence for a tile (item 8). The rules
     sheet has a "Drops from Dink" part, in Boris's words
-    (`docs/region-bingo-rules.md`, under Playing). Still to do with Boris:
-    checks 2 to 4 in "Going live", on a hidden test game (item 11).
+    (`docs/region-bingo-rules.md`, under Playing). Checks 2 to 4 in "Going
+    live" were done on a hidden test game the same evening (item 11), but
+    for a look at the function's log.
 11. **A hidden test game** (Boris, 2026-11-21): **live** the same day
     (pull request #84; see "A hidden test game"). Set up on the live site as
     the organiser account, with no SQL: "Dink test (hidden)", Region Bingo,
     hidden, Dink off, one team. Bones and Cowhide in each of the 11 regions,
     22 tasks, from two catalogue entries made for it; delete them and the
-    game after. Next: Boris adds the players and a captain and starts the
-    game, the captain picks a region, Dink goes on in the console, then
-    checks 2 to 4 in "Going live".
+    game after. Boris played it the same evening: five drops, all as the
+    rules say (see "On the live site"). Boris set Misthalin's "Cowhide" to
+    need three, to see how it acts. The board now has 25 tasks: Kandarin 5,
+    Karamja 3.

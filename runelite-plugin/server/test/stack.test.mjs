@@ -778,6 +778,44 @@ const bingoOutcomes = [...bingoLog.matchAll(/\{"outcome":"([a-z_]+)"(?:,"reason"
 ok("the function's log for the Bingo requests: nothing before the start, then three handed in",
    J(bingoOutcomes) === J(['nothing_submitted', 'submitted', 'submitted', 'submitted']), J(bingoOutcomes));
 
+// ------------------------------------------------------------- "Only from"
+// (20261121160000_only_from.sql; Boris, 2026-11-21.) The organiser gives the
+// card's Granite maul an "Only from" with the console's own call, and Dink's
+// monster decides: from Callisto nothing, from the Kalphite Queen it counts.
+const logBeforeFrom = fnLog().length;
+const maul = { name: 'Granite maul', rule: 'points', amount: 1, options: [{ label: 'Granite maul', points: 1 }] };
+r = await rpc('admin_tiles_drop_from', { p_game_id: gb }, org);
+ok('"Only from": no tile on the card has a list yet', r.status === 200 && J(r.body) === '[]', J(r));
+r = await rpc('admin_set_tile_with_from', { p_game_id: gb, p_row: 1, p_col: 3,
+  p_tile: { ...maul, dropFrom: ['Kalphite Queen'] } }, people.red.jwt);
+ok('a captain cannot give a tile one', r.status >= 400, J(r));
+r = await rpc('admin_set_tile_with_from', { p_game_id: gb, p_row: 1, p_col: 3,
+  p_tile: { ...maul, dropFrom: [' Kalphite  Queen '] } }, org);
+ok('the organiser gives the Granite maul tile one, mid-game, with the console\'s call; the tile keeps its id',
+   r.status === 200 && r.body === TB['Granite maul'], J(r));
+r = await rpc('admin_tiles_drop_from', { p_game_id: gb }, org);
+ok('and reads it back, tidied', r.status === 200
+   && J(r.body) === J([{ tile_id: TB['Granite maul'], drop_from: ['Kalphite Queen'] }]), J(r));
+r = await rpc('admin_tiles_drop_from', { p_game_id: gb }, people.red.jwt);
+ok('a captain cannot read the lists', r.status >= 400, J(r));
+const fromMonster = (rsn, items, source, world) => {
+  const loot = lootFrom(rsn, items, { world });
+  return { ...loot, extra: { ...loot.extra, source } };
+};
+d = await dink(tok.mate, fromMonster('Mate Iron', [['Granite maul', 4153, 400_000]], 'Callisto', 418), PNG);
+ok('a Granite maul from Callisto: 200 {ok:true}, and nothing handed in',
+   d.status === 200 && d.body === '{"ok":true}' && onCard('Granite maul').length === 0, J([d, onCard('Granite maul')]));
+d = await dink(tok.mate, fromMonster('Mate Iron', [['Granite maul', 4153, 400_000]], 'Kalphite Queen', 419), PNG);
+rows = onCard('Granite maul');
+ok('one from the Kalphite Queen is handed in, saying where it came from',
+   d.status === 200 && rows.length === 1 && rows[0].team_id === teamB.Red && rows[0].detail?.from === 'Kalphite Queen'
+   && rows[0].status === 'completed', J([d, rows]));
+await new Promise((res) => setTimeout(res, 800));
+const fromOutcomes = [...fnLog().slice(logBeforeFrom).matchAll(/\{"outcome":"([a-z_]+)"(?:,"reason":"([a-z_]+)")?/g)]
+  .map((x) => x[2] ?? x[1]);
+ok("the function's log: nothing from Callisto, then handed in",
+   J(fromOutcomes) === J(['nothing_submitted', 'submitted']), J(fromOutcomes));
+
 // -------------------------------------------------------- a hidden game
 // (20261121140000_hidden_games.sql.) The login page's "Now running"
 // (web/src/components/NowRunning.jsx) asks PostgREST for this, signed out.

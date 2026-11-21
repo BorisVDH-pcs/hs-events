@@ -392,6 +392,16 @@ export default function BoardBuilder({
    * old one standing -- which is what the catalogue form does with a rename
    * too.
    */
+  /**
+   * Whether this database keeps "Only from" lists (20261121160000_only_from.sql):
+   * the rows carry `drop_from` once it does. Then every save from the form
+   * says what the box says, so an empty box is "from any monster" and never
+   * "whatever the catalogue entry has". Without the migration, saves go on
+   * exactly as before.
+   */
+  const fromKnown = library.some((e) => 'drop_from' in e) || tiles.some((t) => 'drop_from' in t);
+  const withFrom = (draft) => (fromKnown && draft.dropFrom == null ? { ...draft, dropFrom: '' } : draft);
+
   const catalogued = useMemo(() => {
     if (!editing || editing.what !== 'square') return null;
     const key = nameKey(editing.draft.name);
@@ -677,10 +687,10 @@ export default function BoardBuilder({
   async function saveSquare() {
     let libraryId = catalogued?.id ?? null;
     if (!libraryId) {
-      libraryId = await onSaveLibraryTile(null, payloadFromDraft(editing.draft));
+      libraryId = await onSaveLibraryTile(null, payloadFromDraft(withFrom(editing.draft)));
       if (!libraryId) return;
     }
-    const payload = payloadFromDraft(editing.draft, { libraryId });
+    const payload = payloadFromDraft(withFrom(editing.draft), { libraryId });
     remember(at.row, at.col);
     if (await onSetTile(at.row, at.col, payload)) setEditing(null);
   }
@@ -700,12 +710,12 @@ export default function BoardBuilder({
    * again was a step that knew the answer already.
    */
   async function saveLibrary(targetId = editing.id ?? null) {
-    const payload = payloadFromDraft(editing.draft);
+    const payload = payloadFromDraft(withFrom(editing.draft));
     const id = await onSaveLibraryTile(targetId, payload);
     if (!id) return;
     setEditing(null);
     // The id goes with it, so the square knows which entry it came from.
-    if (at) await placePayload(payloadFromDraft(editing.draft, { libraryId: id }));
+    if (at) await placePayload(payloadFromDraft(withFrom(editing.draft), { libraryId: id }));
   }
 
   if (locked) {
@@ -1394,6 +1404,7 @@ export default function BoardBuilder({
                 onSave={editing.what === 'square' ? saveSquare : () => saveLibrary()}
                 onCancel={() => setEditing(null)}
                 extraErrors={clashMessage ? [clashMessage] : []}
+                showDropFrom
                 extraActions={editing.from ? (
                   <>
                     {/* The way back to editing in place. Kept because the

@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import { validateTileRow } from '../src/lib/tileParser.js';
 import {
   EMPTY_DRAFT, draftFromRow, payloadFromDraft, payloadFromRow,
-  validateDraft, ruleSummary, groupsOf,
+  validateDraft, ruleSummary, groupsOf, dropFromList,
 } from '../src/lib/tileDraft.js';
 
 /** A tile as admin_list_tiles / admin_list_library return it. */
@@ -196,6 +196,34 @@ for (const [what, row] of cases) {
   }, 'G7');
   assert.deepEqual(errors, ['G7 caps every drop, which tops out at 15 of the 30 points it asks for.']);
 }
+
+// ---- "Only from" travels only when the row brought it ------------------------
+// (20261121160000_only_from.sql; Boris, 2026-11-21.) A row without drop_from --
+// a suggestion, or a database without the migration -- must give a payload
+// without dropFrom, so the save leaves a stored list alone and goes to the old
+// function.
+
+assert.ok(!('dropFrom' in draftFromRow(asRow({}))), 'no drop_from on the row, none in the draft');
+assert.ok(!('dropFrom' in payloadFromRow(asRow({}))), 'and none in the payload');
+
+const kq = asRow({ name: 'KQ pickaxe', drop_from: ['Kalphite Queen', 'Tombs of Amascut'] });
+assert.equal(draftFromRow(kq).dropFrom, 'Kalphite Queen, Tombs of Amascut', 'the form shows one line');
+assert.deepEqual(payloadFromRow(kq).dropFrom, ['Kalphite Queen', 'Tombs of Amascut'], 'and it comes back as the list');
+assert.deepEqual(payloadFromRow(asRow({ drop_from: [] })).dropFrom, [], 'an empty list is sent as empty: any monster');
+
+assert.deepEqual(dropFromList(' Kalphite  Queen ,, Callisto\n Vet\'ion ,'),
+  ['Kalphite Queen', 'Callisto', "Vet'ion"], 'commas or new lines, spaces tidied, blanks dropped');
+assert.deepEqual(dropFromList(''), []);
+assert.deepEqual(dropFromList(undefined), []);
+
+const fromDraft = (dropFrom) => ({ ...draftFromRow(asRow({ name: 'Ok' })), dropFrom });
+assert.deepEqual(validateDraft(fromDraft('Kalphite Queen')), [], 'a list is fine');
+assert.deepEqual(validateDraft(fromDraft('')), [], 'and so is none');
+assert.deepEqual(
+  validateDraft(fromDraft(Array.from({ length: 21 }, (_, i) => `Monster ${i}`).join(', '))),
+  ['"Only from" takes at most 20 monsters.'], 'more than twenty is refused, in the database\'s words');
+assert.equal(validateDraft(fromDraft('x'.repeat(81))).length, 1, 'a name over 80 letters is refused');
+assert.deepEqual(validateDraft(fromDraft('x'.repeat(80))), [], 'eighty is fine');
 
 // ---- what the picker prints -------------------------------------------------
 
