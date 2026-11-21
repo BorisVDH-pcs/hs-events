@@ -620,9 +620,10 @@ Two things it showed:
 
 - **A drop counts wherever it dropped.** Wilderness's "Bones" took Bones from
   a Man. Matching is by name only; that is the open question in Next,
-  item 5.
-- **Misthalin's "Cowhide" needed three cowhides**, though every tile on the
-  test board was meant to need one. The site did what the tile said.
+  item 4.
+- **A tile that needs more than one drop collects them across kills.**
+  Boris set Misthalin's "Cowhide" to need three, to see how it acts: 1 of 3,
+  2 of 3, 3 of 3, and then it was complete and took no more.
 
 Not checked: the function's log in the Supabase dashboard (the rest of check
 4). Not tried on the live site: a pet, a drop two tiles want, a revoke.
@@ -1150,7 +1151,9 @@ a square, Edit, and type a drop.
    added or split.
 4. Boris to say whether a drop should count only from the boss its tile
    names, or from anywhere, as now (see "A drop counts wherever it came
-   from").
+   from"). **Boris, 2026-11-21,** after the live test: he may want it to.
+   A Kalphite Queen "Dragon pickaxe" tile should not be completed by a
+   Dragon pickaxe from Callisto; today it is. How is not decided yet.
 5. **Done 2026-11-21:** Bingo (see "Bingo"). Its trial card is ended for
    now: Region Bingo first.
 5a. **Region Bingo first (Boris, 2026-11-21).** A whole game through Dink is
@@ -1192,5 +1195,6 @@ a square, Edit, and type a drop.
     hidden, Dink off, one team. Bones and Cowhide in each of the 11 regions,
     22 tasks, from two catalogue entries made for it; delete them and the
     game after. Boris played it the same evening: five drops, all as the
-    rules say (see "On the live site"). Misthalin's "Cowhide" needs three, not
-    one. The board now has 25 tasks: Kandarin 5, Karamja 3.
+    rules say (see "On the live site"). Boris set Misthalin's "Cowhide" to
+    need three, to see how it acts. The board now has 25 tasks: Kandarin 5,
+    Karamja 3.
