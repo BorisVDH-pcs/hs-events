@@ -535,6 +535,10 @@ for them; `intake`; `drop_key`, matching and the alias dictionary;
 the per-game switch; a rules line in `region-bingo-rules.md`; a setup page for
 players (install Dink, paste this URL). This is the whole of "evidence
 submission is not needed any more" for drop tiles, with no Hub review.
+**Built for Region Bingo by 2026-11-21 and ready to merge**, the setup steps
+on the token screen itself; no alias dictionary (the tile editor checks
+names instead), and the rules line still to write
+(`runelite-plugin/README.md`, "Going live").
 
 **Phase 2: our own plugin.** *Shelved 2026-11-21.* `plugin_watchlist` and `plugin_poll`; the plugin
 with side panel, pop-ups and its own drop submission; Hub submission. Dink

@@ -1,15 +1,17 @@
 # hs-events and Dink: work so far
 
-Started 2026-11-20 from `docs/runelite-plugin-plan.md`. Everything in this
-folder is new and stands apart from the website, and nothing was applied to
-the live Supabase project.
+Started 2026-11-20 from `docs/runelite-plugin-plan.md`. Nothing has been
+applied to the live Supabase project yet: that happens when Boris merges
+this branch (see "Going live").
 
 **Dink only.** On 2026-11-21 Boris decided against a plugin of our own: drops
 come in through Dink, the RuneLite plugin many players already run, and this
 folder holds what receives them. The Java plugin that was started here was
 removed the same day; it is in the branch's history at commit `dcceb68` if it
-is ever wanted again. The folder keeps its name until the drafts and the
-function move into `supabase/` on merge.
+is ever wanted again. On 2026-11-21, to go live for Region Bingo, the two
+drafts became migrations in `supabase/migrations` and the intake moved to
+`supabase/functions/intake`. This folder keeps the tests, the local stack and
+this file.
 
 Six changes to the website itself were made with Boris's go-ahead on
 2026-11-21: the **Plugin tokens** section of My Account (see "The token
@@ -23,32 +25,33 @@ tiles want (see "A drop two tiles want"), and a **"Drops from Dink" switch**
 on each Region Bingo game in the admin console (see "Dink on or off, per
 game"). All six are on this branch only. The token screen, the label, the
 report, the box and the switch hide themselves on a database without the
-drafts, so the live site would show nothing new even if they were merged
-before the drafts are applied. The name check needs no database and would
-show at once; it only warns.
+plugin's migrations, so a site published before the migrations are applied
+shows nothing new. The name check needs no database and shows at once; it
+only warns.
 
 Uploading evidence on the site is unchanged and stays the normal way in,
 whether Dink is on or off for a game. Dink is an extra way to hand in a
 drop, for players who run it.
 
-The two `.sql` files in `server/` are drafts. They are kept out of
-`supabase/migrations` so that `db-push.yml` cannot apply them. They only
-become migrations when they are moved there on purpose.
+The two plugin migrations were kept out of `supabase/migrations`, as
+drafts, until Boris said to go live. They are there now, so `db-push.yml`
+applies them on merge.
 
 ## What is here
 
 | Path | What | State |
 |---|---|---|
-| `server/001_plugin_tokens.sql` | Plugin tokens, `drop_key`, `plugin_as` | Tested offline, and on a local Supabase stack |
-| `server/002_plugin_drops.sql` | Evidence `source` and `detail`, the intake log, `plugin_wanted`, `plugin_match`, `plugin_open`, `plugin_submit` (for Region Bingo and Bingo), `admin_evidence_sources` for the review screen, `evidence_sources` for a tile's panel, a drop two tiles want, kept for the team to choose (`plugin_wait_open`, `plugin_wait`, `waiting_drops`, `waiting_drop_open`, `waiting_drop_choose`), removing the screenshots nobody needs (`plugin_leftover_files`, `plugin_leftovers_removed`), and Dink on or off per game (`games.plugin_drops`, `admin_set_plugin_drops`) | Tested offline against the real rules, and on a local Supabase stack |
-| `server/intake/dink.mjs` | Reads a Dink notification; makes the dedupe key | Tested; checked against Dink's source, and read real loot from a real Dink client on 2026-11-21. Pets not yet from a client |
-| `server/intake/handle.mjs` | What happens to one notification: match, open, store, submit, or keep it for the team to choose; and removing the screenshots nobody needs | Tested end to end, offline |
-| `server/intake/shrink.mjs` | Makes a screenshot over 3 MB smaller: halves a PNG until it fits. No library, only what the runtime has | Tested offline and in the edge runtime |
-| `server/intake/index.ts` | The Edge Function shell around `handle.mjs`; cleans up after each request whose token the database accepted | Tested on the local stack; not deployed anywhere |
-| `server/test/replay.mjs` | Replays all 129 migrations into an in-memory Postgres, with stand-ins for what Supabase provides | Works; the repo's own Region Bingo smoke test passes on it, 76 of 76 |
+| `supabase/migrations/20261121120000_plugin_tokens.sql` | Plugin tokens, `drop_key`, `plugin_as` | Tested offline, and on a local Supabase stack |
+| `supabase/migrations/20261121120100_plugin_drops.sql` | Evidence `source` and `detail`, the intake log, `plugin_wanted`, `plugin_match`, `plugin_open`, `plugin_submit` (for Region Bingo and Bingo), `admin_evidence_sources` for the review screen, `evidence_sources` for a tile's panel, a drop two tiles want, kept for the team to choose (`plugin_wait_open`, `plugin_wait`, `waiting_drops`, `waiting_drop_open`, `waiting_drop_choose`), removing the screenshots nobody needs (`plugin_leftover_files`, `plugin_leftovers_removed`), and Dink on or off per game (`games.plugin_drops`, `admin_set_plugin_drops`) | Tested offline against the real rules, and on a local Supabase stack |
+| `supabase/functions/intake/dink.mjs` | Reads a Dink notification; makes the dedupe key | Tested; checked against Dink's source, and read real loot from a real Dink client on 2026-11-21. Pets not yet from a client |
+| `supabase/functions/intake/handle.mjs` | What happens to one notification: match, open, store, submit, or keep it for the team to choose; and removing the screenshots nobody needs | Tested end to end, offline |
+| `supabase/functions/intake/shrink.mjs` | Makes a screenshot over 3 MB smaller: halves a PNG until it fits. No library, only what the runtime has | Tested offline and in the edge runtime |
+| `supabase/functions/intake/index.ts` | The Edge Function shell around `handle.mjs`; cleans up after each request whose token the database accepted | Tested on the local stack; not deployed anywhere yet |
+| `.github/workflows/functions-deploy.yml` | Deploys `intake` when `supabase/functions` changes on `main`, with the secrets `db-push.yml` has | Not run yet: it first runs on merge |
+| `server/test/replay.mjs` | Replays all 131 migrations into an in-memory Postgres, with stand-ins for what Supabase provides | Works; the repo's own Region Bingo smoke test passes on it, 76 of 76 |
 | `server/test/*.test.mjs` | Seven test files, 358 checks, run by `npm test` | All pass |
 | `server/test/png.mjs`, `fixtures/` | A PNG writer and reader for the tests only, and one small PNG written by Java's ImageIO | |
-| `server/local/` | A local Supabase stack: `config.toml`, and `prepare.mjs`, which copies the migrations, the two drafts and the intake function into it | Works with Supabase CLI 2.122.0 and Docker |
+| `server/local/` | A local Supabase stack: `config.toml`, and `prepare.mjs`, which copies the migrations and the intake function into it | Works with Supabase CLI 2.122.0 and Docker |
 | `server/test/stack.test.mjs` | 128 checks against that stack, the Edge Function included, run by `npm run test:stack` | All pass |
 | `web/src/components/PluginTokens.jsx` | The Plugin tokens section of My Account: make a token, see its Dink link once, revoke | Tried in the preview harness, and used by Boris on the local stack to set up a real Dink (2026-11-21). Not on the live project |
 | `web/src/lib/pluginTokens.js` | The Dink link, the name check, "last used" in words | Tested by `web/scripts/plugin-tokens-selftest.mjs`, and used by `stack.test.mjs` |
@@ -63,6 +66,56 @@ become migrations when they are moved there on purpose.
 | `web/src/lib/itemNames.js`, `itemNames.data.js` | `dropKey` (the server's `drop_key` in JS), the check, and 4,820 item names | Tested by `web/scripts/item-names-selftest.mjs`; `tokens.test.mjs` checks `dropKey` against `drop_key` on every name |
 | `web/scripts/build-item-names.mjs` | Makes `itemNames.data.js` from the OSRS Wiki's price list and a typed list of untradeables | Run once, 2026-11-21 |
 | `web/src/lib/dropLists.js` | The ready-made lists: 65 of them, for raids, groups of bosses, every boss in the collection log and pets | Every name is checked against the item list by the selftest, spelled exactly as the item is |
+
+## Going live
+
+Asked for by Boris on 2026-11-21: Dink goes live for Region Bingo. Nothing
+reaches the live project until he merges this branch into `main`. Then, side
+by side:
+
+- **`db-push.yml`** applies the two new migrations,
+  `20261121120000_plugin_tokens.sql` and `20261121120100_plugin_drops.sql`,
+  after a dry run that lists them. They add tables, functions, two columns
+  to `tile_evidence` and one to `games`. No existing function, policy or
+  grant changes. A new trigger marks each new piece of evidence with where it
+  came from: an upload from the site is `web`, as every existing row is.
+- **`functions-deploy.yml`** (new) deploys `intake`, with no JWT check, using
+  the secrets `db-push.yml` already has. No new secret.
+- **`deploy.yml`** publishes the site: the token screen, "Sent by plugin",
+  Dink's report in a tile's panel, the box for a drop two tiles want, the
+  tile editor's name check and the console's switch.
+
+**Every game, old and new, starts with Dink off.** Nothing changes for
+anyone until an organiser switches a Region Bingo game on. Uploading on the
+site works as before, on or off.
+
+**After the merge, with Boris:**
+
+1. All three runs green, and the dry run listed exactly the two migrations.
+2. My Account on the live site: make a token. Its Dink link is the live
+   project's address with `/functions/v1/intake/dink?t=hse_…`.
+3. The console, on a Region Bingo game: "Drops from Dink" is there, off.
+4. On a game switched on, one drop from a real Dink, and the function's log
+   in the Supabase dashboard: one line, with the outcome.
+
+**If something is wrong:** switch the game off in the console. Dink's drops
+then count nowhere, and the site works as before. A player can revoke their
+token in My Account. A revert does not take the migrations back out
+(`db-push` only runs forward), but with every game off they change nothing.
+
+**Not known until then:**
+
+- **Whether the live project's migration history matches the repo.** The
+  dry run shows it before anything is applied, and `db push` refuses if it
+  does not match. The 131 migrations were applied from nothing on a
+  throwaway local stack with the CLI version `db-push` pins (2026-11-21).
+- **Whether the hosted function's service-role key works.** Supabase gives
+  every function `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`, and the
+  local stack did the same. If the live project has turned its older keys
+  off, the first request fails in the log, and the key has to be set under
+  Edge Functions, Secrets. Until then nothing counts: Dink tries three more
+  times, then gives up.
+- **A hosted CPU** for a big screenshot (see "What they do not prove").
 
 ## What the tests prove
 
@@ -209,8 +262,11 @@ same software a hosted project runs: Postgres 17.11, PostgREST 16.5, Storage
 1.84.19, Auth 2.197.0, edge runtime 1.77.8 (Deno 2). It is not the live
 project and never touches it. Tested 2026-11-21, 128 of 128.
 
-- **The migrations apply on real Supabase.** All 129, then the two drafts, by
-  the CLI itself, with no errors.
+- **The migrations apply on real Supabase.** All 131, the plugin's two the
+  last, by the CLI itself, with no errors. And all 131 again from nothing, on
+  a second, throwaway stack with CLI 2.122.0, the version `db-push.yml` pins
+  (2026-11-21, removed after): every plugin function there, Dink off by
+  default.
 - **The game is built the site's way.** Users are made through Auth, sign in
   with a password, add their in-game names and pick regions through PostgREST
   with their own sign-in. Done in SQL: making the organiser an admin, as on
@@ -346,7 +402,8 @@ with no sign-in. Every request goes to a link made by the site's own
 
 - **A hosted Supabase project.** The local stack runs the same software, but
   the live project's settings, its Postgres version and its limits were not
-  compared, by design. The Edge Function has not been deployed.
+  compared, by design. The Edge Function has not been deployed; see "Going
+  live" for what is checked after the merge.
 - **A pet from a real Dink.** Loot from a real client has been read (see "A
   real Dink client" below). A pet notification has only been checked against
   Dink's source, and a real screenshot over 3 MB has not come in yet: the
@@ -544,7 +601,8 @@ Boris agreed to a sketch of it.
 
 In the organiser's evidence review, made on 2026-11-21 with Boris's go-ahead.
 Uploading on the site is not touched: an upload sends no source, the trigger
-in draft 002 stamps it `web`, and the screen shows it exactly as before.
+in `20261121120100_plugin_drops.sql` stamps it `web`, and the screen shows
+it exactly as before.
 
 - **"Sent by plugin", never "verified".** A grey, dashed pill beside the gold
   one that names the drop it was filed as. Its tooltip says the plugin runs on
@@ -557,11 +615,11 @@ in draft 002 stamps it `web`, and the screen shows it exactly as before.
   right shape.
 - **Its own function, not two more columns on `admin_list_evidence`.**
   Changing what that returns means dropping and re-creating it, and its live
-  body has been rewritten in place since, so a copy in the draft could drift
+  body has been rewritten in place since, so a copy in the migration could drift
   from it. `admin_evidence_sources` reads `source` and `detail` and asks the
   same question, `may_manage_game`, in the same words.
-- **A database without the drafts** (the live project today): the call
-  answers `PGRST202` and no row has a label. **If the call fails** any other
+- **A database without the plugin's migrations** (the live project until
+  the merge): the call answers `PGRST202` and no row has a label. **If the call fails** any other
   way, the rows still load and a line says the screen cannot tell which
   evidence a plugin sent, rather than pass plugin evidence off as uploads.
 
@@ -584,7 +642,7 @@ organiser.
 - **The time** is the evidence row's own: our server's clock when Dink's
   message arrived, a few seconds after the kill, not the player's.
 - **Asked for the open tile only**, by evidence id, through
-  `evidence_sources` in draft 002. It answers for the caller's own team's
+  `evidence_sources`. It answers for the caller's own team's
   evidence, or a game they run, and gives the same empty answer for anything
   else, so the second secret holds (see "What the tests prove").
 - **Still what the player's client said.** The line tells anyone looking what
@@ -641,8 +699,8 @@ screenshot was thrown away. Now it waits for the team.
 - **Only while Dink is on for the game.** Switched off, a drop already
   waiting is no longer offered; switched on again within its hour, it is
   back (see "Dink on or off, per game").
-- **A database without the drafts** (the live project today): there is no
-  box, and no error.
+- **A database without the plugin's migrations** (the live project until
+  the merge): there is no box, and no error.
 
 Tested offline (`waiting.test.mjs`), on the local stack (`stack.test.mjs`)
 and in the harness.
@@ -714,7 +772,7 @@ it on, Region Bingo only for now.
   The switch shows only on Region Bingo games that have not finished.
 - **In the console:** under the game's start and end times, the site's own
   switch, as for Discord, with a line saying what on and off mean. On a
-  database without the drafts it does not show.
+  database without the plugin's migrations it does not show.
 
 Tested offline (`switch.test.mjs`), on the local stack through PostgREST
 (`stack.test.mjs`), and in the admin harness at desktop and phone width.
@@ -861,12 +919,15 @@ The local stack needs Docker and the Supabase CLI:
     cd ../test && npm run test:stack
     cd ../local && supabase stop
 
-After changing a draft, run `node prepare.mjs` and `supabase db reset` before
-the test. After changing the function, run `node prepare.mjs` and give the
-edge runtime a few seconds: a test started at once can still meet the old
-code. A reset also wipes a trial account; draft 002 can instead be run
-again as it is, since every statement in it is "if not exists" or "create or
-replace" (done that way for the Bingo change, 2026-11-21). The test reads the stack's own development keys from
+After changing a migration, run `node prepare.mjs` and `supabase db reset`
+before the test. After changing the function, run `node prepare.mjs` and
+give the edge runtime a few seconds: a test started at once can still meet
+the old code. A reset also wipes a trial account;
+`20261121120100_plugin_drops.sql` can instead be run again as it is, with
+psql in the stack's database container, since every statement in it is "if
+not exists" or "create or replace" (done that way for the Bingo change and
+the switch, 2026-11-21). When the drafts became migrations, the stack's own
+migration history was renamed to match, so the trial was kept. The test reads the stack's own development keys from
 `supabase status` while it runs; they are never printed or saved.
 
 A real Dink client against the local stack, with the real site:
@@ -973,9 +1034,11 @@ a square, Edit, and type a drop.
    Boris played it the same day with two cows and a real Dink. **Done** the
    same evening: removing the screenshots nobody needs (see "Screenshots
    nobody needs").
-10. **Going live for Region Bingo** (Boris, 2026-11-21): the two drafts into
-    `supabase/migrations`, the function into `supabase/functions`, a GitHub
-    workflow to deploy it, and a pull request for Boris to merge. Decided
-    with it: a matched drop counts at once (plan, item 3), only tiles open
-    when it dropped (item 4), and an organiser cannot require Dink evidence
-    for a tile (item 8).
+10. **Going live for Region Bingo** (Boris, 2026-11-21): **ready to
+    merge.** The two drafts are migrations, the function is in
+    `supabase/functions`, and a workflow deploys it (see "Going live").
+    Decided with it: a matched drop counts at once (plan, item 3), only
+    tiles open when it dropped (item 4), and an organiser cannot require
+    Dink evidence for a tile (item 8). Boris merges the pull request on
+    GitHub; after it, the checks in "Going live". Still open: a line about
+    Dink in `docs/region-bingo-rules.md`, Boris's words.
