@@ -5,16 +5,18 @@
 -- It adds two columns to tile_evidence, one trigger on it, one table and new
 -- functions, one of them for the site (admin_evidence_sources, the review
 -- screen's "sent by plugin"). It rewrites no existing function:
--- tiles_for_team, regions_open_tile and add_evidence are called exactly as
--- they are, so every rule they hold applies to a plugin without being written
--- down twice.
+-- tiles_for_team, regions_open_tile, bingo_open_tile and add_evidence are
+-- called exactly as they are, so every rule they hold applies to a plugin
+-- without being written down twice.
 --
--- Tested offline by server/test/regions.test.mjs, against a replay of every
--- migration in supabase/migrations, and on a local Supabase stack by
--- server/test/stack.test.mjs.
+-- Tested offline by server/test/regions.test.mjs and bingo.test.mjs, against
+-- a replay of every migration in supabase/migrations, and on a local Supabase
+-- stack by server/test/stack.test.mjs.
 --
--- Region Bingo only, for now. The other modes are a branch in plugin_open
--- each, added one at a time (plan, section 7).
+-- Region Bingo and Bingo, for now. Each mode is one line in plugin_wanted and
+-- one branch in plugin_open_tile, added one at a time (plan, section 7);
+-- Snakes and Ladders, Territory and Challenge are not wired, so a drop never
+-- counts there.
 
 -- ============================================================
 -- 1. Where a piece of evidence came from
@@ -95,6 +97,10 @@ revoke all on plugin_intake_log from public, anon, authenticated;
 -- One row per drop option of every tile the team can see and has not
 -- completed, less the options evidence_refusal would turn away (a repeat cap
 -- reached, a set already taken).
+--
+-- Bingo needs nothing of its own here: tiles_for_team shows a Bingo team the
+-- whole card once the game has started, and nothing of it before. region is
+-- null for a Bingo tile.
 
 create or replace function plugin_wanted()
 returns table (
@@ -106,19 +112,22 @@ set search_path = public
 as $$
 declare
   v_game uuid;
+  v_mode text;
   v_team uuid;
 begin
   -- A loop, not one join: tiles_for_team is only ever called with a team the
   -- caller is really on, never with a null one.
-  for v_game in
-    select g.id from games g where g.status = 'active' and g.mode = 'regions'
+  for v_game, v_mode in
+    select g.id, g.mode::text from games g
+     where g.status = 'active' and g.mode::text in ('regions', 'bingo')
   loop
     v_team := my_team_in_game(v_game);
     continue when v_team is null;
 
     return query
       select v_game, v_team, t.id, t.name, t."position"::int,
-             regions_region_at(t."position"::int), t.claim_id, o.id, o.label, drop_key(o.label)
+             case when v_mode = 'regions' then regions_region_at(t."position"::int) end,
+             t.claim_id, o.id, o.label, drop_key(o.label)
         from tiles_for_team(v_game, v_team) t
         join tile_options o on o.tile_id = t.id
        where t.revealed
@@ -241,6 +250,32 @@ begin
 end;
 $$;
 
+-- What the site's first screenshot does, mode by mode: the same function the
+-- site calls, so its rules (the caller's team, the game running, the time,
+-- and in Region Bingo the region opened) are checked by the site's own code.
+-- Only reached for a tile plugin_check has passed, which is always one of the
+-- modes below; anything else gets the answer a missing tile gets.
+
+create or replace function plugin_open_tile(p_tile_id uuid)
+returns uuid
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_mode text;
+begin
+  select g.mode::text into v_mode
+    from tiles t join games g on g.id = t.game_id
+   where t.id = p_tile_id;
+
+  case v_mode
+    when 'regions' then return regions_open_tile(p_tile_id);
+    when 'bingo'   then return bingo_open_tile(p_tile_id);
+    else raise exception 'That drop does not count for an open tile';
+  end case;
+end;
+$$;
+
 create or replace function plugin_open(
   p_token text, p_rsn text, p_tile_id uuid, p_option_id uuid, p_item text)
 returns jsonb
@@ -253,7 +288,7 @@ declare
   v_claim uuid;
 begin
   -- Exactly what the first screenshot does on the site.
-  v_claim := regions_open_tile(p_tile_id);
+  v_claim := plugin_open_tile(p_tile_id);
   return jsonb_build_object(
     'game_id', v.game_id, 'team_id', v.team_id, 'claim_id', v_claim,
     'path_prefix', v.game_id || '/' || v.team_id || '/' || v_claim || '/');
@@ -292,7 +327,7 @@ begin
   end if;
 
   v := plugin_check(p_rsn, p_tile_id, p_option_id, p_item);
-  v_claim := regions_open_tile(p_tile_id);
+  v_claim := plugin_open_tile(p_tile_id);
 
   perform set_config('hs.evidence_source', v_source, true);
   perform set_config('hs.evidence_detail', (coalesce(p_detail, '{}'::jsonb) - 'dedupe')::text, true);
@@ -361,6 +396,7 @@ revoke execute on function evidence_stamp_source()                 from public, 
 revoke execute on function plugin_wanted()                         from public, anon, authenticated, service_role;
 revoke execute on function plugin_rsn_ok(text)                     from public, anon, authenticated, service_role;
 revoke execute on function plugin_check(text, uuid, uuid, text)    from public, anon, authenticated, service_role;
+revoke execute on function plugin_open_tile(uuid)                  from public, anon, authenticated, service_role;
 revoke execute on function plugin_match(text, text, jsonb)         from public, anon, authenticated;
 revoke execute on function plugin_open(text, text, uuid, uuid, text) from public, anon, authenticated;
 revoke execute on function plugin_submit(text, text, uuid, uuid, text, text, text, jsonb)

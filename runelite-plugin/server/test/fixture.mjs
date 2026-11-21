@@ -98,3 +98,59 @@ export async function buildGame() {
 
   return { db, ids, g, team, T, opt, tok, site, plugin, trying };
 }
+
+// A Bingo game beside the Region Bingo one, 3 by 3, for bingo.test.mjs. Same
+// people, plus Solo, who plays in this game only.
+//
+//   Red  (Red Cap, Red Mate)   Blue (Blue Cap, Solo)
+//   Whip (Abyssal whip)   Pickaxe (Dragon pickaxe)   Zulrah (three uniques; needs 2)
+//   Dragon bones          Rune scimitar              Draconic visage
+//   Bandos chestplate     Granite maul               Dragon med helm
+//
+// Whip is also on Region Bingo's Misthalin, and Pickaxe on its Asgarnia, so a
+// drop can be wanted in both games at once. Left in preparation: the test
+// starts it.
+export async function addBingo({ db, ids, site }) {
+  const userId = (await db.query(
+    `insert into auth.users (instance_id, aud, role, email, encrypted_password, raw_user_meta_data)
+     values ('00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', $1, '', $2)
+     returning id`,
+    ['solo@plugin-test.invalid', J({ display_name: 'Solo' })])).rows[0].id;
+  await db.query(`insert into profile_accounts (profile_id, rsn, is_primary) values ($1, 'Solo Main', true)`, [userId]);
+
+  const gb = (await site(ids.org,
+    `select admin_new_game('Plugin bingo', 'bingo', array['Red','Blue'], 3::smallint, now() + interval '1 day') id`))[0].id;
+  const teamB = {};
+  for (const r of (await db.query('select id, name from teams where game_id = $1', [gb])).rows) teamB[r.name] = r.id;
+
+  const card = [
+    ['whip', 'Whip', 1, ['Abyssal whip']],
+    ['pickaxe', 'Pickaxe', 1, ['Dragon pickaxe']],
+    ['zulrah', 'Zulrah', 2, ['Tanzanite fang', 'Magic fang', 'Serpentine visage']],
+    ['bones', 'Dragon bones', 1, ['Dragon bones']],
+    ['scimitar', 'Rune scimitar', 1, ['Rune scimitar']],
+    ['visage', 'Draconic visage', 1, ['Draconic visage']],
+    ['bandos', 'Bandos chestplate', 1, ['Bandos chestplate']],
+    ['maul', 'Granite maul', 1, ['Granite maul']],
+    ['medHelm', 'Dragon med helm', 1, ['Dragon med helm']],
+  ];
+  const TB = {};
+  for (const [i, [key, name, amount, labels]] of card.entries()) {
+    TB[key] = (await site(ids.org, 'select admin_set_tile($1, $2::smallint, $3::smallint, $4::jsonb) id',
+      [gb, Math.floor(i / 3) + 1, (i % 3) + 1,
+       J({ name, rule: 'points', amount, options: labels.map((label) => ({ label, points: 1 })) })]))[0].id;
+  }
+  const optB = {};
+  for (const r of (await db.query(
+    'select o.id, o.label from tile_options o join tiles t on t.id = o.tile_id where t.game_id = $1', [gb])).rows) {
+    optB[r.label] = r.id;
+  }
+
+  await site(ids.org, `select admin_set_member($1, $2, 'captain')`, [teamB.Red, ids.red]);
+  await site(ids.org, `select admin_set_member($1, $2, 'member')`, [teamB.Red, ids.mate]);
+  await site(ids.org, `select admin_set_member($1, $2, 'captain')`, [teamB.Blue, ids.blue]);
+  await site(ids.org, `select admin_set_member($1, $2, 'member')`, [teamB.Blue, userId]);
+
+  const solo = { id: userId, tok: (await site(userId, `select plugin_token_create('solo') t`))[0].t };
+  return { gb, teamB, TB, optB, solo };
+}
