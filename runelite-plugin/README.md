@@ -53,7 +53,7 @@ become migrations when they are moved there on purpose.
 | `web/src/components/EvidenceReview.jsx` | The organiser's evidence review: "Sent by plugin" on a row a plugin handed in, with what it reported | Tried in the preview harness, and seen by Boris on the local stack with his own drops (2026-11-21). Not on the live project |
 | `web/src/components/EvidencePanel.jsx` | Every tile's panel, a team's and an organiser's: Dink's report beside each Dink screenshot ("Bones ×1 from Woman", the time, the world) | Tried in the preview harness at desktop and phone width; its call tested through PostgREST on the local stack, and Boris's own Bones row read through it. Not yet opened by Boris on the local site. Not on the live project |
 | `web/src/lib/evidenceSource.js` | The label, the drop line and the lines under it, from `source` and `detail` | Tested by `web/scripts/evidence-source-selftest.mjs`, and used by `stack.test.mjs` |
-| `web/src/components/WaitingDrops.jsx` | The box above a team's board: a drop two tiles want, its screenshot and Dink's report, and a button for each tile | Tried in the preview harness at desktop and phone width; the calls behind it tested through PostgREST and Storage on the local stack. Not yet used by Boris on the local site. Not on the live project |
+| `web/src/components/WaitingDrops.jsx` | The box above a team's board: a drop two tiles want, its screenshot and Dink's report, and a button for each tile | Tried in the preview harness at desktop and phone width; the calls behind it tested through PostgREST and Storage on the local stack; used by Boris on the local site for a real Dink cow (2026-11-21). Not on the live project |
 | `web/src/lib/waitingDrops.js` | The box's helpers: a tile's name with its region, the time left, where the copy goes | Tested by `web/scripts/waiting-drops-selftest.mjs` |
 | `web/src/components/TileForm.jsx` | The tile editor: "Not in the item list" under a drop, with names to click, and "Add a list…" | Tried in the admin harness (`/preview-admin.html`), at desktop and phone width. Not on the live project, not used by Boris yet |
 | `web/src/lib/itemNames.js`, `itemNames.data.js` | `dropKey` (the server's `drop_key` in JS), the check, and 4,820 item names | Tested by `web/scripts/item-names-selftest.mjs`; `tokens.test.mjs` checks `dropKey` against `drop_key` on every name |
@@ -327,10 +327,6 @@ with no sign-in. Every request goes to a link made by the site's own
   the harness draws it, and Boris's own Bones row reads "Bones ×1 from Woman",
   16:57:22, "World 308 · as Soft Papi" when asked as his account. Nobody has
   yet opened that tile on the local site to see it there.
-- **The waiting box with a real Dink, in a signed-in browser.** Its calls are
-  tested through PostgREST and Storage, and the harness draws it. Nobody has
-  yet killed a cow in the trial game and chosen a tile for its Raw beef on
-  the local site.
 - **An organiser choosing for a team.** Acting for a team, an organiser
   should see its box and be able to choose, as they can upload for it; that
   has not been tried. Only viewing a team, they see no box.
@@ -418,7 +414,8 @@ and killed cows and chickens at Lumbridge.
 | A second chicken | the same | Nothing: "Feathers" was done and had left the list |
 
 Since then a drop two tiles want is kept for the team to choose: that Raw
-beef would now wait an hour on the site (see "A drop two tiles want").
+beef now waits an hour on the site, and Boris played it the same day (see "A
+drop two tiles want").
 
 What that proves, beyond the tests:
 
@@ -599,8 +596,23 @@ screenshot was thrown away. Now it waits for the team.
   box, and no error.
 
 Tested offline (`waiting.test.mjs`), on the local stack (`stack.test.mjs`)
-and in the harness; not yet with a real Dink kill (see "What they do not
-prove").
+and in the harness.
+
+**Played 2026-11-21, with a real Dink.** Boris killed two cows in the trial
+game, where "Raw beef, one" and "Raw beef, two" both want Raw beef (times in
+UTC):
+
+| Time | What happened |
+|---|---|
+| 17:00:50 | First cow. Raw beef wanted by both tiles: it waits, its 0.2 MB screenshot in the team's `waiting/` folder. Bones and Cowhide: no open tile wants them |
+| 17:01:20 | Boris chose "Raw beef, one" in the box on the local site. Handed in as his, source `dink`, "chosen by" him; the copy has Dink's eTag and size. The tile completed, with the usual feed lines (11 to 13 points) |
+| 17:01:43 | Second cow. Only "Raw beef, two" still wants Raw beef, so it is handed in at once, with no choice to make (13 to 15 points) |
+
+So with a real client and a real browser: a drop two tiles want waits and
+is handed in on the tile the team picks, and once one of the two is done
+the next drop goes straight to the other. Not tried with the real client: a
+drop left until the hour is up, and a teammate choosing for the player who
+got it (the tests cover both).
 
 ## The tile editor's name check
 
@@ -845,6 +857,5 @@ a square, Edit, and type a drop.
    panel on the local site. For the go-live rules line: say both.
 9. **Done 2026-11-21:** a drop two tiles want waits an hour, and anyone on
    the team chooses its tile on the site (see "A drop two tiles want").
-   Boris to try it: kill a cow in the trial game, and choose a tile for its
-   Raw beef in the box above the board on http://localhost:5177. Not built:
+   Boris played it the same day with two cows and a real Dink. Not built:
    removing the waiting screenshots afterwards.
