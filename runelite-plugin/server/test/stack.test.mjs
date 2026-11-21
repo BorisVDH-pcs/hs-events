@@ -339,7 +339,7 @@ ok('and is one evidence row: by that player, for Blue, source dink',
    rows.length === 1 && rows[0].uploaded_by === people.blue.id && rows[0].source === 'dink', J(rows));
 ok("with what Dink reported, and the player's name as the site spells it",
    rows[0]?.detail?.rsn === 'Blue Main' && rows[0]?.detail?.world === 330 && rows[0]?.detail?.dink_type === 'LOOT'
-   && rows[0]?.detail?.item_id === 11920 && rows[0]?.detail?.seasonal === false, J(rows[0]?.detail));
+   && rows[0]?.detail?.item_id === 11920, J(rows[0]?.detail));
 const stored = rows[0] ? await download(rows[0].storage_path) : { status: 0 };
 ok('the screenshot went through supabase-js into Storage byte for byte',
    stored.status === 200 && Buffer.compare(Buffer.from(stored.bytes), Buffer.from(PNG)) === 0, stored.status);
@@ -368,6 +368,12 @@ const rnd = () => (lcg = (lcg * 1103515245 + 12345) & 0x7fffffff) >> 16;
 const worst = makePng(3840, 2400, (x, y, k) => (k === 3 ? 255
   : (((x >> 3) * 5 + (y >> 2) * 3 + k * 70) & 255) ^ ((rnd() & 31) < 3 ? rnd() & 3 : 0)), { filters: [0], idatChunk: 1 << 16 });
 if (!(worst.bytes.length > 3 * 1024 * 1024 && worst.bytes.length < 8_000_000)) throw new Error('worst-case screenshot is the wrong size');
+// Boris, 2026-11-21: a drop on a Leagues (seasonal) world does not count. The
+// chainbody tile is open for Red, and is handed in for real just below.
+d = await dink(tok.mate, lootFrom('Mate Iron', [['Dragon chainbody', 3140, 4_000_000]], { seasonalWorld: true }), worst.bytes);
+ok('the same chainbody from a seasonal (Leagues) world: 200 {ok:true}, and nothing handed in',
+   d.status === 200 && d.body === '{"ok":true}'
+   && sqlJson(`select 1 from tile_evidence e join tile_claims c on c.id = e.claim_id where c.tile_id = '${T.chain}'`).length === 0, J(d));
 d = await dink(tok.mate, lootFrom('Mate Iron', [['Dragon chainbody', 3140, 4_000_000]]), worst.bytes);
 const chain = sqlJson(`select e.detail, e.storage_path from tile_evidence e join tile_claims c on c.id = e.claim_id where c.tile_id = '${T.chain}'`);
 const chainFile = chain[0] ? await download(chain[0].storage_path) : { status: 0 };
@@ -384,7 +390,7 @@ const log = fnLog().slice(logBefore);
 const outcomes = [...log.matchAll(/\{"outcome":"([a-z_]+)"(?:,"reason":"([a-z_]+)")?/g)].map((x) => x[2] ?? x[1]);
 ok("the function's log has one line per request, with the outcome",
    J(outcomes) === J(['bad_token', 'bad_json', 'submitted', 'nothing_submitted', 'nothing_submitted', 'nothing_submitted',
-                      'nothing_submitted', 'covered_by_loot', 'submitted']), J(outcomes));
+                      'nothing_submitted', 'covered_by_loot', 'seasonal_world', 'submitted']), J(outcomes));
 const resizedLog = log.match(/"resized":(\{[^}]*\})/);
 console.log(`     (in the edge runtime: ${resizedLog ? resizedLog[1] : 'no resize logged'})`);
 ok('and never a token', !/hse_/.test(log) && !Object.values(tok).some((t) => log.includes(t)));

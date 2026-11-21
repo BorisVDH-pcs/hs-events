@@ -68,6 +68,9 @@ public class HsEventsPlugin extends Plugin
 		{
 			return;
 		}
+		// TODO (before anything is sent): nothing on a seasonal world, i.e. when
+		// client.getWorldType() contains WorldType.SEASONAL. Decided 2026-11-21:
+		// a Leagues drop does not count. The intake already refuses it.
 
 		for (ItemStack stack : event.getItems())
 		{

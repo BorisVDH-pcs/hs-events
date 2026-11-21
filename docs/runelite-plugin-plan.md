@@ -134,6 +134,9 @@ phase. Two notes for then:
 - **Pets and collection log slots** are announced by the game in chat. Dink
   already turns both into notifications.
 
+**Decided, 2026-11-21:** for now only Dink's Loot and Pet notifications are
+read. A tile that needs any other evidence is handed in on the site, as today.
+
 ---
 
 ## 4. How it would be built: the server
@@ -511,6 +514,13 @@ modes, one at a time.
    Mobile players could never complete it.
 9. **The name on the Hub.** The plugin is public: anybody can install it, and
    it does nothing without a token from the site.
+10. **A drop on a Leagues or other seasonal world.** **Decided, 2026-11-21:**
+    it does not count. The intake ignores it, and our own plugin must do the
+    same.
+11. **Which Dink notifications.** **Decided, 2026-11-21:** Loot and Pet only.
+    A collection log or clue notification often repeats a drop already sent
+    as loot, so reading it could count one drop twice. Any other evidence is
+    handed in on the site.
 
 ---
 

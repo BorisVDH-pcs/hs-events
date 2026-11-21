@@ -190,7 +190,7 @@ let ev = await evidence(team.Red);
 ok('a wanted drop is handed in', res.status === 200 && res.outcome === 'submitted' && ev.length === 1 && ev[0].tile === 'Barrows chest', J(res));
 ok("with source 'dink' and what Dink reported",
    ev[0].source === 'dink' && ev[0].detail.item === "Karil's coif" && ev[0].detail.from === 'Abyssal demon'
-   && ev[0].detail.world === 302 && ev[0].detail.rsn === 'Mate Iron' && ev[0].detail.seasonal === false
+   && ev[0].detail.world === 302 && ev[0].detail.rsn === 'Mate Iron'
    && ev[0].uploaded_by === ids.mate, J(ev[0].detail));
 ok("and nothing about anybody else: a raid partner's name is not kept", !J(ev[0]).includes('Raid Friend'), J(ev[0].detail));
 ok('its screenshot is stored once, under the claim, where the row says',
@@ -253,6 +253,15 @@ ok("Dink's retry once that filled the tile: nothing counted, nothing stored, not
    res.outcome === 'nothing_submitted' && (await evidence(team.Blue)).length === 1 && store.size === before && shrinkCalls === 1, J(res));
 
 before = store.size;
+// Boris, 2026-11-21: a drop on a Leagues (seasonal) world does not count. The
+// whip tile is open for Red, so this drop would count anywhere else.
+const whip = await deps.rpc('plugin_match', { p_token: tok.mate, p_rsn: 'Mate Iron', p_items: [{ name: 'Abyssal whip' }] });
+const callsAt = rpcCalls.length;
+res = await send('mate', loot('Mate Iron', ['Abyssal whip'], { seasonalWorld: true }), bigShot, countShrinks);
+ok('a wanted drop from a seasonal (Leagues) world: ignored, the database never asked, its screenshot not made smaller',
+   whip.items[0].verdict === 'one' && res.status === 200 && res.outcome === 'ignored' && res.reason === 'seasonal_world'
+   && rpcCalls.length === callsAt && shrinkCalls === 1, J([whip.items[0].verdict, res]));
+
 for (const [name, run, want] of [
   ['no screenshot', () => send('mate', loot('Mate Iron', ['Abyssal whip']), null), 'no_screenshot'],
   ['a screenshot over the bucket limit that is not a PNG this can read', () => send('mate', loot('Mate Iron', ['Abyssal whip']), { bytes: new Uint8Array(MAX_BYTES + 1), type: 'image/png' }), 'screenshot_too_large'],

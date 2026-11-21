@@ -20,10 +20,10 @@ become migrations when they are moved there on purpose.
 | `server/intake/shrink.mjs` | Makes a screenshot over 3 MB smaller: halves a PNG until it fits. No library, only what the runtime has | Tested offline and in the edge runtime |
 | `server/intake/index.ts` | The Edge Function shell around `handle.mjs` | Tested on the local stack; not deployed anywhere |
 | `server/test/replay.mjs` | Replays all 129 migrations into an in-memory Postgres, with stand-ins for what Supabase provides | Works; the repo's own Region Bingo smoke test passes on it, 76 of 76 |
-| `server/test/*.test.mjs` | Three test files, 154 checks, run by `npm test` | All pass |
+| `server/test/*.test.mjs` | Three test files, 155 checks, run by `npm test` | All pass |
 | `server/test/png.mjs`, `fixtures/` | A PNG writer and reader for the tests only, and one small PNG written by Java's ImageIO | |
 | `server/local/` | A local Supabase stack: `config.toml`, and `prepare.mjs`, which copies the migrations, the two drafts and the intake function into it | Works with Supabase CLI 2.122.0 and Docker |
-| `server/test/stack.test.mjs` | 56 checks against that stack, the Edge Function included, run by `npm run test:stack` | All pass |
+| `server/test/stack.test.mjs` | 57 checks against that stack, the Edge Function included, run by `npm run test:stack` | All pass |
 | `plugin/.../core/` | `DropKey` and `WatchList`: the matching rule in plain Java | Tested, 16 checks, also run by `gradle test` |
 | `plugin/.../HsEvents*.java`, build files | The RuneLite plugin skeleton, built the template's way | Builds against RuneLite 1.13.7; **never loaded in a client** |
 
@@ -64,6 +64,9 @@ and `add_evidence` are the real ones:
   loot never reaches the evidence row.
 - **A screenshot over 3 MB is made smaller, not lost.** See "Screenshots over
   3 MB" below.
+- **A Leagues drop does not count.** A drop from a seasonal world is ignored
+  even when an open tile wants it. The database is never asked, and a big
+  screenshot is not made smaller for it.
 
 ## Screenshots over 3 MB
 
@@ -175,6 +178,9 @@ with no sign-in.
   collection-log notification for a drop already counted is ignored.
 - **The log says what happened and nothing more.** One line per request with
   its outcome, and never a token.
+- **A Leagues drop is refused.** Red's chainbody from a seasonal world gets
+  the same `200 {"ok":true}` as any drop and hands nothing in. The same drop
+  from a normal world, next, is handed in.
 - **The worst screenshot fits in the runtime.** A 7.2 MB, 3840 x 2400 PNG is
   handed in, kept at 1920 x 1200 and 1.7 MB, pixel for pixel the expected
   half-size picture, with `resized_from` on its evidence.
@@ -244,15 +250,18 @@ says. Each point is either handled here or a setup instruction for players.
   `world`, `regionId`, and for loot `extra.items[]` (`id`, `quantity`,
   `priceEach`, `name`), `extra.source` and `extra.category`; for a pet
   `extra.petName`. `seasonalWorld` is a true/false that the parser did not
-  read. It is now kept in the evidence detail as `seasonal`, so an organiser
-  can see a drop from a Leagues world.
+  read. **Decided by Boris, 2026-11-21:** a drop on a Leagues or other
+  seasonal world does not count. The intake ignores it, before the database
+  is asked, and answers `200` so Dink does not send it again.
 - **One drop can arrive two or three times.** Loot, then a collection log
   notification when the drop fills a new slot, or a clue notification beside
   the casket's loot. Each carries its own screenshot, so the dedupe key cannot
-  tell them apart. Only LOOT and PET are read now. With Dink's defaults, loot
-  includes clue caskets and has no minimum value, so nothing is lost. A
-  player who raises Dink's minimum loot value or turns off "include clue
-  scrolls" loses those drops to the plugin and hands them in on the site.
+  tell them apart. **Decided by Boris, 2026-11-21:** only LOOT and PET are
+  read. Any other evidence a tile needs is handed in on the site, as today.
+  With Dink's defaults, loot includes clue caskets and has no minimum value,
+  so no drop is lost. A player who raises Dink's minimum loot value or turns
+  off "include clue scrolls" loses those drops to the plugin and hands them in
+  on the site.
 - **A loot notification lists every item of the kill**, not only the ones
   that met the player's Dink settings. An item on the player's Dink deny list
   is still listed. It is matched like any other: it is in the loot.

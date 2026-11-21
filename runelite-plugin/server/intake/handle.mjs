@@ -49,6 +49,9 @@ export async function handleDink({ token, payloadText, image }, deps) {
   // (DiscordMessageHandler), so a 401 or 400 is retried too; that only costs
   // three calls.
   if (!drop.ok) return { status: 200, outcome: 'ignored', reason: drop.reason };
+  // Decided by Boris, 2026-11-21: a drop on a Leagues or other seasonal world
+  // does not count. Refused before the database is asked, so it costs nothing.
+  if (drop.seasonal) return { status: 200, outcome: 'ignored', reason: 'seasonal_world' };
   if (!image) return { status: 200, outcome: 'ignored', reason: 'no_screenshot' };
   if (!(image.type in IMAGE_TYPES)) return { status: 200, outcome: 'ignored', reason: 'screenshot_type' };
   // Over the bucket's limit: only a PNG as Dink writes it can be made smaller
@@ -117,7 +120,7 @@ export async function handleDink({ token, payloadText, image }, deps) {
           dedupe: `${base}:${hit.option_id}`,
           rsn: drop.rsn, item: item.name, item_id: item.id, quantity: item.quantity,
           price_each: item.priceEach, from: drop.from, category: drop.category,
-          world: drop.world, region_id: drop.regionId, seasonal: drop.seasonal, dink_type: drop.type,
+          world: drop.world, region_id: drop.regionId, dink_type: drop.type,
           // So a reviewer knows the picture was made smaller here, and from what.
           ...(resized ? { resized_from: resized.from } : {}),
         },
