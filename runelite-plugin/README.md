@@ -44,7 +44,7 @@ applies them on merge.
 | `supabase/migrations/20261121120000_plugin_tokens.sql` | Plugin tokens, `drop_key`, `plugin_as` | Tested offline, and on a local Supabase stack |
 | `supabase/migrations/20261121120100_plugin_drops.sql` | Evidence `source` and `detail`, the intake log, `plugin_wanted`, `plugin_match`, `plugin_open`, `plugin_submit` (for Region Bingo and Bingo), `admin_evidence_sources` for the review screen, `evidence_sources` for a tile's panel, a drop two tiles want, kept for the team to choose (`plugin_wait_open`, `plugin_wait`, `waiting_drops`, `waiting_drop_open`, `waiting_drop_choose`), removing the screenshots nobody needs (`plugin_leftover_files`, `plugin_leftovers_removed`), and Dink on or off per game (`games.plugin_drops`, `admin_set_plugin_drops`) | Tested offline against the real rules, and on a local Supabase stack |
 | `supabase/migrations/20261121160000_only_from.sql` | "Only from" (Boris, 2026-11-21): `drop_from` on tiles and catalogue entries, a trigger that gives a square its entry's list, `admin_set_tile_with_from` and `admin_save_library_tile_with_from` around the existing saves, two readers for the organiser, and the check in `plugin_match`, `plugin_wait_choices` and `plugin_submit`. No existing function rewritten | Tested offline against the real rules, and on a local Supabase stack. Live since 2026-11-21 (pull request #86): `db-push.yml` applied this one migration |
-| `supabase/migrations/20261122120000_set_from_monster.sql` | A drop in several sets (Boris, 2026-11-22): it counts for the set named after the monster Dink names, and no other. `plugin_set_ok`, checked in `plugin_match`, `plugin_wait_choices` and `plugin_submit` beside "Only from". No existing rule rewritten | Tested offline against the real rules (`setfrom.test.mjs`, `regions.test.mjs`). Not tested on the local stack. Not live |
+| `supabase/migrations/20261122120000_set_from_monster.sql` | A drop in several sets (Boris, 2026-11-22): it counts for the set named after the monster Dink names, and no other. `plugin_set_ok`, checked in `plugin_match`, `plugin_wait_choices` and `plugin_submit` beside "Only from". No existing rule rewritten | Tested offline against the real rules (`setfrom.test.mjs`, `regions.test.mjs`). Not tested on the local stack. Live since 2026-11-22 (pull request #92): `db-push.yml` applied this one migration |
 | `supabase/functions/intake/dink.mjs` | Reads a Dink notification; makes the dedupe key | Tested; checked against Dink's source, and read real loot from a real Dink client on 2026-11-21. Pets not yet from a client |
 | `supabase/functions/intake/handle.mjs` | What happens to one notification: match, open, store, submit, or keep it for the team to choose; and removing the screenshots nobody needs | Tested end to end, offline |
 | `supabase/functions/intake/shrink.mjs` | Makes a screenshot over 3 MB smaller: halves a PNG until it fits. No library, only what the runtime has | Tested offline and in the edge runtime |
@@ -67,8 +67,8 @@ applies them on merge.
 | `web/src/components/Admin.jsx` | "Drops from Dink" on each Region Bingo game that has not finished: the site's own switch, as for Discord | Tried in the admin harness (`/preview-admin.html`) at desktop and phone width; its call tested through PostgREST on the local stack. On the live site since 2026-11-21 (pull request #83): switched on there by Boris for the hidden test game (see "On the live site") |
 | `web/src/components/TileForm.jsx` | The tile editor: "Not in the item list" under a drop, with names to click, and "Add a list…" | Tried in the admin harness (`/preview-admin.html`), at desktop and phone width. On the live site since 2026-11-21 (pull request #83); not used by Boris yet |
 | `web/src/components/TileForm.jsx`, `BoardBuilder.jsx`, `web/src/lib/tileDraft.js`, `supabase.js` | "Only from" in the organiser's tile form, for board squares and catalogue entries; not in a player's suggestion | Tested by `web/scripts/tile-draft-selftest.mjs`; tried in the admin harness. On the live site since 2026-11-21 (pull request #86); tested there by Boris with a real Dink the same evening: a drop from a monster not on the list did not count |
-| `web/src/lib/itemNames.js`, `itemNames.data.js` | `dropKey` (the server's `drop_key` in JS), the check, and 4,820 item names | Tested by `web/scripts/item-names-selftest.mjs`; `tokens.test.mjs` checks `dropKey` against `drop_key` on every name |
-| `web/scripts/build-item-names.mjs` | Makes `itemNames.data.js` from the OSRS Wiki's price list and a typed list of untradeables | Run once, 2026-11-21 |
+| `web/src/lib/itemNames.js`, `itemNames.data.js` | `dropKey` (the server's `drop_key` in JS), the check, and 4,849 item names | Tested by `web/scripts/item-names-selftest.mjs`; `tokens.test.mjs` checks `dropKey` against `drop_key` on every name |
+| `web/scripts/build-item-names.mjs` | Makes `itemNames.data.js` from the OSRS Wiki's price list and a typed list of untradeables | Run on 2026-11-21, and again on 2026-11-22 with 29 more untradeables (the price list had no new items) |
 | `web/src/lib/dropLists.js` | The ready-made lists: 65 of them, for raids, groups of bosses, every boss in the collection log and pets | Every name is checked against the item list by the selftest, spelled exactly as the item is |
 
 ## Going live
@@ -882,9 +882,9 @@ tile suggestions all use.
   - *Raids*: raid uniques from all three raids (26), from each raid (12, 7,
     7), and raid weapons (10). Weapons here are what goes in the weapon slot:
     Dinh's bulwark is in, Kodai insignia and the Avernic hilt are not.
-  - *Groups of bosses*: Barrows (24), the four God Wars generals (19), the
-    four Desert Treasure II bosses (12), the Moons of Peril (12) and the
-    Wilderness bosses (17).
+  - *Groups of bosses*: Barrows (24), the four God Wars generals (16), the
+    four Desert Treasure II bosses (28), the Moons of Peril (12) and the
+    Wilderness bosses (15).
   - *Bosses*: one list for each boss in the collection log, 52, in
     alphabetical order and named as players say them ("Nightmare", not "The
     Nightmare"), so typing a letter in the menu finds them. Nex has 6.
@@ -903,11 +903,15 @@ tile suggestions all use.
 - **Sets.** On a set rule each drop gets a set. A boss's own list is one set,
   named after the boss. A list of several bosses gives each boss its own set
   (each Barrows brother, each general, each moon), so "one full Barrows set" or
-  "something from every general" is one pick. A drop that more than one boss in
-  the list drops goes in a set named after the whole list: the Godsword shards
-  in "God Wars Dungeon", the Virtus robes and the Chromium ingot in "Desert
-  Treasure II", the Dragon pickaxe and Dragon 2h sword in "Wilderness bosses".
-  A drop's name does not say which boss it came from.
+  "something from every general" is one pick. What all four Desert Treasure
+  II bosses drop, the Chromium ingot and the three Virtus pieces, is in each
+  boss's set, with the boss's own two and its quartz: seven a boss. The sets
+  are named as Dink names the monster ("The Leviathan"), so a shared drop
+  counts for the boss it came from (see "A drop in several sets"). On a plain
+  tile, with no sets, the list adds each of them once. The God Wars lists have
+  no Godsword shards, and the Wilderness bosses list has no Dragon pickaxe or
+  Dragon 2h sword (Boris, 2026-11-22): they are not the uniques those tiles
+  are about. The bosses' own lists still have them.
 - **Two lists on one tile.** A drop the tile already has is not added twice.
   Add the Kalphite Queen's list and then the King Black Dragon's, and the
   Dragon pickaxe is there once, in the Kalphite Queen's set.
@@ -926,10 +930,11 @@ tile suggestions all use.
   cannot be handed in at all. A tile with no drops listed takes any
   screenshot, and Dink can never match it. Going through the existing tile
   catalogue with this in mind is open (see "Next").
-- **The names**: 4,820, from the OSRS Wiki. Its price list gives every item
+- **The names**: 4,849, from the OSRS Wiki. Its price list gives every item
   the Grand Exchange trades; pets, the raids' untradeable drops, the boss
-  jars and the untradeable drops in the lists were typed from the wiki's own
-  pages. Each of the last 44 was checked to exist on the wiki; two had been
+  jars, the untradeable drops in the lists and those on the HS Leagues tasks
+  were typed from the wiki's own pages. Each of the last 73 was checked to
+  exist on the wiki (44 on 2026-11-21, 29 on 2026-11-22); two had been
   renamed in August ("Eye of the Duke", "Pendant of Ates"), and the list has
   the new names. Wiki content is CC BY-NC-SA 3.0,
   and the file says where it came from. The list is its own 24 KB file,
@@ -938,7 +943,7 @@ tile suggestions all use.
 - **The same spelling rule as the server.** `dropKey` in
   `web/src/lib/itemNames.js` is `drop_key` written again in JS, so the editor
   can answer what the server would. `tokens.test.mjs` runs both over every
-  name in the list and every ready-made drop: they agree on all 5,317.
+  name in the list and every ready-made drop: they agree on all 5,349.
 
 ## Only from
 
@@ -1012,7 +1017,8 @@ Virtus pieces drop from all four bosses, so they are in all four sets. An
 ingot from Duke Sucellus matched all four, waited for the team to choose,
 and the four buttons read the same; a wrong pick filled the wrong boss. Boris
 decided the same day: they count, by themselves, but only for the boss they
-came from. Built the same day; not live yet.
+came from. Built the same day, and live the same day (pull request #92;
+`db-push.yml` applied the one migration).
 
 - **What it does.** When Dink names the monster, and one of the tile's sets
   is named after that monster, the drop counts for that set only. A Chromium
@@ -1046,6 +1052,10 @@ came from. Built the same day; not live yet.
   The other set tasks (1 Unique From Each GWD Boss, Full Barrows set, Two
   different purples from each raid, 10 Moons Uniques) have none, so nothing
   changes for them.
+- **The ready-made list builds it.** The tile editor's "Desert Treasure II
+  bosses" list puts the ingot and the Virtus in each boss's set, named as
+  Dink names the monster, with the boss's quartz (see "Add a list…" above;
+  changed 2026-11-22, after this rule).
 
 Tested: `setfrom.test.mjs` (28 checks: an ingot from each boss to its own
 set, a boss's own drop from another boss, a full set, a pet, a tile whose

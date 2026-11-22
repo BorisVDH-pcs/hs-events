@@ -612,7 +612,7 @@ modes, one at a time.
     themselves, but only for the boss they came from. When one of a tile's
     sets is named after the monster Dink names, the drop counts for that set
     only. Built on 2026-11-22 (see `runelite-plugin/README.md`, "A drop in
-    several sets"); not live yet.
+    several sets"); live the same day (pull request #92).
 
 ---
 
