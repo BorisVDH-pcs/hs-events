@@ -28,9 +28,13 @@
  * `set` is the group a drop goes in when the tile uses a set rule ("something
  * from every set"). On a plain tile it is not used. A boss's own list puts
  * everything in one set named after the boss; the lists of several bosses
- * give each boss its own set. A drop that more than one of those bosses
- * drops (the Godsword shards, the Dragon pickaxe) goes in a set named after
- * the whole list, because a drop's name does not say which boss it came from.
+ * give each boss its own set. A drop that all four Desert Treasure II bosses
+ * drop (Chromium ingot, the Virtus pieces) goes in each of the four sets:
+ * Dink names the monster, and a drop counts only for the set named after the
+ * monster it came from (20261122120000_set_from_monster.sql). The Godsword
+ * shards are not in the God Wars lists, and the Dragon pickaxe and Dragon 2h
+ * sword are not in the Wilderness bosses list (Boris, 2026-11-22): they are
+ * not the uniques those tiles are about. Each boss's own list still has them.
  *
  * Sources: the OSRS Wiki, read 2026-11-21: the raid reward pages ("Ancient
  * chest", "Monumental chest", "Chest (Tombs of Amascut)"), each boss's page
@@ -78,21 +82,22 @@ const weapons = inSet('Raids weapons', [
 
 // ---- Bosses that come in groups ----
 //
-// Each boss's own drops, without the ones the group shares: those are added
-// once, in the group's set, when the group is built below.
+// Each boss's own drops, without the ones several bosses share.
 
-const shards = ['Godsword shard 1', 'Godsword shard 2', 'Godsword shard 3'];
 const graardor = ['Bandos chestplate', 'Bandos tassets', 'Bandos boots', 'Bandos hilt'];
 const zilyana = ['Saradomin sword', "Saradomin's light", 'Armadyl crossbow', 'Saradomin hilt'];
 const kreearra = ['Armadyl helmet', 'Armadyl chestplate', 'Armadyl chainskirt', 'Armadyl hilt'];
 const kril = ['Steam battlestaff', 'Zamorakian spear', 'Staff of the Dead', 'Zamorak hilt'];
 
+// What all four drop: in each boss's set, in the group list and in the
+// boss's own list. Each boss's quartz is its own.
 const virtus = ['Chromium ingot', 'Virtus mask', 'Virtus robe top', 'Virtus robe bottom'];
-const duke = ['Magus vestige', 'Eye of the Duke'];
-const leviathan = ['Venator vestige', "Leviathan's lure"];
-const whisperer = ['Bellator vestige', "Siren's staff"];
-const vardorvis = ['Ultor vestige', "Executioner's axe head"];
+const duke = ['Magus vestige', 'Eye of the Duke', 'Ice quartz', ...virtus];
+const leviathan = ['Venator vestige', "Leviathan's lure", 'Smoke quartz', ...virtus];
+const whisperer = ['Bellator vestige', "Siren's staff", 'Shadow quartz', ...virtus];
+const vardorvis = ['Ultor vestige', "Executioner's axe head", 'Blood quartz', ...virtus];
 
+// In the bosses' own lists only, not in the group list.
 const wildyShared = ['Dragon pickaxe', 'Dragon 2h sword'];
 const callisto = ['Claws of Callisto', 'Voidwaker hilt', 'Tyrannical ring'];
 const vetion = ["Skull of Vet'ion", 'Voidwaker blade', 'Ring of the gods'];
@@ -116,13 +121,9 @@ const MOONS = {
   'Eclipse Moon': ['Eclipse atlatl', 'Eclipse Moon helm', 'Eclipse Moon chestplate', 'Eclipse Moon tassets'],
 };
 
-// A list of several bosses: each boss in its own set, the shared drops last
-// in the list's own set.
-function group(name, bosses, shared = []) {
-  return [
-    ...Object.entries(bosses).flatMap(([boss, labels]) => inSet(boss, labels)),
-    ...inSet(name, shared),
-  ];
+// A list of several bosses: each boss in its own set.
+function group(bosses) {
+  return Object.entries(bosses).flatMap(([boss, labels]) => inSet(boss, labels));
 }
 
 // ---- The lists ----
@@ -136,29 +137,31 @@ const raids = [
 ].map((l) => ({ ...l, group: 'Raids' }));
 
 const groups = [
-  { id: 'barrows', name: 'Barrows, a set per brother', drops: group('Barrows', BARROWS) },
+  { id: 'barrows', name: 'Barrows, a set per brother', drops: group(BARROWS) },
   {
     id: 'gwd', name: 'God Wars Dungeon, the four generals',
-    drops: group('God Wars Dungeon', {
+    drops: group({
       'General Graardor': graardor, 'Commander Zilyana': zilyana,
       "Kree'arra": kreearra, "K'ril Tsutsaroth": kril,
-    }, shards),
+    }),
   },
   {
+    // A set is named as Dink names the monster, so that a shared drop counts
+    // for the boss it came from.
     id: 'dt2', name: 'Desert Treasure II bosses',
-    drops: group('Desert Treasure II', {
+    drops: group({
       'Duke Sucellus': duke, 'The Leviathan': leviathan,
       'The Whisperer': whisperer, 'Vardorvis': vardorvis,
-    }, virtus),
+    }),
   },
-  { id: 'moons', name: 'Moons of Peril, a set per moon', drops: group('Moons of Peril', MOONS) },
+  { id: 'moons', name: 'Moons of Peril, a set per moon', drops: group(MOONS) },
   {
     id: 'wilderness', name: 'Wilderness bosses',
-    drops: group('Wilderness bosses', {
+    drops: group({
       'Callisto and Artio': callisto, "Vet'ion and Calvar'ion": vetion,
       'Venenatis and Spindel': venenatis, 'Chaos Fanatic': fanatic,
       'Crazy archaeologist': crazyArch, 'Scorpia': scorpia,
-    }, wildyShared),
+    }),
   },
 ].map((l) => ({ ...l, group: 'Groups of bosses' }));
 
@@ -181,7 +184,7 @@ const BOSSES = {
   'Cerberus': ['Primordial crystal', 'Pegasian crystal', 'Eternal crystal', 'Smouldering stone'],
   'Chaos Elemental': wildyShared,
   'Chaos Fanatic': fanatic,
-  'Commander Zilyana': [...zilyana, ...shards],
+  'Commander Zilyana': zilyana,
   'Corporeal Beast': ['Spectral sigil', 'Arcane sigil', 'Elysian sigil', 'Spirit shield', 'Holy elixir'],
   'Crazy archaeologist': crazyArch,
   'Dagannoth Kings': [
@@ -190,24 +193,24 @@ const BOSSES = {
   ],
   'Deranged archaeologist': ['Steel ring'],
   'Doom of Mokhaiotl': ['Avernic treads', 'Eye of Ayak (uncharged)', 'Mokhaiotl cloth'],
-  'Duke Sucellus': [...duke, ...virtus],
+  'Duke Sucellus': duke,
   'Fight Caves': ['Fire cape'],
   'Fortis Colosseum': [
     'Sunfire fanatic helm', 'Sunfire fanatic cuirass', 'Sunfire fanatic chausses',
     'Tonalztics of Ralos (uncharged)', 'Echo crystal',
   ],
   'Gauntlet (and Corrupted)': ['Crystal weapon seed', 'Crystal armour seed', 'Enhanced crystal weapon seed'],
-  'General Graardor': [...graardor, ...shards],
+  'General Graardor': graardor,
   'Grotesque Guardians': ['Granite maul', 'Granite gloves', 'Granite ring', 'Granite hammer', 'Black tourmaline core'],
   'Hespori': ['Bottomless compost bucket'],
   'Hueycoatl': ['Dragon hunter wand', 'Tome of Earth (empty)'],
   'Inferno': ['Infernal cape'],
-  "K'ril Tsutsaroth": [...kril, ...shards],
+  "K'ril Tsutsaroth": kril,
   'Kalphite Queen': ['Kq head', 'Dragon chainbody', 'Dragon 2h sword', 'Dragon pickaxe'],
   'King Black Dragon': ['Dragon pickaxe', 'Draconic visage'],
   'Kraken': ['Trident of the Seas (full)', 'Kraken tentacle'],
-  "Kree'arra": [...kreearra, ...shards],
-  'Leviathan': [...leviathan, ...virtus],
+  "Kree'arra": kreearra,
+  'Leviathan': leviathan,
   'Mad Angel': ['Hallowfell'],
   'Maggot King': ['Elder venator fang', 'Crimson kisten'],
   'Nex': [
@@ -227,11 +230,11 @@ const BOSSES = {
   'Skotizo': ['Dark claw', 'Uncut onyx'],
   'Tempoross': ['Fish barrel', 'Tackle box', 'Big harpoonfish', 'Tome of Water (empty)', 'Dragon harpoon'],
   'Thermonuclear smoke devil': ['Occult necklace', 'Smoke battlestaff', 'Dragon chainbody'],
-  'Vardorvis': [...vardorvis, ...virtus],
+  'Vardorvis': vardorvis,
   'Venenatis and Spindel': [...venenatis, ...wildyShared],
   "Vet'ion and Calvar'ion": [...vetion, ...wildyShared],
   'Vorkath': ['Draconic visage', 'Skeletal visage', 'Dragonbone necklace'],
-  'Whisperer': [...whisperer, ...virtus],
+  'Whisperer': whisperer,
   'Wintertodt': [
     'Warm gloves', 'Bruma torch', 'Pyromancer hood', 'Pyromancer garb', 'Pyromancer robe',
     'Pyromancer boots', 'Tome of Fire (empty)', 'Dragon axe',
@@ -278,7 +281,7 @@ const OTHER_PETS = [
 const pets = [
   {
     id: 'all-pets', name: 'All pets',
-    drops: group('Pets', { 'Boss pets': BOSS_PETS, 'Skilling pets': SKILLING_PETS, 'Other pets': OTHER_PETS }),
+    drops: group({ 'Boss pets': BOSS_PETS, 'Skilling pets': SKILLING_PETS, 'Other pets': OTHER_PETS }),
   },
   { id: 'boss-pets', name: 'Boss pets', drops: inSet('Boss pets', BOSS_PETS) },
   { id: 'skilling-pets', name: 'Skilling pets', drops: inSet('Skilling pets', SKILLING_PETS) },
@@ -293,13 +296,22 @@ export const DROP_LISTS = [...raids, ...groups, ...bosses, ...pets];
  * twice, and empty rows ("Add drop" pressed, nothing typed) are cleared so the
  * list does not land below a blank. On a set rule each drop gets its list's
  * set; on a plain tile the set stays empty, since nothing reads it there.
+ * A drop a list has in several sets (the Desert Treasure II ingot) is added
+ * once per set on a set rule, and once on a plain tile.
  */
 export function addDropList(options, list, rule) {
   const kept = (options ?? []).filter((o) => (o.label ?? '').trim() || (o.grp ?? '').trim());
   const have = new Set(kept.map((o) => dropKey(o.label)).filter(Boolean));
   const sets = (rule ?? 'points') !== 'points';
+  const seen = new Set();
   const added = list.drops
     .filter((d) => !have.has(dropKey(d.label)))
-    .map((d) => ({ label: d.label, points: '1', grp: sets ? d.set : '', maxTimes: '' }));
+    .map((d) => ({ label: d.label, points: '1', grp: sets ? d.set : '', maxTimes: '' }))
+    .filter((o) => {
+      const key = `${dropKey(o.label)}|${o.grp}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   return [...kept, ...added];
 }
