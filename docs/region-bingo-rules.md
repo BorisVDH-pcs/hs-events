@@ -90,6 +90,10 @@ on the team to choose. Uploading on the site works as always.
 A tile can name the monsters its drop must come from; a drop from any other
 monster then doesn't count for it.
 
+On a tile with a set per boss, a drop that is in several sets counts for the
+set named after the boss it came from, and for no other: a Chromium ingot
+from Duke Sucellus counts for Duke's set only.
+
 ### Unlocking a region
 
 8. A region is **complete** for a team when that team has at least **x% of the

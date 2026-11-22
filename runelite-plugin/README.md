@@ -44,13 +44,14 @@ applies them on merge.
 | `supabase/migrations/20261121120000_plugin_tokens.sql` | Plugin tokens, `drop_key`, `plugin_as` | Tested offline, and on a local Supabase stack |
 | `supabase/migrations/20261121120100_plugin_drops.sql` | Evidence `source` and `detail`, the intake log, `plugin_wanted`, `plugin_match`, `plugin_open`, `plugin_submit` (for Region Bingo and Bingo), `admin_evidence_sources` for the review screen, `evidence_sources` for a tile's panel, a drop two tiles want, kept for the team to choose (`plugin_wait_open`, `plugin_wait`, `waiting_drops`, `waiting_drop_open`, `waiting_drop_choose`), removing the screenshots nobody needs (`plugin_leftover_files`, `plugin_leftovers_removed`), and Dink on or off per game (`games.plugin_drops`, `admin_set_plugin_drops`) | Tested offline against the real rules, and on a local Supabase stack |
 | `supabase/migrations/20261121160000_only_from.sql` | "Only from" (Boris, 2026-11-21): `drop_from` on tiles and catalogue entries, a trigger that gives a square its entry's list, `admin_set_tile_with_from` and `admin_save_library_tile_with_from` around the existing saves, two readers for the organiser, and the check in `plugin_match`, `plugin_wait_choices` and `plugin_submit`. No existing function rewritten | Tested offline against the real rules, and on a local Supabase stack. Live since 2026-11-21 (pull request #86): `db-push.yml` applied this one migration |
+| `supabase/migrations/20261122120000_set_from_monster.sql` | A drop in several sets (Boris, 2026-11-22): it counts for the set named after the monster Dink names, and no other. `plugin_set_ok`, checked in `plugin_match`, `plugin_wait_choices` and `plugin_submit` beside "Only from". No existing rule rewritten | Tested offline against the real rules (`setfrom.test.mjs`, `regions.test.mjs`). Not tested on the local stack. Not live |
 | `supabase/functions/intake/dink.mjs` | Reads a Dink notification; makes the dedupe key | Tested; checked against Dink's source, and read real loot from a real Dink client on 2026-11-21. Pets not yet from a client |
 | `supabase/functions/intake/handle.mjs` | What happens to one notification: match, open, store, submit, or keep it for the team to choose; and removing the screenshots nobody needs | Tested end to end, offline |
 | `supabase/functions/intake/shrink.mjs` | Makes a screenshot over 3 MB smaller: halves a PNG until it fits. No library, only what the runtime has | Tested offline and in the edge runtime |
 | `supabase/functions/intake/index.ts` | The Edge Function shell around `handle.mjs`; cleans up after each request whose token the database accepted | Tested on the local stack. Deployed to the live project on 2026-11-21 (pull request #83), and called there by Boris's real Dink the same evening (see "On the live site") |
 | `.github/workflows/functions-deploy.yml` | Deploys `intake` when `supabase/functions` changes on `main`, with the secrets `db-push.yml` has | Ran on the merge of pull request #83 (2026-11-21): refused at first, since the deploy token could only read, then deployed `intake` once Boris gave it Edge Functions read-write |
 | `server/test/replay.mjs` | Replays all 133 migrations into an in-memory Postgres, with stand-ins for what Supabase provides | Works; the repo's own Region Bingo smoke test passes on it, 76 of 76 |
-| `server/test/*.test.mjs` | Nine test files, 446 checks, run by `npm test` | All pass |
+| `server/test/*.test.mjs` | Ten test files, 478 checks, run by `npm test` | All pass |
 | `server/test/png.mjs`, `fixtures/` | A PNG writer and reader for the tests only, and one small PNG written by Java's ImageIO | |
 | `server/local/` | A local Supabase stack: `config.toml`, and `prepare.mjs`, which copies the migrations and the intake function into it | Works with Supabase CLI 2.122.0 and Docker |
 | `server/test/stack.test.mjs` | 142 checks against that stack, the Edge Function included, run by `npm run test:stack` | All pass |
@@ -1002,6 +1003,57 @@ harness: an entry's list shown, changed and saved, placed on a square, and
 changed on the square alone. A real Dink with a list was tried by Boris on
 the live site (2026-11-21): a drop from a monster not on the list did not
 count. Not tried: the form on the local site.
+
+## A drop in several sets
+
+Boris, 2026-11-22, on the HS Leagues task "Two Uniques From Each DT2 Boss"
+(2 per boss, a set for each of the four bosses). Chromium ingot and the three
+Virtus pieces drop from all four bosses, so they are in all four sets. An
+ingot from Duke Sucellus matched all four, waited for the team to choose,
+and the four buttons read the same; a wrong pick filled the wrong boss. Boris
+decided the same day: they count, by themselves, but only for the boss they
+came from. Built the same day; not live yet.
+
+- **What it does.** When Dink names the monster, and one of the tile's sets
+  is named after that monster, the drop counts for that set only. A Chromium
+  ingot from Duke Sucellus goes straight into Duke's set: no choosing.
+- **A full set takes nothing for another.** When Duke's set already has its
+  two, an ingot from Duke counts for no other boss. It gets the answer a drop
+  no tile wants gets.
+- **The set's name is compared as "Only from" compares a monster's:**
+  spelling forgiven, and a name covers what starts with it in whole words,
+  so a set named "Tombs of Amascut" takes "Tombs of Amascut: Expert Mode".
+  The four DT2 sets are already named as Dink names the bosses: "Duke
+  Sucellus", "The Leviathan", "The Whisperer", "Vardorvis". The awakened
+  bosses have the same names (OSRS Wiki, checked 2026-11-22).
+- **Nothing changes elsewhere.** On a tile whose sets are named after no
+  monster, a drop in two sets still waits for the team to choose. A pet
+  names no monster, and counts as before. "Only from" still applies beside
+  it. An upload on the site is not checked: the player picks the set and the
+  organiser reviews it, as before.
+- **The second secret holds.** A drop from the monster a locked tile's set is
+  named after gets the answer a drop for no tile gets.
+- **How it is built.** One new migration,
+  `supabase/migrations/20261122120000_set_from_monster.sql`: a check,
+  `plugin_set_ok`, next to `plugin_from_ok` in the plugin's own
+  `plugin_match`, `plugin_wait_choices` and `plugin_submit`. Those three are
+  the 20261121160000 versions with that one condition added. `add_evidence`,
+  `tiles_for_team` and the set rules are not touched. The intake already
+  sends each item with Dink's `source`, so it does not change, and neither
+  does the site.
+- **On the live board** (checked 2026-11-22), task 1002 is the only task, and
+  its catalogue entry the only entry, where a drop is in more than one set.
+  The other set tasks (1 Unique From Each GWD Boss, Full Barrows set, Two
+  different purples from each raid, 10 Moons Uniques) have none, so nothing
+  changes for them.
+
+Tested: `setfrom.test.mjs` (28 checks: an ingot from each boss to its own
+set, a boss's own drop from another boss, a full set, a pet, a tile whose
+sets are not monsters' names, a raid's modes, a hand-in for the wrong set
+made by hand, a drop that would wait, "Only from" beside it), and new checks
+in `regions.test.mjs` (the second secret). The checks fail without the
+migration. Not tested: on the local stack (Docker was not running), and
+with a real Dink kill of a DT2 boss.
 
 ## Many drops at once
 
