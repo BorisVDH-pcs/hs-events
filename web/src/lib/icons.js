@@ -176,6 +176,7 @@ export const ICONS = [
   'koschei_the_deathless',
   'kq_head',
   'kraken',
+  'kraken_and_thermonuclear_smoke_devil',
   'kreearra',
   'kril_tsutsaroth',
   'last_man_standing',
