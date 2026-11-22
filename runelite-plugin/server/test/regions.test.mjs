@@ -118,6 +118,35 @@ ok("handing in a locked tile from its own monster is refused, in the words a til
 await setFrom(T.locked, null);
 await setFrom(T.whip, null);
 
+// ---------------------- a set named after a monster keeps the secret too
+// A set's name is part of the tile (20261122120000_set_from_monster.sql). A
+// drop from the monster a locked tile's set is named after must get the
+// answer a drop for no tile gets.
+const setGrp = (optionId, grp) => db.query('update tile_options set grp = $2 where id = $1', [optionId, grp]);
+await setGrp(opt['Dragon pickaxe'], 'Kalphite Queen');
+m = await matchFrom('mate', 'Mate Iron', [
+  { name: 'Dragon pickaxe', from: 'Kalphite Queen' },
+  { name: 'Not an item', from: 'Kalphite Queen' },
+]);
+ok("a locked tile's set named after the monster: its drop from that monster gets the answer no tile gets",
+   verdicts(m) === 'none,none' && J({ ...m.items[0], name: 0 }) === J({ ...m.items[1], name: 0 }), J(m).slice(0, 300));
+ok("no set's name is in what a drop is matched against", !/Kalphite/.test(J(await wanted('mate'))));
+m = await matchFrom('blue', 'Blue Main', [
+  { name: 'Dragon pickaxe', from: 'Kalphite Queen' },
+  { name: 'Dragon pickaxe', from: 'Callisto' },
+]);
+ok('for the team that opened it, the set counts: Kalphite Queen one, Callisto (no set of that name) one',
+   verdicts(m) === 'one,one', J(m).slice(0, 300));
+const setLocked = await trying(plugin, 'select plugin_submit($1,$2,$3,$4,$5,$6,null,$7::jsonb)',
+  [tok.mate, 'Mate Iron', T.locked, opt['Dragon pickaxe'], 'Dragon pickaxe',
+   `${g}/${team.Red}/x/set.jpg`, J({ dedupe: 'set-from-1', from: 'Kalphite Queen' })]);
+const setNoSuch = await trying(plugin, 'select plugin_submit($1,$2,$3,$4,$5,$6,null,$7::jsonb)',
+  [tok.mate, 'Mate Iron', '00000000-0000-0000-0000-000000000001', opt['Dragon pickaxe'], 'Dragon pickaxe',
+   `${g}/${team.Red}/x/set.jpg`, J({ dedupe: 'set-from-2', from: 'Kalphite Queen' })]);
+ok("handing in a locked tile from its set's monster is refused, in the words a tile that does not exist gets",
+   /does not count for an open tile/.test(setLocked ?? '') && setLocked === setNoSuch, J([setLocked, setNoSuch]));
+await setGrp(opt['Dragon pickaxe'], null);
+
 // ------------------------------------------------------------ handing in
 const open = (key, rsn, tileId, optionId, item) =>
   plugin('select plugin_open($1, $2, $3, $4, $5) j', [tok[key], rsn, tileId, optionId, item]);
