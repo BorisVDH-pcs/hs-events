@@ -89,12 +89,19 @@ for (const list of DROP_LISTS) {
   assert.ok(!ids.has(list.id), `list id ${list.id} is unique`);
   ids.add(list.id);
   assert.ok(list.drops.length > 0, `${list.name} has drops`);
+  // Once in each set. A drop may be in several sets (the Desert Treasure II
+  // ingot, in each boss's), never twice in one.
   const keys = new Set();
   for (const drop of list.drops) {
     assert.ok(items.known(drop.label), `${list.name}: "${drop.label}" is an item`);
     assert.ok(drop.set && drop.set.trim(), `${list.name}: "${drop.label}" has a set`);
-    assert.ok(!keys.has(dropKey(drop.label)), `${list.name}: "${drop.label}" only once`);
-    keys.add(dropKey(drop.label));
+    const key = `${dropKey(drop.label)}|${drop.set}`;
+    assert.ok(!keys.has(key), `${list.name}: "${drop.label}" only once in ${drop.set}`);
+    keys.add(key);
+  }
+  if (list.id !== 'dt2') {
+    const labels = list.drops.map((d) => dropKey(d.label));
+    assert.equal(new Set(labels).size, labels.length, `${list.name}: each drop in one set only`);
   }
 }
 const byId = Object.fromEntries(DROP_LISTS.map((l) => [l.id, l]));
@@ -127,14 +134,18 @@ for (const brother of sets('barrows')) {
   assert.ok(pieces.every((p) => p.startsWith(brother)), `${brother}: only ${brother} pieces`);
 }
 
-// God Wars: a set per general, and the shards every general drops in a set
-// of their own, since a shard does not say which general it came from.
-assert.deepEqual(sets('gwd'), ['General Graardor', 'Commander Zilyana', "Kree'arra", "K'ril Tsutsaroth", 'God Wars Dungeon']);
-assert.deepEqual(inSet('gwd', 'God Wars Dungeon'), ['Godsword shard 1', 'Godsword shard 2', 'Godsword shard 3']);
+// God Wars: a set per general, each with its four uniques. The Godsword
+// shards are not uniques, and are in no God Wars list (Boris, 2026-11-22).
+assert.deepEqual(sets('gwd'), ['General Graardor', 'Commander Zilyana', "Kree'arra", "K'ril Tsutsaroth"]);
+assert.equal(byId.gwd.drops.length, 16, 'God Wars: four uniques from each general');
 for (const general of ['general-graardor', 'commander-zilyana', 'kreearra', 'kril-tsutsaroth']) {
   assert.ok(byId[general], `${general} has a list of its own`);
-  assert.equal(byId[general].drops.length, 7, `${general}: four uniques and three shards`);
-  assert.ok(byId[general].drops.some((d) => d.label === 'Godsword shard 1'), `${general} drops shards too`);
+  assert.equal(byId[general].drops.length, 4, `${general}: four uniques`);
+  assert.deepEqual(byId[general].drops.map((d) => d.label), inSet('gwd', byId[general].name),
+    `${general}: the same four as in the God Wars list`);
+}
+for (const list of DROP_LISTS) {
+  assert.ok(!list.drops.some((d) => /^Godsword shard/.test(d.label)), `${list.name}: no Godsword shard`);
 }
 assert.ok(inSet('gwd', "K'ril Tsutsaroth").includes('Staff of the Dead'));
 
@@ -144,10 +155,33 @@ assert.deepEqual(byId.nex.drops.map((d) => d.label), [
 ], 'Nex: six uniques, the Torva as it drops');
 
 assert.deepEqual(sets('moons'), ['Blood Moon', 'Blue Moon', 'Eclipse Moon']);
-assert.deepEqual(sets('dt2'), ['Duke Sucellus', 'The Leviathan', 'The Whisperer', 'Vardorvis', 'Desert Treasure II']);
-assert.deepEqual(inSet('dt2', 'Desert Treasure II'), ['Chromium ingot', 'Virtus mask', 'Virtus robe top', 'Virtus robe bottom'],
-  'what all four drop sits in the shared set');
-assert.deepEqual(inSet('wilderness', 'Wilderness bosses'), ['Dragon pickaxe', 'Dragon 2h sword']);
+// Desert Treasure II: a set per boss, named as Dink names the monster, so a
+// drop all four share (the ingot, the Virtus) counts for the boss it came
+// from. Each set has the boss's own two, its quartz and the four shared.
+const virtus = ['Chromium ingot', 'Virtus mask', 'Virtus robe top', 'Virtus robe bottom'];
+assert.deepEqual(sets('dt2'), ['Duke Sucellus', 'The Leviathan', 'The Whisperer', 'Vardorvis']);
+for (const [boss, own, quartz] of [
+  ['Duke Sucellus', 'duke-sucellus', 'Ice quartz'], ['The Leviathan', 'leviathan', 'Smoke quartz'],
+  ['The Whisperer', 'whisperer', 'Shadow quartz'], ['Vardorvis', 'vardorvis', 'Blood quartz'],
+]) {
+  const drops = inSet('dt2', boss);
+  assert.equal(drops.length, 7, `${boss}: two uniques, a quartz and the four shared`);
+  assert.equal(drops[2], quartz, `${boss}: its own quartz`);
+  assert.deepEqual(drops.slice(3), virtus, `${boss}: the ingot and the Virtus`);
+  assert.deepEqual(byId[own].drops.map((d) => d.label), drops, `${boss}'s own list is the same seven`);
+}
+assert.equal(byId.dt2.drops.filter((d) => /quartz$/.test(d.label)).length, 4, 'four quartzes, one per boss');
+
+// Wilderness: a set per boss and nothing more. The Dragon pickaxe and Dragon
+// 2h sword are not in the group list (Boris, 2026-11-22); the bosses' own
+// lists still have them.
+assert.deepEqual(sets('wilderness'), ['Callisto and Artio', "Vet'ion and Calvar'ion", 'Venenatis and Spindel',
+  'Chaos Fanatic', 'Crazy archaeologist', 'Scorpia']);
+assert.ok(!byId.wilderness.drops.some((d) => /^Dragon (pickaxe|2h sword)$/.test(d.label)), 'no pickaxe or 2h in the group list');
+for (const name of ['Callisto and Artio', "Vet'ion and Calvar'ion", 'Venenatis and Spindel', 'Chaos Elemental']) {
+  const labels = DROP_LISTS.find((l) => l.name === name).drops.map((d) => d.label);
+  assert.ok(labels.includes('Dragon pickaxe') && labels.includes('Dragon 2h sword'), `${name}'s own list keeps both`);
+}
 
 // Every drop that is a pet is in a pet list, and nowhere else.
 const petKeys = new Set(byId['all-pets'].drops.map((d) => dropKey(d.label)));
@@ -204,9 +238,18 @@ for (const list of DROP_LISTS) {
     const draft = { name: list.name, icon: '', description: '', rule, amount: '1', perSet: '1',
       options: addDropList([], list, rule) };
     assert.deepEqual(validateDraft(draft), [], `a ${rule} tile from ${list.name} is valid`);
-    assert.equal(payloadFromDraft(draft).options.length, list.drops.length);
+    // Every drop of the list, except that a drop in several of its sets is
+    // there once on a plain tile.
+    const want = new Set(list.drops.map((d) => `${dropKey(d.label)}|${rule === 'points' ? '' : d.set}`)).size;
+    assert.equal(payloadFromDraft(draft).options.length, want, `${list.name} as a ${rule} tile`);
   }
 }
+// The Desert Treasure II list: the ingot once per boss on a set rule, once
+// on a plain tile.
+const ingots = (rule) => addDropList([], byId.dt2, rule).filter((o) => o.label === 'Chromium ingot');
+assert.deepEqual(ingots('each_set').map((o) => o.grp), ['Duke Sucellus', 'The Leviathan', 'The Whisperer', 'Vardorvis']);
+assert.equal(ingots('points').length, 1, 'a plain tile gets the ingot once');
+assert.equal(addDropList([], byId.dt2, 'points').length, 16, 'a plain tile: twelve of the bosses\' own and the four shared');
 // Two lists on one tile: what both hold is added once, in the first list's set.
 options = addDropList(addDropList([], byId['kalphite-queen'], 'each_set'), byId['king-black-dragon'], 'each_set');
 assert.equal(options.filter((o) => o.label === 'Dragon pickaxe').length, 1, 'the Dragon pickaxe only once');

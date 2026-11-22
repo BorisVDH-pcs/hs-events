@@ -90,6 +90,25 @@ const UNTRADEABLE = [
   'Warm gloves', 'Bruma torch', 'Pyromancer hood', 'Pyromancer garb',
   'Pyromancer robe', 'Pyromancer boots',
   'Tanzanite mutagen', 'Magma mutagen',
+  // Drops on the HS Leagues tiles that cannot be traded, so the price list
+  // does not have them. Each checked on the wiki on 2026-11-22 (tradeable:
+  // No). The quartzes are also in the Desert Treasure II lists. "Dizana's
+  // quiver (uncharged)" is the uncharged version on the "Dizana's quiver"
+  // page; the Horn of Plenty is the charged one (the empty one trades).
+  'Flippers',
+  'Abyssal red dye', 'Abyssal green dye', 'Abyssal blue dye',
+  "Dizana's quiver (uncharged)",
+  'Ice quartz', 'Smoke quartz', 'Shadow quartz', 'Blood quartz',
+  'Big swordfish', 'Big shark',
+  'Brutus slippers',
+  'Mouldy doll', 'Smashed mirror',
+  'Imp champion scroll', 'Goblin champion scroll', 'Skeleton champion scroll',
+  'Zombie champion scroll', 'Giant champion scroll', 'Hobgoblin champion scroll',
+  'Ghoul champion scroll', 'Earth warrior champion scroll', 'Jogre champion scroll',
+  'Lesser demon champion scroll',
+  'Bottomless milk bucket',
+  'Horn of Plenty',
+  'Dragon defender', 'Avernic defender', 'Slayer helmet',
 ];
 
 // A name as the game prints it: letters, digits, spaces and ordinary
